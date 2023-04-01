@@ -12,6 +12,8 @@ from python.main import (
     delete_tag,
     get_users,
     get_user,
+    list_project_tags,
+    list_item_tags,
 )
 
 token = "guest_token"
@@ -66,3 +68,7 @@ print(delete_tag("test", oid, "Tag1", token))
 # User
 print(get_users("test"))
 print(get_user("test", 1))
+
+# Tags
+print(list_project_tags("test"))
+print(list_item_tags("test", oid))

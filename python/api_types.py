@@ -57,6 +57,10 @@ class UserListSuccess(Success):
     data: List[User]
 
 
+class TagListSuccess(Success):
+    data: List[str]
+
+
 class OidSuccess(Success):
     data: Oid
 

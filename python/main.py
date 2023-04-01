@@ -20,6 +20,7 @@ from api_types import (
     OidSuccess,
     UserSuccess,
     UserListSuccess,
+    TagListSuccess,
 )
 from utils import (
     login_user,
@@ -30,6 +31,8 @@ from utils import (
     has_liked,
     has_tag,
     get_user_class,
+    get_tags,
+    get_project_tags,
 )
 
 load_dotenv()
@@ -277,15 +280,19 @@ def delete_like(project: str, oid: int, token: str) -> PlainSuccess:
 
 
 @app.get("/tag/{project}", tags=["Tags"])
-def list_tags(project: str) -> PlainSuccess:
-    # todo
-    return PlainSuccess()
+def list_project_tags(project: str) -> PlainSuccess:
+    cur = con.cursor()
+    tags = get_project_tags(cur, project)
+    cur.close()
+    return TagListSuccess(data=tags)
 
 
 @app.get("/tag/{project}/{oid}", tags=["Tags"])
-def list_item_tags(project: str, oid: int) -> PlainSuccess:
-    # todo
-    return PlainSuccess()
+def list_item_tags(project: str, oid: int) -> TagListSuccess:
+    cur = con.cursor()
+    tags = get_tags(cur, oid)
+    cur.close()
+    return TagListSuccess(data=tags)
 
 
 @app.put(

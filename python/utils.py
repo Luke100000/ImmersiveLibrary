@@ -104,6 +104,14 @@ def get_tags(cur, oid):
     return [t[0] for t in tags]
 
 
+def get_project_tags(cur, project):
+    tags = cur.execute(
+        "SELECT DISTINCT tag FROM tags INNER JOIN content ON tags.id=content.oid WHERE content.project=?",
+        (project,),
+    ).fetchall()
+    return [t[0] for t in tags]
+
+
 def get_content_class(
     cur: Cursor,
     oid: int,
