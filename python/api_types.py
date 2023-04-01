@@ -11,7 +11,7 @@ class Status(Enum):
 
 
 class Content(BaseModel):
-    oid: int
+    itemid: int
     username: str
     likes: int
     tags: List[str]
@@ -29,8 +29,8 @@ class User(BaseModel):
     moderator: bool
 
 
-class Oid(BaseModel):
-    oid: int
+class ItemIdResponse(BaseModel):
+    itemid: int
 
 
 DataType = TypeVar("DataType")
@@ -61,8 +61,8 @@ class TagListSuccess(Success):
     data: List[str]
 
 
-class OidSuccess(Success):
-    data: Oid
+class ItemIdSuccess(Success):
+    data: ItemIdResponse
 
 
 class PlainSuccess(Success[None], Generic[DataType]):

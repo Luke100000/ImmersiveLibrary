@@ -33,31 +33,31 @@ def login_user(con, google_userid, username, token):
         )
 
 
-def own(con, oid, userid):
+def own(con, itemid, userid):
     return (
         con.execute(
             "SELECT count(*) FROM content WHERE userid=? AND oid=?",
-            (userid, oid),
+            (userid, itemid),
         ).fetchone()[0]
         > 0
     )
 
 
-def has_liked(con, oid, userid):
+def has_liked(con, itemid, userid):
     return (
         con.execute(
-            "SELECT count(*) FROM likes WHERE userid=? AND id=?",
-            (userid, oid),
+            "SELECT count(*) FROM likes WHERE userid=? AND itemid=?",
+            (userid, itemid),
         ).fetchone()[0]
         > 0
     )
 
 
-def has_tag(con, oid, tag):
+def has_tag(con, itemid, tag):
     return (
         con.execute(
-            "SELECT count(*) FROM tags WHERE tag=? AND id=?",
-            (tag, oid),
+            "SELECT count(*) FROM tags WHERE tag=? AND itemid=?",
+            (tag, itemid),
         ).fetchone()[0]
         > 0
     )
@@ -74,8 +74,10 @@ def get_username(cur, userid):
     return None if username is None else username[0]
 
 
-def get_likes(cur, oid):
-    likes = cur.execute("SELECT COUNT(*) FROM likes WHERE id=?", (oid,)).fetchone()
+def get_likes(cur, itemid):
+    likes = cur.execute(
+        "SELECT COUNT(*) FROM likes WHERE itemid=?", (itemid,)
+    ).fetchone()
     return None if likes is None else likes[0]
 
 
@@ -99,14 +101,14 @@ def get_submissions(cur, project, userid):
     return [get_content_class(cur, *c) for c in content]
 
 
-def get_tags(cur, oid):
-    tags = cur.execute("SELECT tag FROM tags WHERE id=?", (oid,)).fetchall()
+def get_tags(cur, itemid):
+    tags = cur.execute("SELECT tag FROM tags WHERE itemid=?", (itemid,)).fetchall()
     return [t[0] for t in tags]
 
 
 def get_project_tags(cur, project):
     tags = cur.execute(
-        "SELECT DISTINCT tag FROM tags INNER JOIN content ON tags.id=content.oid WHERE content.project=?",
+        "SELECT DISTINCT tag FROM tags INNER JOIN content ON tags.itemid=content.oid WHERE content.project=?",
         (project,),
     ).fetchall()
     return [t[0] for t in tags]
@@ -114,17 +116,17 @@ def get_project_tags(cur, project):
 
 def get_content_class(
     cur: Cursor,
-    oid: int,
+    itemid: int,
     userid: str,
     title: str,
     meta: str = None,
     data: bytes = None,
 ):
     username = get_username(cur, userid)
-    likes = get_likes(cur, oid)
-    tags = get_tags(cur, oid)
+    likes = get_likes(cur, itemid)
+    tags = get_tags(cur, itemid)
     return Content(
-        oid=oid,
+        itemid=itemid,
         username=username,
         likes=likes,
         tags=tags,
