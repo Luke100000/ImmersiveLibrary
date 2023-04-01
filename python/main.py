@@ -6,6 +6,8 @@ from typing import Annotated
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form
+from fastapi.openapi.utils import get_openapi
+
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
@@ -17,11 +19,62 @@ from api_types import (
     ContentSuccess,
     OidSuccess,
 )
-from utils import register_session, token_to_userid, own, get_error, get_content_class
+from utils import (
+    login_user,
+    token_to_userid,
+    own,
+    get_error,
+    get_content_class,
+    has_liked,
+    has_tag,
+)
 
 load_dotenv()
 
+description = """
+A simple and generic user asset library.
+"""
+
+tags_metadata = [
+    {
+        "name": "Auth",
+        "description": "",
+    },
+    {
+        "name": "Content",
+        "description": "",
+    },
+    {
+        "name": "Likes",
+        "description": "",
+    },
+    {
+        "name": "Tags",
+        "description": "",
+    },
+]
+
 app = FastAPI()
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title="Immersive Library",
+        version="0.0.1",
+        description=description,
+        routes=app.routes,
+    )
+
+    openapi_schema["tags"] = tags_metadata
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 con = sqlite3.connect("database.db", check_same_thread=False)
 
@@ -34,11 +87,22 @@ async def lifespan(_: FastAPI):
 
 def setup():
     cur = con.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS sessions (token CHAR, userid CHAR)")
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS users (userid CHAR, token CHAR, username CHAR, moderator INTEGER)"
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS users_userid on users (userid)")
+
     cur.execute(
         "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, meta TEXT, data BLOB)"
     )
+    cur.execute("CREATE INDEX IF NOT EXISTS content_project on content (project)")
+
     cur.execute("CREATE TABLE IF NOT EXISTS likes (userid CHAR, id INTEGER)")
+    cur.execute("CREATE INDEX IF NOT EXISTS likes_id on likes (id)")
+
+    cur.execute("CREATE TABLE IF NOT EXISTS tags (id INTEGER, tag CHAR)")
+    cur.execute("CREATE INDEX IF NOT EXISTS tags_id on tags (id)")
+
     cur.close()
     con.commit()
 
@@ -46,8 +110,13 @@ def setup():
 setup()
 
 
-@app.post("/auth", responses={401: {"model": Error}})
-def auth(credential: Annotated[str, Form()], token: str):
+@app.post(
+    "/auth",
+    responses={401: {"model": Error}},
+    tags=["Auth"],
+    summary="Authenticate user",
+)
+def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
     try:
         info = id_token.verify_oauth2_token(
             credential, requests.Request(), os.getenv("CLIENT_ID")
@@ -56,41 +125,41 @@ def auth(credential: Annotated[str, Form()], token: str):
         userid = info["sub"]
 
         # Update session for user
-        register_session(con, userid, token)
+        login_user(con, userid, username, token)
 
         return {"success": True}
     except ValueError:
         return get_error(401, "Validation failed")
 
 
-@app.get("/content/{project}")
+@app.get("/content/{project}", tags=["Content"])
 def list_content(project: str) -> ContentListSuccess:
     content = con.execute(
         "SELECT oid, userid, title FROM content WHERE project=?",
         (project,),
     ).fetchall()
 
-    return ContentListSuccess(data=[get_content_class(*c) for c in content])
+    return ContentListSuccess(data=[get_content_class(con, *c) for c in content])
 
 
-@app.get("/content/{project}/{oid}")
-def get_content(project: str, oid: str) -> ContentSuccess:
+@app.get("/content/{project}/{oid}", tags=["Content"])
+def get_content(project: str, oid: int) -> ContentSuccess:
     content = con.execute(
-        "SELECT oid, userid, title, meta, data FROM content WHERE project=? AND oid=?",
-        (project, oid),
+        "SELECT oid, userid, title, meta, data FROM content WHERE oid=?",
+        (oid,),
     ).fetchone()
 
-    return ContentSuccess(data=get_content_class(*content))
+    return ContentSuccess(data=get_content_class(con, *content))
 
 
-@app.post("/content/{project}", responses={401: {"model": Error}})
+@app.post("/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
 def add_content(
     project: str, title: str, meta: str, data: bytes, token: str
 ) -> OidSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
-        return get_error(401, "Validation failed")
+        return get_error(401, "Token invalid")
 
     content = con.execute(
         "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
@@ -101,14 +170,16 @@ def add_content(
     return OidSuccess(data=Oid(oid=content.lastrowid))
 
 
-@app.put("/content/{project}/{oid}", responses={401: {"model": Error}})
+@app.put(
+    "/content/{project}/{oid}", responses={401: {"model": Error}}, tags=["Content"]
+)
 def update_content(
-    project: str, oid: str, title: str, meta: str, data: bytes, token: str
+    project: str, oid: int, title: str, meta: str, data: bytes, token: str
 ) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
-        return get_error(401, "Validation failed")
+        return get_error(401, "Token invalid")
 
     con.execute(
         "UPDATE content SET title=?, meta=?, data=? WHERE userid=? AND project=? AND oid=?",
@@ -119,19 +190,131 @@ def update_content(
     return PlainSuccess()
 
 
-@app.delete("/content/{project}/{oid}", responses={401: {"model": Error}})
-def delete_content(project: str, oid: str, token: str) -> PlainSuccess:
+@app.delete(
+    "/content/{project}/{oid}", responses={401: {"model": Error}}, tags=["Content"]
+)
+def delete_content(project: str, oid: int, token: str) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
-        return get_error(401, "Validation failed")
+        return get_error(401, "Token invalid")
 
     if not own(con, oid, userid):
-        return Error
+        return get_error(401, "Not your item")
 
     con.execute(
         "DELETE FROM content WHERE userid=? AND project=? AND oid=?",
         (userid, project, oid),
+    )
+    con.commit()
+
+    return PlainSuccess()
+
+
+@app.put(
+    "/like/{project}/{oid}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Likes"],
+)
+def add_like(project: str, oid: int, token: str) -> PlainSuccess:
+    userid = token_to_userid(con, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if has_liked(con, oid, userid):
+        return get_error(428, "Already liked")
+
+    con.execute(
+        "INSERT INTO likes (userid, id) VALUES(?, ?)",
+        (userid, oid),
+    )
+    con.commit()
+
+    return PlainSuccess()
+
+
+@app.delete(
+    "/like/{project}/{oid}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Likes"],
+)
+def delete_like(project: str, oid: int, token: str) -> PlainSuccess:
+    userid = token_to_userid(con, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if not has_liked(con, oid, userid):
+        return get_error(428, "Not liked previously")
+
+    con.execute(
+        "DELETE FROM likes WHERE userid=? AND id=?",
+        (userid, oid),
+    )
+    con.commit()
+
+    return PlainSuccess()
+
+
+@app.get("/tag/{project}", tags=["Tags"])
+def list_tags(project: str) -> PlainSuccess:
+    # todo
+    return PlainSuccess()
+
+
+@app.get("/tag/{project}/{oid}", tags=["Tags"])
+def list_item_tags(project: str, oid: int) -> PlainSuccess:
+    # todo
+    return PlainSuccess()
+
+
+@app.put(
+    "/tag/{project}/{oid}/{tag}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Tags"],
+)
+def add_tag(project: str, oid: int, tag: str, token: str) -> PlainSuccess:
+    userid = token_to_userid(con, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if not own(con, oid, userid):
+        return get_error(401, "Not your item")
+
+    if has_tag(con, oid, tag):
+        return get_error(428, "Already tagged")
+
+    con.execute(
+        "INSERT INTO tags (id, tag) VALUES(?, ?)",
+        (oid, tag),
+    )
+    con.commit()
+
+    return PlainSuccess()
+
+
+@app.delete(
+    "/tag/{project}/{oid}/{tag}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Tags"],
+)
+def delete_tag(project: str, oid: int, tag: str, token: str) -> PlainSuccess:
+    userid = token_to_userid(con, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if not own(con, oid, userid):
+        return get_error(401, "Not your item")
+
+    if not has_tag(con, oid, tag):
+        return get_error(428, "Not tagged")
+
+    con.execute(
+        "DELETE FROM tags WHERE id=? AND tag=?",
+        (oid, tag),
     )
     con.commit()
 

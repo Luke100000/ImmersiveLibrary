@@ -13,6 +13,8 @@ class Status(Enum):
 class Content(BaseModel):
     oid: int
     username: str
+    likes: int
+    tags: List[str]
     title: str
     meta: str
     data: str
