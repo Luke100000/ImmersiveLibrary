@@ -16,6 +16,7 @@ token = "guest_token"
 
 con = sqlite3.connect("database.db")
 login_user(con, "123", "Warp", token)
+con.commit()
 con.close()
 
 

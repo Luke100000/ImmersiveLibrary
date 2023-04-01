@@ -88,9 +88,9 @@ async def lifespan(_: FastAPI):
 def setup():
     cur = con.cursor()
     cur.execute(
-        "CREATE TABLE IF NOT EXISTS users (userid CHAR, token CHAR, username CHAR, moderator INTEGER)"
+        "CREATE TABLE IF NOT EXISTS users (google_userid CHAR, token CHAR, username CHAR, moderator INTEGER)"
     )
-    cur.execute("CREATE INDEX IF NOT EXISTS users_userid on users (userid)")
+    cur.execute("CREATE INDEX IF NOT EXISTS users_google_userid on users (google_userid)")
 
     cur.execute(
         "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, meta TEXT, data BLOB)"
@@ -127,7 +127,7 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         # Update session for user
         login_user(con, userid, username, token)
 
-        return {"success": True}
+        return PlainSuccess()
     except ValueError:
         return get_error(401, "Validation failed")
 

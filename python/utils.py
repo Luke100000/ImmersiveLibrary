@@ -6,19 +6,30 @@ from api_types import Error, Content
 
 
 def token_to_userid(con, token):
-    userid = con.execute("SELECT userid FROM users WHERE token=?", (token,)).fetchone()
+    userid = con.execute("SELECT oid FROM users WHERE token=?", (token,)).fetchone()
     return None if userid is None else userid[0]
 
 
-def login_user(con, userid, username, token):
-    cur = con.cursor()
-    cur.execute("DELETE FROM users WHERE userid=?", (userid,))
-    cur.execute(
-        "INSERT INTO users (userid, token, username, moderator) VALUES (?, ?, ?, FALSE)",
-        (userid, token, username),
+def exists_userid(con, google_userid):
+    return (
+        con.execute(
+            "SELECT count(*) FROM users WHERE google_userid=?", (google_userid,)
+        ).fetchone()[0]
+        > 0
     )
-    cur.close()
-    con.commit()
+
+
+def login_user(con, google_userid, username, token):
+    if exists_userid(con, google_userid):
+        con.execute(
+            "UPDATE users SET username=?, token=? WHERE google_userid=?",
+            (username, token, google_userid),
+        )
+    else:
+        con.execute(
+            "INSERT INTO users (google_userid, token, username, moderator) VALUES (?, ?, ?, FALSE)",
+            (google_userid, token, username),
+        )
 
 
 def own(con, oid, userid):
@@ -57,7 +68,7 @@ def get_error(status, message):
 
 def get_username(cur, userid):
     username = cur.execute(
-        "SELECT username FROM users WHERE userid=?", (userid,)
+        "SELECT username FROM users WHERE oid=?", (userid,)
     ).fetchone()
     return None if username is None else username[0]
 
