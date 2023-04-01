@@ -18,6 +18,8 @@ from api_types import (
     ContentListSuccess,
     ContentSuccess,
     OidSuccess,
+    UserSuccess,
+    UserListSuccess,
 )
 from utils import (
     login_user,
@@ -27,6 +29,7 @@ from utils import (
     get_content_class,
     has_liked,
     has_tag,
+    get_user_class,
 )
 
 load_dotenv()
@@ -50,6 +53,10 @@ tags_metadata = [
     },
     {
         "name": "Tags",
+        "description": "",
+    },
+    {
+        "name": "Users",
         "description": "",
     },
 ]
@@ -90,7 +97,9 @@ def setup():
     cur.execute(
         "CREATE TABLE IF NOT EXISTS users (google_userid CHAR, token CHAR, username CHAR, moderator INTEGER)"
     )
-    cur.execute("CREATE INDEX IF NOT EXISTS users_google_userid on users (google_userid)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
+    )
 
     cur.execute(
         "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, meta TEXT, data BLOB)"
@@ -134,14 +143,19 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
 
 @app.get("/content/{project}", tags=["Content"])
 def list_content(project: str) -> ContentListSuccess:
-    content = con.execute(
+    cur = con.cursor()
+    content = cur.execute(
         "SELECT oid, userid, title FROM content WHERE project=?",
         (project,),
     ).fetchall()
 
-    return ContentListSuccess(data=[get_content_class(con, *c) for c in content])
+    r = ContentListSuccess(data=[get_content_class(cur, *c) for c in content])
+
+    cur.close()
+    return r
 
 
+# noinspection PyUnusedLocal
 @app.get("/content/{project}/{oid}", tags=["Content"])
 def get_content(project: str, oid: int) -> ContentSuccess:
     content = con.execute(
@@ -149,7 +163,10 @@ def get_content(project: str, oid: int) -> ContentSuccess:
         (oid,),
     ).fetchone()
 
-    return ContentSuccess(data=get_content_class(con, *content))
+    cur = con.cursor()
+    r = ContentSuccess(data=get_content_class(cur, *content))
+    cur.close()
+    return r
 
 
 @app.post("/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
@@ -211,6 +228,7 @@ def delete_content(project: str, oid: int, token: str) -> PlainSuccess:
     return PlainSuccess()
 
 
+# noinspection PyUnusedLocal
 @app.put(
     "/like/{project}/{oid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -234,6 +252,7 @@ def add_like(project: str, oid: int, token: str) -> PlainSuccess:
     return PlainSuccess()
 
 
+# noinspection PyUnusedLocal
 @app.delete(
     "/like/{project}/{oid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -319,3 +338,30 @@ def delete_tag(project: str, oid: int, tag: str, token: str) -> PlainSuccess:
     con.commit()
 
     return PlainSuccess()
+
+
+@app.get(
+    "/user/{project}/",
+    tags=["Users"],
+)
+def get_users(project: str) -> PlainSuccess:
+    content = con.execute("SELECT oid, username, moderator FROM users").fetchall()
+
+    return UserListSuccess(data=[get_user_class(con, project, *c) for c in content])
+
+
+@app.get(
+    "/user/{project}/{userid}/",
+    tags=["Users"],
+    responses={404: {"model": Error}},
+)
+def get_user(project: str, userid: int) -> PlainSuccess:
+    content = con.execute(
+        "SELECT oid, username, moderator FROM users WHERE oid=?",
+        (userid,),
+    ).fetchone()
+
+    if content is None:
+        return get_error(404, "User doesnt exist")
+
+    return UserSuccess(data=get_user_class(con, project, *content))

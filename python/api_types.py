@@ -20,6 +20,15 @@ class Content(BaseModel):
     data: str
 
 
+class User(BaseModel):
+    userid: int
+    username: str
+    liked_received: int
+    likes: List[Content]
+    submissions: List[Content]
+    moderator: bool
+
+
 class Oid(BaseModel):
     oid: int
 
@@ -38,6 +47,14 @@ class ContentSuccess(Success):
 
 class ContentListSuccess(Success):
     data: List[Content]
+
+
+class UserSuccess(Success):
+    data: User
+
+
+class UserListSuccess(Success):
+    data: List[User]
 
 
 class OidSuccess(Success):

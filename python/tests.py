@@ -10,6 +10,8 @@ from python.main import (
     delete_like,
     add_tag,
     delete_tag,
+    get_users,
+    get_user,
 )
 
 token = "guest_token"
@@ -22,6 +24,7 @@ con.close()
 
 # Insert test
 oid = add_content("test", "Test object", "{}", "123DATA", token).data.oid
+oid2 = add_content("test", "Test object #2", "{}", "123DATA", token).data.oid
 print(f"Data inserted with oid {oid}")
 
 # Get test
@@ -37,6 +40,7 @@ print(get_content("test", oid))
 
 # Like
 print(add_like("test", oid, token))
+print(add_like("test2", oid, token))
 print(get_content("test", oid))
 print(add_like("test", oid, token))
 
@@ -58,3 +62,7 @@ print(add_tag("test", oid, "Tag2", token))
 print(delete_tag("test", oid, "Tag1", token))
 print(get_content("test", oid))
 print(delete_tag("test", oid, "Tag1", token))
+
+# User
+print(get_users("test"))
+print(get_user("test", 1))

@@ -1,8 +1,9 @@
-from sqlite3 import Connection
+from sqlite3 import Connection, Cursor
+from typing import List
 
 from starlette.responses import JSONResponse
 
-from api_types import Error, Content
+from api_types import Error, Content, User
 
 
 def token_to_userid(con, token):
@@ -74,8 +75,28 @@ def get_username(cur, userid):
 
 
 def get_likes(cur, oid):
-    likes = cur.execute("SELECT COUNT(userid) FROM likes WHERE id=?", (oid,)).fetchone()
+    likes = cur.execute("SELECT COUNT(*) FROM likes WHERE id=?", (oid,)).fetchone()
     return None if likes is None else likes[0]
+
+
+def get_likes_received(submissions: List[Content]):
+    return sum([c.likes for c in submissions])
+
+
+def get_likes_for_user(cur, project, userid):
+    content = cur.execute(
+        "SELECT content.oid, content.userid, content.title FROM content INNER JOIN likes ON content.userid=likes.userid WHERE likes.userid=? AND content.project=?",
+        (userid, project),
+    ).fetchall()
+    return [get_content_class(cur, *c) for c in content]
+
+
+def get_submissions(cur, project, userid):
+    content = cur.execute(
+        "SELECT oid, userid, title FROM content WHERE userid=? AND project=?",
+        (userid, project),
+    ).fetchall()
+    return [get_content_class(cur, *c) for c in content]
 
 
 def get_tags(cur, oid):
@@ -84,18 +105,16 @@ def get_tags(cur, oid):
 
 
 def get_content_class(
-    con: Connection,
+    cur: Cursor,
     oid: int,
     userid: str,
     title: str,
     meta: str = None,
     data: bytes = None,
 ):
-    cur = con.cursor()
     username = get_username(cur, userid)
     likes = get_likes(cur, oid)
     tags = get_tags(cur, oid)
-    cur.close()
     return Content(
         oid=oid,
         username=username,
@@ -104,4 +123,22 @@ def get_content_class(
         title=title,
         meta="" if meta is None else meta,
         data="" if data is None else data,
+    )
+
+
+def get_user_class(
+    con: Connection, project: str, userid: int, username: str, moderator: int
+):
+    cur = con.cursor()
+    submissions = get_submissions(cur, project, userid)
+    likes = get_likes_for_user(cur, project, userid)
+    liked_received = get_likes_received(submissions)
+    cur.close()
+    return User(
+        userid=userid,
+        username=username,
+        liked_received=liked_received,
+        likes=likes,
+        submissions=submissions,
+        moderator=moderator > 0,
     )
