@@ -1,13 +1,6 @@
-from enum import Enum
 from typing import Any, Final, TypeVar, Generic, List
 
 from pydantic import BaseModel, Field
-
-
-class Status(Enum):
-    SUCCESS = "success"
-    FAIL = "fail"
-    ERROR = "error"
 
 
 class Content(BaseModel):
@@ -37,7 +30,7 @@ DataType = TypeVar("DataType")
 
 
 class Success(BaseModel, Generic[DataType]):
-    status: Status = Field(Status.SUCCESS, const=True)
+    status: str = Field("success", const=True)
     data: DataType
 
 
@@ -73,15 +66,15 @@ class PlainSuccess(Success[None], Generic[DataType]):
 
 
 class Error(BaseModel):
-    status: Status = Field(Status.ERROR, const=True)
+    status: str = Field("error", const=True)
     message: str
 
     def to_json(self):
         return {
-            "status": self.status.value,
+            "status": self.status,
             "message": self.message,
         }
 
 
 class Fail(BaseModel):
-    status: Status = Status.FAIL
+    status: str = Field("fail", const=True)

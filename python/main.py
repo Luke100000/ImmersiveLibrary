@@ -7,7 +7,6 @@ import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form
 from fastapi.openapi.utils import get_openapi
-
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
@@ -33,6 +32,9 @@ from utils import (
     get_user_class,
     get_tags,
     get_project_tags,
+    is_moderator,
+    set_moderator,
+    set_banned, user_exists,
 )
 
 load_dotenv()
@@ -98,7 +100,7 @@ async def lifespan(_: FastAPI):
 def setup():
     cur = con.cursor()
     cur.execute(
-        "CREATE TABLE IF NOT EXISTS users (google_userid CHAR, token CHAR, username CHAR, moderator INTEGER)"
+        "CREATE TABLE IF NOT EXISTS users (google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
     )
     cur.execute(
         "CREATE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
@@ -124,11 +126,14 @@ setup()
 
 @app.post(
     "/auth",
-    responses={401: {"model": Error}},
+    responses={401: {"model": Error}, 400: {"model": Error}},
     tags=["Auth"],
     summary="Authenticate user",
 )
 def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
+    if len(token) < 16:
+        return get_error(400, "Token should at very least contain 16 bytes")
+
     try:
         info = id_token.verify_oauth2_token(
             credential, requests.Request(), os.getenv("CLIENT_ID")
@@ -287,6 +292,7 @@ def list_project_tags(project: str) -> PlainSuccess:
     return TagListSuccess(data=tags)
 
 
+# noinspection PyUnusedLocal
 @app.get("/tag/{project}/{itemid}", tags=["Tags"])
 def list_item_tags(project: str, itemid: int) -> TagListSuccess:
     cur = con.cursor()
@@ -295,6 +301,7 @@ def list_item_tags(project: str, itemid: int) -> TagListSuccess:
     return TagListSuccess(data=tags)
 
 
+# noinspection PyUnusedLocal
 @app.put(
     "/tag/{project}/{itemid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -321,6 +328,7 @@ def add_tag(project: str, itemid: int, tag: str, token: str) -> PlainSuccess:
     return PlainSuccess()
 
 
+# noinspection PyUnusedLocal
 @app.delete(
     "/tag/{project}/{itemid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -372,3 +380,38 @@ def get_user(project: str, userid: int) -> PlainSuccess:
         return get_error(404, "User doesnt exist")
 
     return UserSuccess(data=get_user_class(con, project, *content))
+
+
+@app.put(
+    "/user/{userid}/",
+    tags=["Users"],
+    responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
+)
+def set_user(
+    userid: int, token: str, banned: bool = None, moderator: bool = None, purge=False
+) -> PlainSuccess:
+    executor_userid = token_to_userid(con, token)
+
+    if executor_userid is None:
+        return get_error(401, "Token invalid")
+
+    if not is_moderator(con, executor_userid):
+        return get_error(403, "Not a moderator")
+
+    if not user_exists(con, userid):
+        return get_error(404, "User does not exist")
+
+    # Change banned status
+    if banned is not None:
+        set_banned(con, userid, banned)
+
+    # Change moderator status
+    if moderator is not None:
+        set_moderator(con, userid, moderator)
+
+    # Delete the users content
+    if purge is True:
+        con.execute("DELETE FROM content WHERE userid=?", (userid,))
+        con.execute("DELETE FROM likes WHERE userid=?", (userid,))
+
+    return PlainSuccess()

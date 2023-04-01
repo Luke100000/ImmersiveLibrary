@@ -7,11 +7,13 @@ from api_types import Error, Content, User
 
 
 def token_to_userid(con, token):
+    if len(token) == 0:
+        return None
     userid = con.execute("SELECT oid FROM users WHERE token=?", (token,)).fetchone()
     return None if userid is None else userid[0]
 
 
-def exists_userid(con, google_userid):
+def account_exists(con, google_userid):
     return (
         con.execute(
             "SELECT count(*) FROM users WHERE google_userid=?", (google_userid,)
@@ -20,15 +22,22 @@ def exists_userid(con, google_userid):
     )
 
 
+def user_exists(con, userid):
+    return (
+        con.execute("SELECT count(*) FROM users WHERE oid=?", (userid,)).fetchone()[0]
+        > 0
+    )
+
+
 def login_user(con, google_userid, username, token):
-    if exists_userid(con, google_userid):
+    if account_exists(con, google_userid):
         con.execute(
             "UPDATE users SET username=?, token=? WHERE google_userid=?",
             (username, token, google_userid),
         )
     else:
         con.execute(
-            "INSERT INTO users (google_userid, token, username, moderator) VALUES (?, ?, ?, FALSE)",
+            "INSERT INTO users (google_userid, token, username, moderator, banned) VALUES (?, ?, ?, FALSE, FALSE)",
             (google_userid, token, username),
         )
 
@@ -41,6 +50,34 @@ def own(con, itemid, userid):
         ).fetchone()[0]
         > 0
     )
+
+
+def is_moderator(con, userid):
+    return (
+        con.execute(
+            "SELECT count(*) FROM users WHERE oid=? AND moderator=TRUE",
+            (userid,),
+        ).fetchone()[0]
+        > 0
+    )
+
+
+def is_banned(con, userid):
+    return (
+        con.execute(
+            "SELECT count(*) FROM users WHERE oid=? AND banned=TRUE",
+            (userid,),
+        ).fetchone()[0]
+        > 0
+    )
+
+
+def set_moderator(con, userid, moderator):
+    con.execute("UPDATE users SET moderator=? WHERE oid=?", (moderator, userid))
+
+
+def set_banned(con, userid, banned):
+    con.execute("UPDATE users SET banned=?, token='' WHERE oid=?", (banned, userid))
 
 
 def has_liked(con, itemid, userid):
