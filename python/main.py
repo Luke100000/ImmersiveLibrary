@@ -11,12 +11,12 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 
 from api_types import (
-    ItemIdResponse,
+    ContentIdResponse,
     PlainSuccess,
     Error,
     ContentListSuccess,
     ContentSuccess,
-    ItemIdSuccess,
+    ContentIdSuccess,
     UserSuccess,
     UserListSuccess,
     TagListSuccess,
@@ -113,11 +113,11 @@ def setup():
     )
     cur.execute("CREATE INDEX IF NOT EXISTS content_project on content (project)")
 
-    cur.execute("CREATE TABLE IF NOT EXISTS likes (userid CHAR, itemid INTEGER)")
-    cur.execute("CREATE INDEX IF NOT EXISTS likes_itemid on likes (itemid)")
+    cur.execute("CREATE TABLE IF NOT EXISTS likes (userid CHAR, contentid INTEGER)")
+    cur.execute("CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)")
 
-    cur.execute("CREATE TABLE IF NOT EXISTS tags (itemid INTEGER, tag CHAR)")
-    cur.execute("CREATE INDEX IF NOT EXISTS tags_itemid on tags (itemid)")
+    cur.execute("CREATE TABLE IF NOT EXISTS tags (contentid INTEGER, tag CHAR)")
+    cur.execute("CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)")
 
     cur.close()
     con.commit()
@@ -166,11 +166,11 @@ def list_content(project: str) -> ContentListSuccess:
 
 
 # noinspection PyUnusedLocal
-@app.get("/content/{project}/{itemid}", tags=["Content"])
-def get_content(project: str, itemid: int) -> ContentSuccess:
+@app.get("/content/{project}/{contentid}", tags=["Content"])
+def get_content(project: str, contentid: int) -> ContentSuccess:
     content = con.execute(
         "SELECT oid, userid, title, meta, data FROM content WHERE oid=?",
-        (itemid,),
+        (contentid,),
     ).fetchone()
 
     cur = con.cursor()
@@ -182,7 +182,7 @@ def get_content(project: str, itemid: int) -> ContentSuccess:
 @app.post("/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
 def add_content(
     project: str, title: str, meta: str, data: bytes, token: str
-) -> ItemIdSuccess:
+) -> ContentIdSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
@@ -194,14 +194,16 @@ def add_content(
     )
     con.commit()
 
-    return ItemIdSuccess(data=ItemIdResponse(itemid=content.lastrowid))
+    return ContentIdSuccess(data=ContentIdResponse(contentid=content.lastrowid))
 
 
 @app.put(
-    "/content/{project}/{itemid}", responses={401: {"model": Error}}, tags=["Content"]
+    "/content/{project}/{contentid}",
+    responses={401: {"model": Error}},
+    tags=["Content"],
 )
 def update_content(
-    project: str, itemid: int, title: str, meta: str, data: bytes, token: str
+    project: str, contentid: int, title: str, meta: str, data: bytes, token: str
 ) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
@@ -210,7 +212,7 @@ def update_content(
 
     con.execute(
         "UPDATE content SET title=?, meta=?, data=? WHERE userid=? AND project=? AND oid=?",
-        (title, meta, data, userid, project, itemid),
+        (title, meta, data, userid, project, contentid),
     )
     con.commit()
 
@@ -218,20 +220,22 @@ def update_content(
 
 
 @app.delete(
-    "/content/{project}/{itemid}", responses={401: {"model": Error}}, tags=["Content"]
+    "/content/{project}/{contentid}",
+    responses={401: {"model": Error}},
+    tags=["Content"],
 )
-def delete_content(project: str, itemid: int, token: str) -> PlainSuccess:
+def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, itemid, userid):
-        return get_error(401, "Not your item")
+    if not owns_content(con, contentid, userid):
+        return get_error(401, "Not your content")
 
     con.execute(
-        "DELETE FROM content WHERE userid=? AND project=? AND itemid=?",
-        (userid, project, itemid),
+        "DELETE FROM content WHERE userid=? AND project=? AND contentid=?",
+        (userid, project, contentid),
     )
     con.commit()
 
@@ -240,22 +244,22 @@ def delete_content(project: str, itemid: int, token: str) -> PlainSuccess:
 
 # noinspection PyUnusedLocal
 @app.put(
-    "/like/{project}/{itemid}",
+    "/like/{project}/{contentid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Likes"],
 )
-def add_like(project: str, itemid: int, token: str) -> PlainSuccess:
+def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if has_liked(con, itemid, userid):
+    if has_liked(con, userid, contentid):
         return get_error(428, "Already liked")
 
     con.execute(
-        "INSERT INTO likes (userid, itemid) VALUES(?, ?)",
-        (userid, itemid),
+        "INSERT INTO likes (userid, contentid) VALUES(?, ?)",
+        (userid, contentid),
     )
     con.commit()
 
@@ -264,22 +268,22 @@ def add_like(project: str, itemid: int, token: str) -> PlainSuccess:
 
 # noinspection PyUnusedLocal
 @app.delete(
-    "/like/{project}/{itemid}",
+    "/like/{project}/{contentid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Likes"],
 )
-def delete_like(project: str, itemid: int, token: str) -> PlainSuccess:
+def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not has_liked(con, itemid, userid):
+    if not has_liked(con, userid, contentid):
         return get_error(428, "Not liked previously")
 
     con.execute(
-        "DELETE FROM likes WHERE userid=? AND itemid=?",
-        (userid, itemid),
+        "DELETE FROM likes WHERE userid=? AND contentid=?",
+        (userid, contentid),
     )
     con.commit()
 
@@ -295,35 +299,35 @@ def list_project_tags(project: str) -> PlainSuccess:
 
 
 # noinspection PyUnusedLocal
-@app.get("/tag/{project}/{itemid}", tags=["Tags"])
-def list_item_tags(project: str, itemid: int) -> TagListSuccess:
+@app.get("/tag/{project}/{contentid}", tags=["Tags"])
+def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     cur = con.cursor()
-    tags = get_tags(cur, itemid)
+    tags = get_tags(cur, contentid)
     cur.close()
     return TagListSuccess(data=tags)
 
 
 # noinspection PyUnusedLocal
 @app.put(
-    "/tag/{project}/{itemid}/{tag}",
+    "/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
 )
-def add_tag(project: str, itemid: int, tag: str, token: str) -> PlainSuccess:
+def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, itemid, userid):
-        return get_error(401, "Not your item")
+    if not owns_content(con, contentid, userid):
+        return get_error(401, "Not your content")
 
-    if has_tag(con, itemid, tag):
+    if has_tag(con, contentid, tag):
         return get_error(428, "Already tagged")
 
     con.execute(
-        "INSERT INTO tags (itemid, tag) VALUES(?, ?)",
-        (itemid, tag),
+        "INSERT INTO tags (contentid, tag) VALUES(?, ?)",
+        (contentid, tag),
     )
     con.commit()
 
@@ -332,25 +336,25 @@ def add_tag(project: str, itemid: int, tag: str, token: str) -> PlainSuccess:
 
 # noinspection PyUnusedLocal
 @app.delete(
-    "/tag/{project}/{itemid}/{tag}",
+    "/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
 )
-def delete_tag(project: str, itemid: int, tag: str, token: str) -> PlainSuccess:
+def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, itemid, userid):
-        return get_error(401, "Not your item")
+    if not owns_content(con, contentid, userid):
+        return get_error(401, "Not your content")
 
-    if not has_tag(con, itemid, tag):
+    if not has_tag(con, contentid, tag):
         return get_error(428, "Not tagged")
 
     con.execute(
-        "DELETE FROM tags WHERE itemid=? AND tag=?",
-        (itemid, tag),
+        "DELETE FROM tags WHERE contentid=? AND tag=?",
+        (contentid, tag),
     )
     con.commit()
 

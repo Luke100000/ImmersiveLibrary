@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class Content(BaseModel):
-    itemid: int
+    contentid: int
     username: str
     likes: int
     tags: List[str]
@@ -22,8 +22,8 @@ class User(BaseModel):
     moderator: bool
 
 
-class ItemIdResponse(BaseModel):
-    itemid: int
+class ContentIdResponse(BaseModel):
+    contentid: int
 
 
 DataType = TypeVar("DataType")
@@ -54,8 +54,8 @@ class TagListSuccess(Success):
     data: List[str]
 
 
-class ItemIdSuccess(Success):
-    data: ItemIdResponse
+class ContentIdSuccess(Success):
+    data: ContentIdResponse
 
 
 class PlainSuccess(Success[None], Generic[DataType]):

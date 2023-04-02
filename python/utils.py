@@ -1,5 +1,5 @@
 from sqlite3 import Connection, Cursor
-from typing import List
+from typing import List, Tuple
 
 from starlette.responses import JSONResponse
 
@@ -16,15 +16,20 @@ def token_to_userid(con: Connection, token: str) -> int:
     return None if userid is None else userid[0]
 
 
+def get_count(con: Connection, query: str, params: Tuple[any]):
+    return con.execute(query, params).fetchone()[0]
+
+
+def exists(con: Connection, query: str, params: Tuple[any]):
+    return get_count(con, query, params) > 0
+
+
 def account_exists(con: Connection, google_userid: str) -> bool:
     """
     Checks if the account with the given google userid exists
     """
-    return (
-        con.execute(
-            "SELECT count(*) FROM users WHERE google_userid=?", (google_userid,)
-        ).fetchone()[0]
-        > 0
+    return exists(
+        con, "SELECT count(*) FROM users WHERE google_userid=?", (google_userid,)
     )
 
 
@@ -32,10 +37,7 @@ def user_exists(con: Connection, userid: int) -> bool:
     """
     Checks if the user with the given userid exists
     """
-    return (
-        con.execute("SELECT count(*) FROM users WHERE oid=?", (userid,)).fetchone()[0]
-        > 0
-    )
+    return exists(con, "SELECT count(*) FROM users WHERE oid=?", (userid,))
 
 
 def login_user(con, google_userid, username, token):
@@ -60,16 +62,14 @@ def login_user(con, google_userid, username, token):
         )
 
 
-def owns_content(con: Connection, itemid: int, userid: int) -> bool:
+def owns_content(con: Connection, contentid: int, userid: int) -> bool:
     """
     Checks if the user owns that content
     """
-    return (
-        con.execute(
-            "SELECT count(*) FROM content WHERE userid=? AND oid=?",
-            (userid, itemid),
-        ).fetchone()[0]
-        > 0
+    return exists(
+        con,
+        "SELECT count(*) FROM content WHERE userid=? AND oid=?",
+        (userid, contentid),
     )
 
 
@@ -77,12 +77,8 @@ def is_moderator(con: Connection, userid: int) -> bool:
     """
     Checks if the user is a moderator
     """
-    return (
-        con.execute(
-            "SELECT count(*) FROM users WHERE oid=? AND moderator=TRUE",
-            (userid,),
-        ).fetchone()[0]
-        > 0
+    return exists(
+        con, "SELECT count(*) FROM users WHERE oid=? AND moderator=TRUE", (userid,)
     )
 
 
@@ -90,12 +86,8 @@ def is_banned(con: Connection, userid: int) -> bool:
     """
     Checks if the user is banned
     """
-    return (
-        con.execute(
-            "SELECT count(*) FROM users WHERE oid=? AND banned=TRUE",
-            (userid,),
-        ).fetchone()[0]
-        > 0
+    return exists(
+        con, "SELECT count(*) FROM users WHERE oid=? AND banned=TRUE", (userid,)
     )
 
 
@@ -113,31 +105,23 @@ def set_banned(con, userid, banned):
     con.execute("UPDATE users SET banned=?, token='' WHERE oid=?", (banned, userid))
 
 
-# todo swap parameters
-# todo why itemid, its content
-def has_liked(con, itemid, userid):
+def has_liked(con, userid, contentid):
     """
     Checks if the given user has liked the content
     """
-    return (
-        con.execute(
-            "SELECT count(*) FROM likes WHERE userid=? AND itemid=?",
-            (userid, itemid),
-        ).fetchone()[0]
-        > 0
+    return exists(
+        con,
+        "SELECT count(*) FROM likes WHERE userid=? AND contentid=?",
+        (userid, contentid),
     )
 
 
-def has_tag(con: Connection, itemid: int, tag: str) -> bool:
+def has_tag(con: Connection, contentid: int, tag: str) -> bool:
     """
-    Checks if the given item has a given tag
+    Checks if the given content has a given tag
     """
-    return (
-        con.execute(
-            "SELECT count(*) FROM tags WHERE tag=? AND itemid=?",
-            (tag, itemid),
-        ).fetchone()[0]
-        > 0
+    return exists(
+        con, "SELECT count(*) FROM tags WHERE tag=? AND contentid=?", (tag, contentid)
     )
 
 
@@ -158,13 +142,11 @@ def get_username(cur: Cursor, userid: int) -> str:
     return None if username is None else username[0]
 
 
-def get_likes(cur: Cursor, itemid: int) -> int:
+def get_likes(cur: Cursor, contentid: int) -> int:
     """
     Retrieves the total likes a content received
     """
-    return cur.execute(
-        "SELECT COUNT(*) FROM likes WHERE itemid=?", (itemid,)
-    ).fetchone()[0]
+    return get_count(cur, "SELECT COUNT(*) FROM likes WHERE contentid=?", (contentid,))
 
 
 def get_liked_content(cur: Cursor, project: str, userid: int) -> List[Content]:
@@ -189,11 +171,13 @@ def get_submissions(cur: Cursor, project: str, userid: int) -> List[Content]:
     return [get_content_class(cur, *c) for c in content]
 
 
-def get_tags(cur: Cursor, itemid: int) -> List[str]:
+def get_tags(cur: Cursor, contentid: int) -> List[str]:
     """
     Get all tags for a given content
     """
-    tags = cur.execute("SELECT tag FROM tags WHERE itemid=?", (itemid,)).fetchall()
+    tags = cur.execute(
+        "SELECT tag FROM tags WHERE contentid=?", (contentid,)
+    ).fetchall()
     return [t[0] for t in tags]
 
 
@@ -202,7 +186,7 @@ def get_project_tags(cur: Cursor, project: str) -> List[str]:
     Retrieves all distinct tags of a project
     """
     tags = cur.execute(
-        "SELECT DISTINCT tag FROM tags INNER JOIN content ON tags.itemid=content.oid WHERE content.project=?",
+        "SELECT DISTINCT tag FROM tags INNER JOIN content ON tags.contentid=content.oid WHERE content.project=?",
         (project,),
     ).fetchall()
     return [t[0] for t in tags]
@@ -210,7 +194,7 @@ def get_project_tags(cur: Cursor, project: str) -> List[str]:
 
 def get_content_class(
     cur: Cursor,
-    itemid: int,
+    contentid: int,
     userid: str,
     title: str,
     meta: str = None,
@@ -220,10 +204,10 @@ def get_content_class(
     Populates a content object
     """
     username = get_username(cur, userid)
-    likes = get_likes(cur, itemid)
-    tags = get_tags(cur, itemid)
+    likes = get_likes(cur, contentid)
+    tags = get_tags(cur, contentid)
     return Content(
-        itemid=itemid,
+        contentid=contentid,
         username=username,
         likes=likes,
         tags=tags,

@@ -26,7 +26,7 @@ from python.main import (
     get_users,
     get_user,
     list_project_tags,
-    list_item_tags,
+    list_content_tags,
     set_user,
     con,
 )
@@ -38,43 +38,45 @@ con.commit()
 
 
 # Insert test
-itemid = add_content("test", "Test object", "{}", "123DATA", token).data.itemid
-itemid_2 = add_content("test", "Test object #2", "{}", "123DATA", token).data.itemid
-print(f"Data inserted with oid {itemid}")
+contentid = add_content("test", "Test object", "{}", "123DATA", token).data.contentid
+contentid_2 = add_content(
+    "test", "Test object #2", "{}", "123DATA", token
+).data.contentid
+print(f"Data inserted with oid {contentid}")
 
 # Get test
-print_json(get_content("test", itemid))
+print_json(get_content("test", contentid))
 
 # Get list test
 print_json(list_content("test"))
 
 # Rename test
 print_json(
-    update_content("test", itemid, "Test object Renamed", "{}", "123DATA2", token)
+    update_content("test", contentid, "Test object Renamed", "{}", "123DATA2", token)
 )
-print_json(get_content("test", itemid))
+print_json(get_content("test", contentid))
 
 # Like
-print_json(add_like("test", itemid, token))
-print_json(add_like("test2", itemid, token))
-print_json(get_content("test", itemid))
-print_json(add_like("test", itemid, token))
+print_json(add_like("test", contentid, token))
+print_json(add_like("test2", contentid, token))
+print_json(get_content("test", contentid))
+print_json(add_like("test", contentid, token))
 
 # Delete like
-print_json(delete_like("test", itemid, token))
-print_json(get_content("test", itemid))
-print_json(delete_like("test", itemid, token))
+print_json(delete_like("test", contentid, token))
+print_json(get_content("test", contentid))
+print_json(delete_like("test", contentid, token))
 
 # Tag
-print_json(add_tag("test", itemid, "Tag1", token))
-print_json(add_tag("test", itemid, "Tag2", token))
-print_json(get_content("test", itemid))
-print_json(add_tag("test", itemid, "Tag2", token))
+print_json(add_tag("test", contentid, "Tag1", token))
+print_json(add_tag("test", contentid, "Tag2", token))
+print_json(get_content("test", contentid))
+print_json(add_tag("test", contentid, "Tag2", token))
 
 # Untag
-print_json(delete_tag("test", itemid, "Tag1", token))
-print_json(get_content("test", itemid))
-print_json(delete_tag("test", itemid, "Tag1", token))
+print_json(delete_tag("test", contentid, "Tag1", token))
+print_json(get_content("test", contentid))
+print_json(delete_tag("test", contentid, "Tag1", token))
 
 # User
 print_json(get_users("test"))
@@ -82,7 +84,7 @@ print_json(get_user("test", 1))
 
 # Tags
 print_json(list_project_tags("test"))
-print_json(list_item_tags("test", itemid))
+print_json(list_content_tags("test", contentid))
 
 # Moderator tools
 print_json(set_user(1, token, moderator=True))
