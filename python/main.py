@@ -219,6 +219,7 @@ def update_content(
     return PlainSuccess()
 
 
+# noinspection PyUnusedLocal
 @app.delete(
     "/content/{project}/{contentid}",
     responses={401: {"model": Error}},
@@ -230,12 +231,12 @@ def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid):
+    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
         return get_error(401, "Not your content")
 
     con.execute(
-        "DELETE FROM content WHERE userid=? AND project=? AND contentid=?",
-        (userid, project, contentid),
+        "DELETE FROM content WHERE contentid=?",
+        (contentid,),
     )
     con.commit()
 
@@ -319,7 +320,7 @@ def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid):
+    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
         return get_error(401, "Not your content")
 
     if has_tag(con, contentid, tag):
@@ -346,7 +347,7 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid):
+    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
         return get_error(401, "Not your content")
 
     if not has_tag(con, contentid, tag):
