@@ -47,23 +47,23 @@ A simple and generic user asset library.
 tags_metadata = [
     {
         "name": "Auth",
-        "description": "",
+        "description": "Authentication happens via Google Sign-In, the verified userid serves as unique identifier to a users account. On authentication, the user supplies it's access token, which it then uses for all API calls requiring authentication.",
     },
     {
         "name": "Content",
-        "description": "",
+        "description": "A content is assigned to a project, contains a json metadata and a raw blob data field.",
     },
     {
         "name": "Likes",
-        "description": "",
+        "description": "A content can be liked, raising the accumulated like counter on the content as well as providing a way to list a users liked content. Can also be used for a content subscription model.",
     },
     {
         "name": "Tags",
-        "description": "",
+        "description": "The owner or moderator can add and remove tags used to filter content.",
     },
     {
         "name": "Users",
-        "description": "",
+        "description": "A user is a unique, authenticated account with a non unique, changeable username. A user is required to interact with most API calls.",
     },
 ]
 
