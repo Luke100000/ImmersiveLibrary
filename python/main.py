@@ -127,7 +127,7 @@ setup()
 
 
 @app.post(
-    "/auth",
+    "/v1/auth",
     responses={401: {"model": Error}, 400: {"model": Error}},
     tags=["Auth"],
     summary="Authenticate user",
@@ -151,7 +151,7 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         return get_error(401, "Validation failed")
 
 
-@app.get("/content/{project}", tags=["Content"])
+@app.get("/v1/content/{project}", tags=["Content"])
 def list_content(project: str) -> ContentListSuccess:
     cur = con.cursor()
     content = cur.execute(
@@ -166,7 +166,7 @@ def list_content(project: str) -> ContentListSuccess:
 
 
 # noinspection PyUnusedLocal
-@app.get("/content/{project}/{contentid}", tags=["Content"])
+@app.get("/v1/content/{project}/{contentid}", tags=["Content"])
 def get_content(project: str, contentid: int) -> ContentSuccess:
     content = con.execute(
         "SELECT oid, userid, title, meta, data FROM content WHERE oid=?",
@@ -179,7 +179,7 @@ def get_content(project: str, contentid: int) -> ContentSuccess:
     return r
 
 
-@app.post("/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
+@app.post("/v1/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
 def add_content(
     project: str, title: str, meta: str, data: bytes, token: str
 ) -> ContentIdSuccess:
@@ -291,7 +291,7 @@ def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
     return PlainSuccess()
 
 
-@app.get("/tag/{project}", tags=["Tags"])
+@app.get("/v1/tag/{project}", tags=["Tags"])
 def list_project_tags(project: str) -> PlainSuccess:
     cur = con.cursor()
     tags = get_project_tags(cur, project)
@@ -300,7 +300,7 @@ def list_project_tags(project: str) -> PlainSuccess:
 
 
 # noinspection PyUnusedLocal
-@app.get("/tag/{project}/{contentid}", tags=["Tags"])
+@app.get("/v1/tag/{project}/{contentid}", tags=["Tags"])
 def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     cur = con.cursor()
     tags = get_tags(cur, contentid)
@@ -310,7 +310,7 @@ def list_content_tags(project: str, contentid: int) -> TagListSuccess:
 
 # noinspection PyUnusedLocal
 @app.put(
-    "/tag/{project}/{contentid}/{tag}",
+    "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
 )
@@ -337,7 +337,7 @@ def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
 
 # noinspection PyUnusedLocal
 @app.delete(
-    "/tag/{project}/{contentid}/{tag}",
+    "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
 )
@@ -363,7 +363,7 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
 
 
 @app.get(
-    "/user/{project}/",
+    "/v1/user/{project}/",
     tags=["Users"],
 )
 def get_users(project: str) -> PlainSuccess:
@@ -373,7 +373,7 @@ def get_users(project: str) -> PlainSuccess:
 
 
 @app.get(
-    "/user/{project}/{userid}/",
+    "/v1/user/{project}/{userid}/",
     tags=["Users"],
     responses={404: {"model": Error}},
 )
@@ -390,7 +390,7 @@ def get_user(project: str, userid: int) -> PlainSuccess:
 
 
 @app.put(
-    "/user/{userid}/",
+    "/v1/user/{userid}/",
     tags=["Users"],
     responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
 )
