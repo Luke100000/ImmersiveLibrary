@@ -30,6 +30,12 @@ def user_exists(con, userid):
 
 
 def login_user(con, google_userid, username, token):
+    # Invalidate same tokens, the token has to be unique
+    con.execute(
+        "UPDATE users SET token='' WHERE token=?",
+        (token,),
+    )
+
     if account_exists(con, google_userid):
         con.execute(
             "UPDATE users SET username=?, token=? WHERE google_userid=?",

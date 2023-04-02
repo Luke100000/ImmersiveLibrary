@@ -34,7 +34,8 @@ from utils import (
     get_project_tags,
     is_moderator,
     set_moderator,
-    set_banned, user_exists,
+    set_banned,
+    user_exists,
 )
 
 load_dotenv()
@@ -103,8 +104,9 @@ def setup():
         "CREATE TABLE IF NOT EXISTS users (google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
     )
     cur.execute(
-        "CREATE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
     )
+    cur.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
 
     cur.execute(
         "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, meta TEXT, data BLOB)"
