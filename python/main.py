@@ -24,7 +24,7 @@ from api_types import (
 from utils import (
     login_user,
     token_to_userid,
-    own,
+    owns_content,
     get_error,
     get_content_class,
     has_liked,
@@ -226,7 +226,7 @@ def delete_content(project: str, itemid: int, token: str) -> PlainSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not own(con, itemid, userid):
+    if not owns_content(con, itemid, userid):
         return get_error(401, "Not your item")
 
     con.execute(
@@ -315,7 +315,7 @@ def add_tag(project: str, itemid: int, tag: str, token: str) -> PlainSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not own(con, itemid, userid):
+    if not owns_content(con, itemid, userid):
         return get_error(401, "Not your item")
 
     if has_tag(con, itemid, tag):
@@ -342,7 +342,7 @@ def delete_tag(project: str, itemid: int, tag: str, token: str) -> PlainSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not own(con, itemid, userid):
+    if not owns_content(con, itemid, userid):
         return get_error(401, "Not your item")
 
     if not has_tag(con, itemid, tag):
