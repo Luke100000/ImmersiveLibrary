@@ -9,9 +9,9 @@ from fastapi import FastAPI, Form
 from fastapi.openapi.utils import get_openapi
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from starlette.responses import JSONResponse
 
 from api_types import (
-    ContentIdResponse,
     PlainSuccess,
     Error,
     ContentListSuccess,
@@ -20,6 +20,7 @@ from api_types import (
     UserSuccess,
     UserListSuccess,
     TagListSuccess,
+    ContentUpload,
 )
 from utils import (
     login_user,
@@ -146,7 +147,10 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         # Update session for user
         login_user(con, userid, username, token)
 
-        return PlainSuccess()
+        return JSONResponse(
+            status_code=200,
+            content="Authentication successful! You may now close the browser.",
+        )
     except ValueError:
         return get_error(401, "Validation failed")
 
@@ -159,7 +163,7 @@ def list_content(project: str) -> ContentListSuccess:
         (project,),
     ).fetchall()
 
-    r = ContentListSuccess(data=[get_content_class(cur, *c) for c in content])
+    r = ContentListSuccess(contents=[get_content_class(cur, *c) for c in content])
 
     cur.close()
     return r
@@ -174,15 +178,13 @@ def get_content(project: str, contentid: int) -> ContentSuccess:
     ).fetchone()
 
     cur = con.cursor()
-    r = ContentSuccess(data=get_content_class(cur, *content))
+    r = ContentSuccess(content=get_content_class(cur, *content))
     cur.close()
     return r
 
 
 @app.post("/v1/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
-def add_content(
-    project: str, title: str, meta: str, data: bytes, token: str
-) -> ContentIdSuccess:
+def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
@@ -190,11 +192,11 @@ def add_content(
 
     content = con.execute(
         "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
-        (userid, project, title, meta, data),
+        (userid, project, content.title, content.meta, content.data),
     )
     con.commit()
 
-    return ContentIdSuccess(data=ContentIdResponse(contentid=content.lastrowid))
+    return ContentIdSuccess(contentid=content.lastrowid)
 
 
 @app.put(
@@ -296,7 +298,7 @@ def list_project_tags(project: str) -> PlainSuccess:
     cur = con.cursor()
     tags = get_project_tags(cur, project)
     cur.close()
-    return TagListSuccess(data=tags)
+    return TagListSuccess(tags=tags)
 
 
 # noinspection PyUnusedLocal
@@ -305,7 +307,7 @@ def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     cur = con.cursor()
     tags = get_tags(cur, contentid)
     cur.close()
-    return TagListSuccess(data=tags)
+    return TagListSuccess(tags=tags)
 
 
 # noinspection PyUnusedLocal
@@ -369,7 +371,7 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
 def get_users(project: str) -> PlainSuccess:
     content = con.execute("SELECT oid, username, moderator FROM users").fetchall()
 
-    return UserListSuccess(data=[get_user_class(con, project, *c) for c in content])
+    return UserListSuccess(users=[get_user_class(con, project, *c) for c in content])
 
 
 @app.get(
@@ -386,7 +388,7 @@ def get_user(project: str, userid: int) -> PlainSuccess:
     if content is None:
         return get_error(404, "User doesnt exist")
 
-    return UserSuccess(data=get_user_class(con, project, *content))
+    return UserSuccess(user=get_user_class(con, project, *content))
 
 
 @app.put(

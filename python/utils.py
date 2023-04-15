@@ -40,7 +40,7 @@ def user_exists(con: Connection, userid: int) -> bool:
     return exists(con, "SELECT count(*) FROM users WHERE oid=?", (userid,))
 
 
-def login_user(con, google_userid, username, token):
+def login_user(con: Connection, google_userid, username, token):
     """
     Logins the user, creating an account of necessary and updating username and token
     """
@@ -60,6 +60,8 @@ def login_user(con, google_userid, username, token):
             "INSERT INTO users (google_userid, token, username, moderator, banned) VALUES (?, ?, ?, FALSE, FALSE)",
             (google_userid, token, username),
         )
+
+    con.commit()
 
 
 def owns_content(con: Connection, contentid: int, userid: int) -> bool:
@@ -193,12 +195,12 @@ def get_project_tags(cur: Cursor, project: str) -> List[str]:
 
 
 def get_content_class(
-    cur: Cursor,
-    contentid: int,
-    userid: str,
-    title: str,
-    meta: str = None,
-    data: bytes = None,
+        cur: Cursor,
+        contentid: int,
+        userid: str,
+        title: str,
+        meta: str = None,
+        data: bytes = None,
 ):
     """
     Populates a content object
@@ -218,7 +220,7 @@ def get_content_class(
 
 
 def get_user_class(
-    con: Connection, project: str, userid: int, username: str, moderator: int
+        con: Connection, project: str, userid: int, username: str, moderator: int
 ):
     """
     Populates a user object

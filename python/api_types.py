@@ -1,6 +1,12 @@
-from typing import Any, Final, TypeVar, Generic, List
+from typing import TypeVar, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+
+class ContentUpload(BaseModel):
+    title: str
+    meta: str
+    data: str
 
 
 class Content(BaseModel):
@@ -22,59 +28,41 @@ class User(BaseModel):
     moderator: bool
 
 
-class ContentIdResponse(BaseModel):
-    contentid: int
-
-
 DataType = TypeVar("DataType")
 
 
-class Success(BaseModel, Generic[DataType]):
-    status: str = Field("success", const=True)
-    data: DataType
+class ContentSuccess(BaseModel):
+    content: Content
 
 
-class ContentSuccess(Success):
-    data: Content
+class ContentListSuccess(BaseModel):
+    contents: List[Content]
 
 
-class ContentListSuccess(Success):
-    data: List[Content]
+class UserSuccess(BaseModel):
+    user: User
 
 
-class UserSuccess(Success):
-    data: User
+class UserListSuccess(BaseModel):
+    users: List[User]
 
 
-class UserListSuccess(Success):
-    data: List[User]
+class TagListSuccess(BaseModel):
+    tags: List[str]
 
 
-class TagListSuccess(Success):
-    data: List[str]
+class ContentIdSuccess(BaseModel):
+    contentid: int
 
 
-class ContentIdSuccess(Success):
-    data: ContentIdResponse
-
-
-class PlainSuccess(Success[None], Generic[DataType]):
-    data: Final[DataType] = None
-
-    def __init__(self, **args: Any):
-        super().__init__(**args)
+class PlainSuccess(BaseModel):
+    pass
 
 
 class Error(BaseModel):
-    status: str = Field("error", const=True)
     message: str
 
     def to_json(self):
         return {
-            "status": self.status,
             "message": self.message,
         }
-
-
-class Fail(BaseModel):
-    status: str = Field("fail", const=True)
