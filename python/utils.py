@@ -1,9 +1,10 @@
+import base64
 from sqlite3 import Connection, Cursor
 from typing import List, Tuple
 
 from starlette.responses import JSONResponse
 
-from api_types import Error, Content, User
+from api_types import Error, Content, User, LiteContent
 
 
 def token_to_userid(con: Connection, token: str) -> int:
@@ -156,7 +157,7 @@ def get_liked_content(cur: Cursor, project: str, userid: int) -> List[Content]:
     Retrieves all content liked by the given user in a project
     """
     content = cur.execute(
-        "SELECT content.oid, content.userid, content.title FROM content INNER JOIN likes ON content.userid=likes.userid WHERE likes.userid=? AND content.project=?",
+        "SELECT content.oid, content.userid, content.title, content.version FROM content INNER JOIN likes ON content.oid=likes.contentid WHERE likes.userid=? AND content.project=?",
         (userid, project),
     ).fetchall()
     return [get_content_class(cur, *c) for c in content]
@@ -167,7 +168,7 @@ def get_submissions(cur: Cursor, project: str, userid: int) -> List[Content]:
     Retrieves all content submitted by a user in a project
     """
     content = cur.execute(
-        "SELECT oid, userid, title FROM content WHERE userid=? AND project=?",
+        "SELECT oid, userid, title, version FROM content WHERE userid=? AND project=?",
         (userid, project),
     ).fetchall()
     return [get_content_class(cur, *c) for c in content]
@@ -195,12 +196,13 @@ def get_project_tags(cur: Cursor, project: str) -> List[str]:
 
 
 def get_content_class(
-        cur: Cursor,
-        contentid: int,
-        userid: str,
-        title: str,
-        meta: str = None,
-        data: bytes = None,
+    cur: Cursor,
+    contentid: int,
+    userid: str,
+    title: str,
+    version: int,
+    meta: str = None,
+    data: bytes = None,
 ):
     """
     Populates a content object
@@ -208,19 +210,33 @@ def get_content_class(
     username = get_username(cur, userid)
     likes = get_likes(cur, contentid)
     tags = get_tags(cur, contentid)
-    return Content(
-        contentid=contentid,
-        username=username,
-        likes=likes,
-        tags=tags,
-        title=title,
-        meta="" if meta is None else meta,
-        data="" if data is None else data,
-    )
+
+    if meta is None:
+        return LiteContent(
+            contentid=contentid,
+            userid=userid,
+            username=username,
+            likes=likes,
+            tags=tags,
+            title=title,
+            version=version,
+        )
+    else:
+        return Content(
+            contentid=contentid,
+            userid=userid,
+            username=username,
+            likes=likes,
+            tags=tags,
+            title=title,
+            version=version,
+            meta=meta,
+            data=base64.b64encode(data),
+        )
 
 
 def get_user_class(
-        con: Connection, project: str, userid: int, username: str, moderator: int
+    con: Connection, project: str, userid: int, username: str, moderator: int
 ):
     """
     Populates a user object
@@ -228,12 +244,12 @@ def get_user_class(
     cur = con.cursor()
     submissions = get_submissions(cur, project, userid)
     likes = get_liked_content(cur, project, userid)
-    liked_received = sum([c.likes for c in submissions])
+    likes_received = sum([c.likes for c in submissions])
     cur.close()
     return User(
         userid=userid,
         username=username,
-        liked_received=liked_received,
+        likes_received=likes_received,
         likes=likes,
         submissions=submissions,
         moderator=moderator > 0,

@@ -11,20 +11,32 @@ class ContentUpload(BaseModel):
 
 class Content(BaseModel):
     contentid: int
+    userid: str
     username: str
     likes: int
     tags: List[str]
     title: str
+    version: int
     meta: str
     data: str
+
+
+class LiteContent(BaseModel):
+    contentid: int
+    userid: int
+    username: str
+    likes: int
+    tags: List[str]
+    title: str
+    version: int
 
 
 class User(BaseModel):
     userid: int
     username: str
-    liked_received: int
-    likes: List[Content]
-    submissions: List[Content]
+    likes_received: int
+    likes: List[LiteContent]
+    submissions: List[LiteContent]
     moderator: bool
 
 
@@ -36,11 +48,15 @@ class ContentSuccess(BaseModel):
 
 
 class ContentListSuccess(BaseModel):
-    contents: List[Content]
+    contents: List[LiteContent]
 
 
 class UserSuccess(BaseModel):
     user: User
+
+
+class IsAuthResponse(BaseModel):
+    authenticated: bool
 
 
 class UserListSuccess(BaseModel):

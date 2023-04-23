@@ -1,3 +1,4 @@
+import base64
 import os
 import sqlite3
 from contextlib import asynccontextmanager
@@ -21,6 +22,7 @@ from api_types import (
     UserListSuccess,
     TagListSuccess,
     ContentUpload,
+    IsAuthResponse,
 )
 from utils import (
     login_user,
@@ -110,7 +112,7 @@ def setup():
     cur.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
 
     cur.execute(
-        "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, meta TEXT, data BLOB)"
+        "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
     cur.execute("CREATE INDEX IF NOT EXISTS content_project on content (project)")
 
@@ -155,11 +157,25 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         return get_error(401, "Validation failed")
 
 
+@app.get(
+    "/v1/auth",
+    tags=["Auth"],
+    summary="Check if user is authenticated",
+)
+def is_auth(token: str) -> dict:
+    executor_userid = token_to_userid(con, token)
+
+    if executor_userid is None:
+        return IsAuthResponse(authenticated=False)
+    else:
+        return IsAuthResponse(authenticated=True)
+
+
 @app.get("/v1/content/{project}", tags=["Content"])
 def list_content(project: str) -> ContentListSuccess:
     cur = con.cursor()
     content = cur.execute(
-        "SELECT oid, userid, title FROM content WHERE project=?",
+        "SELECT oid, userid, title, version FROM content WHERE project=?",
         (project,),
     ).fetchall()
 
@@ -173,7 +189,7 @@ def list_content(project: str) -> ContentListSuccess:
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
 def get_content(project: str, contentid: int) -> ContentSuccess:
     content = con.execute(
-        "SELECT oid, userid, title, meta, data FROM content WHERE oid=?",
+        "SELECT oid, userid, title, version, meta, data FROM content WHERE oid=?",
         (contentid,),
     ).fetchone()
 
@@ -192,7 +208,7 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
 
     content = con.execute(
         "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
-        (userid, project, content.title, content.meta, content.data),
+        (userid, project, content.title, content.meta, base64.b64decode(content.data)),
     )
     con.commit()
 
@@ -200,12 +216,12 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
 
 
 @app.put(
-    "/content/{project}/{contentid}",
+    "/v1/content/{project}/{contentid}",
     responses={401: {"model": Error}},
     tags=["Content"],
 )
 def update_content(
-    project: str, contentid: int, title: str, meta: str, data: bytes, token: str
+    project: str, contentid: int, content: ContentUpload, token: str
 ) -> PlainSuccess:
     userid = token_to_userid(con, token)
 
@@ -213,8 +229,15 @@ def update_content(
         return get_error(401, "Token invalid")
 
     con.execute(
-        "UPDATE content SET title=?, meta=?, data=? WHERE userid=? AND project=? AND oid=?",
-        (title, meta, data, userid, project, contentid),
+        "UPDATE content SET title=?, meta=?, data=?, version=version+1 WHERE userid=? AND project=? AND oid=?",
+        (
+            content.title,
+            content.meta,
+            base64.b64decode(content.data),
+            userid,
+            project,
+            contentid,
+        ),
     )
     con.commit()
 
@@ -223,7 +246,7 @@ def update_content(
 
 # noinspection PyUnusedLocal
 @app.delete(
-    "/content/{project}/{contentid}",
+    "/v1/content/{project}/{contentid}",
     responses={401: {"model": Error}},
     tags=["Content"],
 )
@@ -237,7 +260,7 @@ def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
         return get_error(401, "Not your content")
 
     con.execute(
-        "DELETE FROM content WHERE contentid=?",
+        "DELETE FROM content WHERE oid=?",
         (contentid,),
     )
     con.commit()
@@ -246,8 +269,8 @@ def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
 
 
 # noinspection PyUnusedLocal
-@app.put(
-    "/like/{project}/{contentid}",
+@app.post(
+    "/v1/like/{project}/{contentid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Likes"],
 )
@@ -271,7 +294,7 @@ def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
 
 # noinspection PyUnusedLocal
 @app.delete(
-    "/like/{project}/{contentid}",
+    "/v1/like/{project}/{contentid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Likes"],
 )
@@ -294,7 +317,7 @@ def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
-def list_project_tags(project: str) -> PlainSuccess:
+def list_project_tags(project: str) -> TagListSuccess:
     cur = con.cursor()
     tags = get_project_tags(cur, project)
     cur.close()
@@ -311,7 +334,7 @@ def list_content_tags(project: str, contentid: int) -> TagListSuccess:
 
 
 # noinspection PyUnusedLocal
-@app.put(
+@app.post(
     "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
@@ -368,10 +391,24 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
     "/v1/user/{project}/",
     tags=["Users"],
 )
-def get_users(project: str) -> PlainSuccess:
+def get_users(project: str) -> UserListSuccess:
     content = con.execute("SELECT oid, username, moderator FROM users").fetchall()
 
     return UserListSuccess(users=[get_user_class(con, project, *c) for c in content])
+
+
+@app.get(
+    "/v1/user/{project}/me",
+    tags=["Users"],
+    responses={401: {"model": Error}},
+)
+def get_me(project: str, token: str) -> UserSuccess:
+    userid = token_to_userid(con, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    return get_user(project, userid)
 
 
 @app.get(
@@ -379,14 +416,14 @@ def get_users(project: str) -> PlainSuccess:
     tags=["Users"],
     responses={404: {"model": Error}},
 )
-def get_user(project: str, userid: int) -> PlainSuccess:
+def get_user(project: str, userid: int) -> UserSuccess:
     content = con.execute(
         "SELECT oid, username, moderator FROM users WHERE oid=?",
         (userid,),
     ).fetchone()
 
     if content is None:
-        return get_error(404, "User doesnt exist")
+        return get_error(404, "User doesn't exist")
 
     return UserSuccess(user=get_user_class(con, project, *content))
 
