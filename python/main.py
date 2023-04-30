@@ -104,7 +104,7 @@ async def lifespan(_: FastAPI):
 def setup():
     cur = con.cursor()
     cur.execute(
-        "CREATE TABLE IF NOT EXISTS users (google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
+        "CREATE TABLE IF NOT EXISTS users (oid INTEGER PRIMARY KEY AUTOINCREMENT, google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
     )
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
@@ -112,7 +112,7 @@ def setup():
     cur.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
 
     cur.execute(
-        "CREATE TABLE IF NOT EXISTS content (userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
+        "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
     cur.execute("CREATE INDEX IF NOT EXISTS content_project on content (project)")
 
