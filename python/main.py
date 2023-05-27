@@ -242,13 +242,15 @@ def update_content(
     if userid is None:
         return get_error(401, "Token invalid")
 
+    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
+        return get_error(401, "Not your content")
+
     con.execute(
-        "UPDATE content SET title=?, meta=?, data=?, version=version+1 WHERE userid=? AND project=? AND oid=?",
+        "UPDATE content SET title=?, meta=?, data=?, version=version+1 WHERE project=? AND oid=?",
         (
             content.title,
             content.meta,
             base64.b64decode(content.data),
-            userid,
             project,
             contentid,
         ),
