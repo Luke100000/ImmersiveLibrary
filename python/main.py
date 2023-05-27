@@ -222,12 +222,7 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
 
     content = con.execute(
         "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
-        (
-            userid,
-            project,
-            content.title,
-            content.meta,
-        ),
+        (userid, project, content.title, content.meta, data),
     )
     con.commit()
 
