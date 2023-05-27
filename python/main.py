@@ -39,6 +39,7 @@ from utils import (
     set_moderator,
     set_banned,
     user_exists,
+    exists,
 )
 
 load_dotenv()
@@ -199,16 +200,34 @@ def get_content(project: str, contentid: int) -> ContentSuccess:
     return r
 
 
-@app.post("/v1/content/{project}", responses={401: {"model": Error}}, tags=["Content"])
+@app.post(
+    "/v1/content/{project}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Content"],
+)
 def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSuccess:
     userid = token_to_userid(con, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
+    data = base64.b64decode(content.data)
+
+    if exists(
+        con,
+        "SELECT count(*) FROM content WHERE project=? AND data=?",
+        (project, data),
+    ):
+        return get_error(428, "Duplicate found!")
+
     content = con.execute(
         "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
-        (userid, project, content.title, content.meta, base64.b64decode(content.data)),
+        (
+            userid,
+            project,
+            content.title,
+            content.meta,
+        ),
     )
     con.commit()
 
