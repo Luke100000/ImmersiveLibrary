@@ -10,6 +10,7 @@ from fastapi import FastAPI, Form
 from fastapi.openapi.utils import get_openapi
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse
 
 from api_types import (
@@ -72,6 +73,8 @@ tags_metadata = [
 ]
 
 app = FastAPI()
+
+app.add_middleware(GZipMiddleware)
 
 
 def custom_openapi():
