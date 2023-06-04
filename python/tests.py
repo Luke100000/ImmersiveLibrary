@@ -1,7 +1,10 @@
+import base64
 import json
+import random
 
 from starlette.responses import JSONResponse
 
+from python.api_types import ContentUpload
 from python.utils import set_moderator, token_to_userid
 
 
@@ -38,10 +41,24 @@ con.commit()
 
 
 # Insert test
-contentid = add_content("test", "Test object", "{}", "123DATA", token).data.contentid
+contentid = add_content(
+    "test",
+    ContentUpload(
+        title="Test object",
+        meta="{}",
+        data=base64.b64encode(str(random.random()).encode()),
+    ),
+    token,
+).contentid
 contentid_2 = add_content(
-    "test", "Test object #2", "{}", "123DATA", token
-).data.contentid
+    "test",
+    ContentUpload(
+        title="Test object #2",
+        meta="{}",
+        data=base64.b64encode(str(random.random()).encode()),
+    ),
+    token,
+).contentid
 print(f"Data inserted with oid {contentid}")
 
 # Get test
@@ -52,7 +69,16 @@ print_json(list_content("test"))
 
 # Rename test
 print_json(
-    update_content("test", contentid, "Test object Renamed", "{}", "123DATA2", token)
+    update_content(
+        "test",
+        contentid,
+        ContentUpload(
+            title="Test renamed object",
+            meta="{}",
+            data=base64.b64encode(str(random.random()).encode()),
+        ),
+        token,
+    )
 )
 print_json(get_content("test", contentid))
 

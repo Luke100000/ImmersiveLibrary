@@ -42,6 +42,10 @@ from utils import (
     set_banned,
     user_exists,
     exists,
+    get_lite_content_class,
+    BASE_SELECT,
+    BASE_LITE_SELECT,
+    get_lite_user_class,
 )
 
 load_dotenv()
@@ -111,7 +115,7 @@ instrumentator = Instrumentator().instrument(app)
 
 @app.on_event("startup")
 async def _startup():
-    instrumentator.expose(app, should_gzip=True)
+    instrumentator.expose(app)
 
 
 def setup():
@@ -186,15 +190,16 @@ def is_auth(token: str) -> dict:
 
 @app.get("/v1/content/{project}", tags=["Content"])
 def list_content(project: str) -> ContentListSuccess:
-    cur = con.cursor()
-    content = cur.execute(
-        "SELECT oid, userid, title, version FROM content WHERE project=?",
+    content = con.execute(
+        BASE_LITE_SELECT
+        + """
+WHERE c.project = ?
+        """,
         (project,),
     ).fetchall()
 
-    r = ContentListSuccess(contents=[get_content_class(cur, *c) for c in content])
+    r = ContentListSuccess(contents=[get_lite_content_class(*c) for c in content])
 
-    cur.close()
     return r
 
 
@@ -202,13 +207,15 @@ def list_content(project: str) -> ContentListSuccess:
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
 def get_content(project: str, contentid: int) -> ContentSuccess:
     content = con.execute(
-        "SELECT oid, userid, title, version, meta, data FROM content WHERE oid=?",
+        BASE_SELECT
+        + """
+WHERE c.oid = ?
+""",
         (contentid,),
     ).fetchone()
 
-    cur = con.cursor()
-    r = ContentSuccess(content=get_content_class(cur, *content))
-    cur.close()
+    r = ContentSuccess(content=get_content_class(*content))
+
     return r
 
 
@@ -376,6 +383,9 @@ def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
         return get_error(401, "Not your content")
 
+    if "," in tag:
+        return get_error(401, "Contains invalid characters")
+
     if has_tag(con, contentid, tag):
         return get_error(428, "Already tagged")
 
@@ -420,9 +430,37 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
     tags=["Users"],
 )
 def get_users(project: str) -> UserListSuccess:
-    content = con.execute("SELECT oid, username, moderator FROM users").fetchall()
+    content = con.execute(
+        """
+    SELECT oid,
+       username,
+       moderator,
+       CASE
+           WHEN submitted_content.submission_count is NULL THEN 0
+           ELSE submitted_content.submission_count END                             as submission_count,
+       CASE WHEN likes_given.count is NULL THEN 0 ELSE likes_given.count END       as likes_given,
+       CASE WHEN likes_received.count is NULL THEN 0 ELSE likes_received.count END as likes_received
+FROM users
 
-    return UserListSuccess(users=[get_user_class(con, project, *c) for c in content])
+         LEFT JOIN (SELECT content.userid, COUNT(content.oid) as submission_count
+                    FROM content
+                    WHERE content.project = ?
+                    GROUP BY content.userid) submitted_content ON submitted_content.userid = oid
+
+         LEFT JOIN (SELECT likes.userid, COUNT(likes.oid) as count
+                    FROM likes
+                    GROUP BY likes.userid) likes_given ON likes_given.userid = oid
+
+         LEFT JOIN (SELECT likes.userid, COUNT(likes.oid) as count
+                    FROM likes
+                             INNER JOIN content c2 ON c2.userid = likes.userid AND c2.oid = likes.contentid
+                             WHERE c2.project = ?
+                    GROUP BY likes.userid) likes_received on likes_received.userid = oid
+    """,
+        (project, project),
+    ).fetchall()
+
+    return UserListSuccess(users=[get_lite_user_class(*c) for c in content])
 
 
 @app.get(

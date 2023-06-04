@@ -4,7 +4,42 @@ from typing import List, Tuple
 
 from starlette.responses import JSONResponse
 
-from api_types import Error, Content, User, LiteContent
+from api_types import Error, Content, User, LiteContent, LiteUser
+
+
+def get_base_select(data: bool):
+    s = """
+    SELECT c.oid,
+           c.userid,
+           c.title,
+           c.version,
+           users.username,
+           c.meta,
+           c.data,
+           CASE WHEN liked_content.likes is NULL THEN 0 ELSE liked_content.likes END as likes,
+           CASE WHEN tagged_content.tags is NULL THEN '' ELSE tagged_content.tags END as tags
+    FROM content c
+             INNER JOIN users ON c.userid = users.oid
+
+             LEFT JOIN (SELECT likes.contentid, COUNT(*) as likes
+                        FROM likes
+                        GROUP BY likes.contentid) liked_content ON liked_content.contentid = c.oid
+
+             LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as tags
+                        FROM tags
+                        GROUP BY tags.contentid) tagged_content on tagged_content.contentid = c.oid
+
+    """
+
+    if not data:
+        s = s.replace("c.meta,", "")
+        s = s.replace("c.data,", "")
+
+    return s
+
+
+BASE_SELECT = get_base_select(True)
+BASE_LITE_SELECT = get_base_select(False)
 
 
 def token_to_userid(con: Connection, token: str) -> int:
@@ -157,10 +192,14 @@ def get_liked_content(cur: Cursor, project: str, userid: int) -> List[Content]:
     Retrieves all content liked by the given user in a project
     """
     content = cur.execute(
-        "SELECT content.oid, content.userid, content.title, content.version FROM content INNER JOIN likes ON content.oid=likes.contentid WHERE likes.userid=? AND content.project=?",
+        BASE_LITE_SELECT
+        + """
+INNER JOIN likes on likes.userid=c.userid AND likes.contentid=c.oid
+WHERE likes.userid=? AND c.project=?
+        """,
         (userid, project),
     ).fetchall()
-    return [get_content_class(cur, *c) for c in content]
+    return [get_lite_content_class(*c) for c in content]
 
 
 def get_submissions(cur: Cursor, project: str, userid: int) -> List[Content]:
@@ -168,10 +207,13 @@ def get_submissions(cur: Cursor, project: str, userid: int) -> List[Content]:
     Retrieves all content submitted by a user in a project
     """
     content = cur.execute(
-        "SELECT oid, userid, title, version FROM content WHERE userid=? AND project=?",
+        BASE_LITE_SELECT
+        + """
+WHERE c.userid=? AND c.project=?
+        """,
         (userid, project),
     ).fetchall()
-    return [get_content_class(cur, *c) for c in content]
+    return [get_lite_content_class(*c) for c in content]
 
 
 def get_tags(cur: Cursor, contentid: int) -> List[str]:
@@ -195,44 +237,77 @@ def get_project_tags(cur: Cursor, project: str) -> List[str]:
     return [t[0] for t in tags]
 
 
-def get_content_class(
-    cur: Cursor,
+def get_lite_content_class(
     contentid: int,
     userid: str,
     title: str,
     version: int,
-    meta: str = None,
-    data: bytes = None,
+    username: str,
+    likes: 0,
+    tags: str,
+):
+    """
+    Populates a lite content object
+    """
+
+    return LiteContent(
+        contentid=contentid,
+        userid=userid,
+        username=username,
+        likes=likes,
+        tags=tags.split(","),
+        title=title,
+        version=version,
+    )
+
+
+def get_content_class(
+    contentid: int,
+    userid: str,
+    title: str,
+    version: int,
+    username: str,
+    meta: str,
+    data: bytes,
+    likes: 0,
+    tags: str,
 ):
     """
     Populates a content object
     """
-    username = get_username(cur, userid)
-    likes = get_likes(cur, contentid)
-    tags = get_tags(cur, contentid)
 
-    if meta is None:
-        return LiteContent(
-            contentid=contentid,
-            userid=userid,
-            username=username,
-            likes=likes,
-            tags=tags,
-            title=title,
-            version=version,
-        )
-    else:
-        return Content(
-            contentid=contentid,
-            userid=userid,
-            username=username,
-            likes=likes,
-            tags=tags,
-            title=title,
-            version=version,
-            meta=meta,
-            data=base64.b64encode(data),
-        )
+    return Content(
+        contentid=contentid,
+        userid=userid,
+        username=username,
+        likes=likes,
+        tags=tags.split(","),
+        title=title,
+        version=version,
+        meta=meta,
+        data=base64.b64encode(data),
+    )
+
+
+def get_lite_user_class(
+    userid: int,
+    username: str,
+    moderator: int,
+    submission_count: int,
+    likes_given: int,
+    likes_received: int,
+):
+    """
+    Populates a user object
+    """
+    return LiteUser(
+        userid=userid,
+        username=username,
+        submission_count=submission_count,
+        likes_given=likes_given,
+        likes_received=likes_received,
+        moderator=moderator > 0,
+    )
 
 
 def get_user_class(

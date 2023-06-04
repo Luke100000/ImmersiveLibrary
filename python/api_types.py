@@ -31,6 +31,15 @@ class LiteContent(BaseModel):
     version: int
 
 
+class LiteUser(BaseModel):
+    userid: int
+    username: str
+    submission_count: int
+    likes_given: int
+    likes_received: int
+    moderator: bool
+
+
 class User(BaseModel):
     userid: int
     username: str
@@ -60,7 +69,7 @@ class IsAuthResponse(BaseModel):
 
 
 class UserListSuccess(BaseModel):
-    users: List[User]
+    users: List[LiteUser]
 
 
 class TagListSuccess(BaseModel):
