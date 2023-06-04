@@ -10,9 +10,10 @@ from fastapi import FastAPI, Form
 from fastapi.openapi.utils import get_openapi
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from orjson import orjson
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from api_types import (
     PlainSuccess,
@@ -146,6 +147,10 @@ def setup():
 setup()
 
 
+def encode(r: Response):
+    return Response(orjson.dumps(r, default=vars), media_type="application/json")
+
+
 @app.post(
     "/v1/auth",
     responses={401: {"model": Error}, 400: {"model": Error}},
@@ -166,12 +171,14 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         # Update session for user
         login_user(con, userid, username, token)
 
-        return JSONResponse(
-            status_code=200,
-            content="Authentication successful! You may now close the browser.",
+        return encode(
+            JSONResponse(
+                status_code=200,
+                content="Authentication successful! You may now close the browser.",
+            )
         )
     except ValueError:
-        return get_error(401, "Validation failed")
+        return encode(get_error(401, "Validation failed"))
 
 
 @app.get(
@@ -183,9 +190,9 @@ def is_auth(token: str) -> dict:
     executor_userid = token_to_userid(con, token)
 
     if executor_userid is None:
-        return IsAuthResponse(authenticated=False)
+        return encode(IsAuthResponse(authenticated=False))
     else:
-        return IsAuthResponse(authenticated=True)
+        return encode(IsAuthResponse(authenticated=True))
 
 
 @app.get("/v1/content/{project}", tags=["Content"])
@@ -198,9 +205,9 @@ WHERE c.project = ?
         (project,),
     ).fetchall()
 
-    r = ContentListSuccess(contents=[get_lite_content_class(*c) for c in content])
-
-    return r
+    return encode(
+        ContentListSuccess(contents=[get_lite_content_class(*c) for c in content])
+    )
 
 
 # noinspection PyUnusedLocal
@@ -214,9 +221,7 @@ WHERE c.oid = ?
         (contentid,),
     ).fetchone()
 
-    r = ContentSuccess(content=get_content_class(*content))
-
-    return r
+    return encode(ContentSuccess(content=get_content_class(*content)))
 
 
 @app.post(
@@ -245,7 +250,7 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
     )
     con.commit()
 
-    return ContentIdSuccess(contentid=content.lastrowid)
+    return encode(ContentIdSuccess(contentid=content.lastrowid))
 
 
 @app.put(
@@ -276,7 +281,7 @@ def update_content(
     )
     con.commit()
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
 
 
 # noinspection PyUnusedLocal
@@ -300,7 +305,7 @@ def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
 
 
 # noinspection PyUnusedLocal
@@ -324,7 +329,7 @@ def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
 
 
 # noinspection PyUnusedLocal
@@ -348,7 +353,7 @@ def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
@@ -356,7 +361,7 @@ def list_project_tags(project: str) -> TagListSuccess:
     cur = con.cursor()
     tags = get_project_tags(cur, project)
     cur.close()
-    return TagListSuccess(tags=tags)
+    return encode(TagListSuccess(tags=tags))
 
 
 # noinspection PyUnusedLocal
@@ -365,7 +370,7 @@ def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     cur = con.cursor()
     tags = get_tags(cur, contentid)
     cur.close()
-    return TagListSuccess(tags=tags)
+    return encode(TagListSuccess(tags=tags))
 
 
 # noinspection PyUnusedLocal
@@ -395,7 +400,7 @@ def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
 
 
 # noinspection PyUnusedLocal
@@ -422,7 +427,7 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
     )
     con.commit()
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
 
 
 @app.get(
@@ -460,7 +465,7 @@ FROM users
         (project, project),
     ).fetchall()
 
-    return UserListSuccess(users=[get_lite_user_class(*c) for c in content])
+    return encode(UserListSuccess(users=[get_lite_user_class(*c) for c in content]))
 
 
 @app.get(
@@ -491,7 +496,7 @@ def get_user(project: str, userid: int) -> UserSuccess:
     if content is None:
         return get_error(404, "User doesn't exist")
 
-    return UserSuccess(user=get_user_class(con, project, *content))
+    return encode(UserSuccess(user=get_user_class(con, project, *content)))
 
 
 @app.put(
@@ -526,4 +531,4 @@ def set_user(
         con.execute("DELETE FROM content WHERE userid=?", (userid,))
         con.execute("DELETE FROM likes WHERE userid=?", (userid,))
 
-    return PlainSuccess()
+    return encode(PlainSuccess())
