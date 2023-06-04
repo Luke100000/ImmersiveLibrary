@@ -255,7 +255,7 @@ def get_lite_content_class(
         userid=userid,
         username=username,
         likes=likes,
-        tags=tags.split(","),
+        tags=tags.split(",") if tags else [],
         title=title,
         version=version,
     )
@@ -281,7 +281,7 @@ def get_content_class(
         userid=userid,
         username=username,
         likes=likes,
-        tags=tags.split(","),
+        tags=tags.split(",") if tags else [],
         title=title,
         version=version,
         meta=meta,
