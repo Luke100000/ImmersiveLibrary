@@ -10,6 +10,7 @@ from fastapi import FastAPI, Form
 from fastapi.openapi.utils import get_openapi
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse
 
@@ -103,6 +104,14 @@ con = sqlite3.connect("database.db", check_same_thread=False)
 async def lifespan(_: FastAPI):
     yield
     con.close()
+
+
+instrumentator = Instrumentator().instrument(app)
+
+
+@app.on_event("startup")
+async def _startup():
+    instrumentator.expose(app, should_gzip=True)
 
 
 def setup():
