@@ -171,14 +171,12 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         # Update session for user
         login_user(con, userid, username, token)
 
-        return encode(
-            JSONResponse(
-                status_code=200,
-                content="Authentication successful! You may now close the browser.",
-            )
+        return JSONResponse(
+            status_code=200,
+            content="Authentication successful! You may now close the browser.",
         )
     except ValueError:
-        return encode(get_error(401, "Validation failed"))
+        return get_error(401, "Validation failed")
 
 
 @app.get(
