@@ -1,3 +1,4 @@
+import base64
 from typing import TypeVar, List
 
 from pydantic import BaseModel
@@ -7,6 +8,10 @@ class ContentUpload(BaseModel):
     title: str
     meta: str
     data: str
+
+    @property
+    def payload(self) -> bytes:
+        return base64.b64decode(self.data)
 
 
 class Content(BaseModel):

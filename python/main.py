@@ -1,8 +1,8 @@
-import base64
 import os
 import sqlite3
+from collections import defaultdict
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, List
 
 import requests
 from dotenv import load_dotenv
@@ -27,6 +27,8 @@ from api_types import (
     ContentUpload,
     IsAuthResponse,
 )
+from modules.mca.valid import ValidModule
+from modules.module import Module
 from utils import (
     login_user,
     token_to_userid,
@@ -76,13 +78,17 @@ tags_metadata = [
         "name": "Users",
         "description": "A user is a unique, authenticated account with a non unique, changeable username. A user is required to interact with most API calls.",
     },
+    {
+        "name": "Admin",
+        "description": "Administrative tools",
+    },
 ]
 
 app = FastAPI()
 
 app.add_middleware(GZipMiddleware)
 
-
+# Custom OpenAPI to fix missing description
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -102,6 +108,7 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Open Database
 con = sqlite3.connect("database.db", check_same_thread=False)
 
 
@@ -111,6 +118,7 @@ async def lifespan(_: FastAPI):
     con.close()
 
 
+# Prometheus integration
 instrumentator = Instrumentator().instrument(app)
 
 
@@ -119,6 +127,7 @@ async def _startup():
     instrumentator.expose(app)
 
 
+# Create tables
 def setup():
     cur = con.cursor()
     cur.execute(
@@ -145,6 +154,11 @@ def setup():
 
 
 setup()
+
+# Modules allow for project specific post-processing
+modules: defaultdict[str, List[Module]] = defaultdict(lambda: [])
+
+modules["mca"].append(ValidModule(con))
 
 
 def encode(r: Response):
@@ -224,7 +238,7 @@ WHERE c.oid = ?
 
 @app.post(
     "/v1/content/{project}",
-    responses={401: {"model": Error}, 428: {"model": Error}},
+    responses={401: {"model": Error}, 428: {"model": Error}, 400: {"model": Error}},
     tags=["Content"],
 )
 def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSuccess:
@@ -233,20 +247,29 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
     if userid is None:
         return get_error(401, "Token invalid")
 
-    data = base64.b64decode(content.data)
-
+    # Check for duplicates
     if exists(
         con,
         "SELECT count(*) FROM content WHERE project=? AND data=?",
-        (project, data),
+        (project, content.payload),
     ):
         return get_error(428, "Duplicate found!")
 
+    # Call modules for content verification
+    for module in modules[project]:
+        exception = module.pre_upload(content)
+        if exception is not None:
+            return get_error(400, exception)
+
     content = con.execute(
         "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
-        (userid, project, content.title, content.meta, data),
+        (userid, project, content.title, content.meta, content.payload),
     )
     con.commit()
+
+    # Call modules for eventual post-processing
+    for module in modules[project]:
+        module.post_upload(content.lastrowid)
 
     return encode(ContentIdSuccess(contentid=content.lastrowid))
 
@@ -267,19 +290,29 @@ def update_content(
     if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
         return get_error(401, "Not your content")
 
+    # Call modules for content verification
+    for module in modules[project]:
+        exception = module.pre_upload(content)
+        if exception is not None:
+            return get_error(400, exception)
+
     con.execute(
         "UPDATE content SET title=?, meta=?, data=?, version=version+1 WHERE project=? AND oid=?",
         (
             content.title,
             content.meta,
-            base64.b64decode(content.data),
+            content.payload,
             project,
             contentid,
         ),
     )
     con.commit()
 
-    return encode(PlainSuccess())
+    # Call modules for eventual post-processing
+    for module in modules[project]:
+        module.post_upload(contentid)
+
+    return PlainSuccess()
 
 
 # noinspection PyUnusedLocal
@@ -303,7 +336,7 @@ def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return encode(PlainSuccess())
+    return PlainSuccess()
 
 
 # noinspection PyUnusedLocal
@@ -327,7 +360,7 @@ def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return encode(PlainSuccess())
+    return PlainSuccess()
 
 
 # noinspection PyUnusedLocal
@@ -351,7 +384,7 @@ def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return encode(PlainSuccess())
+    return PlainSuccess()
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
@@ -398,7 +431,7 @@ def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     )
     con.commit()
 
-    return encode(PlainSuccess())
+    return PlainSuccess()
 
 
 # noinspection PyUnusedLocal
@@ -425,7 +458,7 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
     )
     con.commit()
 
-    return encode(PlainSuccess())
+    return PlainSuccess()
 
 
 @app.get(
@@ -529,4 +562,40 @@ def set_user(
         con.execute("DELETE FROM content WHERE userid=?", (userid,))
         con.execute("DELETE FROM likes WHERE userid=?", (userid,))
 
-    return encode(PlainSuccess())
+    return PlainSuccess()
+
+
+# Administrative endpoints
+
+
+@app.get(
+    "/v1/tools/post-process/{project}",
+    responses={401: {"model": Error}},
+    tags=["Admin"],
+)
+def run_post_upload_callbacks(project: str, token: str) -> PlainSuccess:
+    userid = token_to_userid(con, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if not is_moderator(con, userid):
+        return get_error(401, "Not an moderator")
+
+    content = con.execute(
+        "SELECT oid FROM content WHERE project=?",
+        (project,),
+    )
+    con.commit()
+
+    # Call modules for eventual post-processing
+    processed = 0
+    for c in content:
+        processed += 1
+        for module in modules[project]:
+            module.post_upload(*c)
+
+    return JSONResponse(
+        status_code=200,
+        content=f"Processed {processed} entries.",
+    )
