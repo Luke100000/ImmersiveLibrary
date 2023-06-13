@@ -88,6 +88,7 @@ app = FastAPI()
 
 app.add_middleware(GZipMiddleware)
 
+
 # Custom OpenAPI to fix missing description
 def custom_openapi():
     if app.openapi_schema:
@@ -208,14 +209,20 @@ def is_auth(token: str) -> dict:
 
 
 @app.get("/v1/content/{project}", tags=["Content"])
-def list_content(project: str) -> ContentListSuccess:
-    content = con.execute(
-        BASE_LITE_SELECT
-        + """
-WHERE c.project = ?
-        """,
-        (project,),
-    ).fetchall()
+def list_content(
+    project: str, tag_filter: str = None, invert_filter: bool = False
+) -> ContentListSuccess:
+    if tag_filter is None:
+        content = con.execute(
+            BASE_LITE_SELECT + "WHERE c.project = ?",
+            (project,),
+        ).fetchall()
+    else:
+        content = con.execute(
+            BASE_LITE_SELECT
+            + f"WHERE c.project = ? AND {'NOT' if invert_filter else ''} EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag IS ?)",
+            (project, tag_filter),
+        ).fetchall()
 
     return encode(
         ContentListSuccess(contents=[get_lite_content_class(*c) for c in content])
@@ -226,10 +233,7 @@ WHERE c.project = ?
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
 def get_content(project: str, contentid: int) -> ContentSuccess:
     content = con.execute(
-        BASE_SELECT
-        + """
-WHERE c.oid = ?
-""",
+        BASE_SELECT + "WHERE c.oid = ?",
         (contentid,),
     ).fetchone()
 
