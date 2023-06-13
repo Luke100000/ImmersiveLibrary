@@ -480,22 +480,22 @@ def get_users(project: str) -> UserListSuccess:
            ELSE submitted_content.submission_count END                             as submission_count,
        CASE WHEN likes_given.count is NULL THEN 0 ELSE likes_given.count END       as likes_given,
        CASE WHEN likes_received.count is NULL THEN 0 ELSE likes_received.count END as likes_received
-FROM users
+    FROM users
 
          LEFT JOIN (SELECT content.userid, COUNT(content.oid) as submission_count
                     FROM content
                     WHERE content.project = ?
-                    GROUP BY content.userid) submitted_content ON submitted_content.userid = oid
+                    GROUP BY content.userid) submitted_content ON submitted_content.userid = users.oid
 
          LEFT JOIN (SELECT likes.userid, COUNT(likes.oid) as count
                     FROM likes
-                    GROUP BY likes.userid) likes_given ON likes_given.userid = oid
+                    GROUP BY likes.userid) likes_given ON likes_given.userid = users.oid
 
-         LEFT JOIN (SELECT likes.userid, COUNT(likes.oid) as count
+         LEFT JOIN (SELECT c2.userid, COUNT(likes.oid) as count
                     FROM likes
-                             INNER JOIN content c2 ON c2.userid = likes.userid AND c2.oid = likes.contentid
-                             WHERE c2.project = ?
-                    GROUP BY likes.userid) likes_received on likes_received.userid = oid
+                             INNER JOIN content c2 ON c2.oid = likes.contentid
+                             WHERE c2.project = ? AND likes.userid != c2.userid
+                    GROUP BY c2.userid) likes_received on likes_received.userid = users.oid
     """,
         (project, project),
     ).fetchall()
