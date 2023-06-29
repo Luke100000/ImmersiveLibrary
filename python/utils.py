@@ -194,11 +194,12 @@ def get_liked_content(cur: Cursor, project: str, userid: int) -> List[Content]:
     content = cur.execute(
         BASE_LITE_SELECT
         + """
-INNER JOIN likes on likes.userid=c.userid AND likes.contentid=c.oid
+INNER JOIN likes on likes.contentid=c.oid
 WHERE likes.userid=? AND c.project=?
         """,
         (userid, project),
     ).fetchall()
+
     return [get_lite_content_class(*c) for c in content]
 
 
