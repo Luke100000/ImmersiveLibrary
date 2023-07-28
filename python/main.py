@@ -1,10 +1,9 @@
 import os
-import sqlite3
 from collections import defaultdict
-from contextlib import asynccontextmanager
 from typing import Annotated, List
 
 import requests
+from databases import Database
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form
 from fastapi.openapi.utils import get_openapi
@@ -91,7 +90,7 @@ app.add_middleware(GZipMiddleware)
 
 
 # Custom OpenAPI to fix missing description
-def custom_openapi():
+async def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
 
@@ -111,70 +110,79 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 # Open Database
-con = sqlite3.connect("database.db", check_same_thread=False)
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    yield
-    con.close()
+database = Database("sqlite:///database.db")
 
 
 # Prometheus integration
 instrumentator = Instrumentator().instrument(app)
 
 
-@app.on_event("startup")
-async def _startup():
-    instrumentator.expose(app)
-
-
 # Create tables
-def setup():
-    cur = con.cursor()
-    cur.execute(
+async def setup():
+    await database.execute(
         "CREATE TABLE IF NOT EXISTS users (oid INTEGER PRIMARY KEY AUTOINCREMENT, google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
     )
-    cur.execute(
+    await database.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
     )
-    cur.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
+    await database.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
 
-    cur.execute(
+    await database.execute(
         "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
-    cur.execute("CREATE INDEX IF NOT EXISTS content_project on content (project)")
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS content_project on content (project)"
+    )
 
-    cur.execute(
+    await database.execute(
         "CREATE TABLE IF NOT EXISTS reports (userid CHAR, contentid INTEGER, reason CHAR)"
     )
-    cur.execute(
+    await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_contentid_reason on reports (contentid, reason)"
     )
 
-    cur.execute("CREATE TABLE IF NOT EXISTS likes (userid CHAR, contentid INTEGER)")
-    cur.execute("CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)")
+    await database.execute(
+        "CREATE TABLE IF NOT EXISTS likes (userid CHAR, contentid INTEGER)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
+    )
 
-    cur.execute("CREATE TABLE IF NOT EXISTS tags (contentid INTEGER, tag CHAR)")
-    cur.execute("CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)")
+    await database.execute(
+        "CREATE TABLE IF NOT EXISTS tags (contentid INTEGER, tag CHAR)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)"
+    )
 
-    cur.close()
-    con.commit()
+
+@app.on_event("startup")
+async def _startup():
+    await database.connect()
+
+    await setup()
+
+    instrumentator.expose(app)
 
 
-setup()
+@app.on_event("shutdown")
+async def _shutdown():
+    await database.disconnect()
+
 
 # Modules allow for project specific post-processing
 modules: defaultdict[str, List[Module]] = defaultdict(lambda: [])
 
-modules["mca"].append(ValidModule(con))
+modules["mca"].append(ValidModule(database))
 
 
 def encode(r: Response):
     return Response(orjson.dumps(r, default=vars), media_type="application/json")
 
+
 def decode(r: Response):
     return orjson.loads(r.body)
+
 
 @app.get(
     "/v1/stats/{project}",
@@ -182,10 +190,14 @@ def decode(r: Response):
     tags=["Auth"],
     summary="Get some global stats",
 )
-def get_stats(project: str) -> dict:
-    total = decode(list_content_v2(project=project, dry=True))["total"]
-    banned = decode(list_content_v2(project=project, dry=True, filter_banned=False))["total"]
-    reported = decode(list_content_v2(project=project, dry=True, filter_reported=False))["total"]
+async def get_stats(project: str) -> dict:
+    total = decode(await list_content_v2(project=project, dry=True))["total"]
+    banned = decode(
+        await list_content_v2(project=project, dry=True, filter_banned=False)
+    )["total"]
+    reported = decode(
+        await list_content_v2(project=project, dry=True, filter_reported=False)
+    )["total"]
 
     return {
         "total": total,
@@ -200,7 +212,7 @@ def get_stats(project: str) -> dict:
     tags=["Auth"],
     summary="Authenticate user",
 )
-def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
+async def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
     if len(token) < 16:
         return get_error(400, "Token should at very least contain 16 bytes")
 
@@ -212,7 +224,7 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
         userid = info["sub"]
 
         # Update session for user
-        login_user(con, userid, username, token)
+        await login_user(database, userid, username, token)
 
         return JSONResponse(
             status_code=200,
@@ -227,8 +239,8 @@ def auth(credential: Annotated[str, Form()], username: str, token: str) -> dict:
     tags=["Auth"],
     summary="Check if user is authenticated",
 )
-def is_auth(token: str) -> dict:
-    executor_userid = token_to_userid(con, token)
+async def is_auth(token: str) -> dict:
+    executor_userid = await token_to_userid(database, token)
 
     if executor_userid is None:
         return encode(IsAuthResponse(authenticated=False))
@@ -237,20 +249,20 @@ def is_auth(token: str) -> dict:
 
 
 @app.get("/v1/content/{project}", tags=["Content"])
-def list_content(
+async def list_content(
     project: str, tag_filter: str = None, invert_filter: bool = False
 ) -> ContentListSuccess:
     if tag_filter is None:
-        content = con.execute(
-            BASE_LITE_SELECT + "WHERE c.project = ?",
-            (project,),
-        ).fetchall()
+        content = await database.fetch_all(
+            BASE_LITE_SELECT + "WHERE c.project = :project",
+            {"project": project},
+        )
     else:
-        content = con.execute(
+        content = await database.fetch_all(
             BASE_LITE_SELECT
-            + f"WHERE c.project = ? AND {'NOT' if invert_filter else ''} EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag IS ?)",
-            (project, tag_filter),
-        ).fetchall()
+            + f"WHERE c.project = :project AND {'NOT' if invert_filter else ''} EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag IS :tag_filter)",
+            {"project": project, "tag_filter": tag_filter},
+        )
 
     return encode(
         ContentListSuccess(
@@ -277,7 +289,7 @@ def search_blacklist(terms: List[str], content: LiteContent):
 
 
 @app.get("/v2/content/{project}", tags=["Content"])
-def list_content_v2(
+async def list_content_v2(
     project: str,
     whitelist: str = None,
     blacklist: str = None,
@@ -289,8 +301,8 @@ def list_content_v2(
     descending: bool = False,
     dry: bool = False,
 ) -> ContentListSuccess:
-    prompt = BASE_LITE_SELECT + "\n WHERE c.project = ?"
-    values = [project]
+    prompt = BASE_LITE_SELECT + "\n WHERE c.project = :project"
+    values = {"project": project}
 
     # Remove content from banned users
     if filter_banned:
@@ -302,11 +314,11 @@ def list_content_v2(
 
     # Order by
     if order in {"oid", "likes", "title", "reports"}:
-        prompt += "\n ORDER BY ? " + ("DESC" if descending else "ASC")
-        values.append(order)
+        prompt += "\n ORDER BY :order " + ("DESC" if descending else "ASC")
+        values["order"] = order
 
     # Fetch
-    content = con.execute(prompt, values).fetchall()
+    content = await database.fetch_all(prompt, values)
     count = len(content)
 
     if dry:
@@ -335,11 +347,10 @@ def list_content_v2(
 
 # noinspection PyUnusedLocal
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
-def get_content(project: str, contentid: int) -> ContentSuccess:
-    content = con.execute(
-        BASE_SELECT + "WHERE c.oid = ?",
-        (contentid,),
-    ).fetchone()
+async def get_content(project: str, contentid: int) -> ContentSuccess:
+    content = await database.fetch_one(
+        BASE_SELECT + "WHERE c.oid = :contentid", {"contentid": contentid}
+    )
 
     return encode(ContentSuccess(content=get_content_class(*content)))
 
@@ -349,17 +360,19 @@ def get_content(project: str, contentid: int) -> ContentSuccess:
     responses={401: {"model": Error}, 428: {"model": Error}, 400: {"model": Error}},
     tags=["Content"],
 )
-def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSuccess:
-    userid = token_to_userid(con, token)
+async def add_content(
+    project: str, content: ContentUpload, token: str
+) -> ContentIdSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
     # Check for duplicates
-    if exists(
-        con,
-        "SELECT count(*) FROM content WHERE project=? AND data=?",
-        (project, content.payload),
+    if await exists(
+        database,
+        "SELECT count(*) FROM content WHERE project=:project AND data=:data",
+        {"project": project, "data": content.payload},
     ):
         return get_error(428, "Duplicate found!")
 
@@ -369,17 +382,22 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
         if exception is not None:
             return get_error(400, exception)
 
-    content = con.execute(
-        "INSERT INTO content (userid, project, title, meta, data) VALUES(?, ?, ?, ?, ?)",
-        (userid, project, content.title, content.meta, content.payload),
+    content = await database.execute(
+        "INSERT INTO content (userid, project, title, meta, data) VALUES(:userid, :project, :title, :meta, :data)",
+        {
+            "userid": userid,
+            "project": project,
+            "title": content.title,
+            "meta": content.meta,
+            "data": content.payload,
+        },
     )
-    con.commit()
 
     # Call modules for eventual post-processing
     for module in modules[project]:
-        module.post_upload(content.lastrowid)
+        module.post_upload(content)
 
-    return encode(ContentIdSuccess(contentid=content.lastrowid))
+    return encode(ContentIdSuccess(contentid=content))
 
 
 @app.put(
@@ -387,15 +405,17 @@ def add_content(project: str, content: ContentUpload, token: str) -> ContentIdSu
     responses={401: {"model": Error}},
     tags=["Content"],
 )
-def update_content(
+async def update_content(
     project: str, contentid: int, content: ContentUpload, token: str
 ) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
+    if not await owns_content(database, contentid, userid) and not await is_moderator(
+        database, userid
+    ):
         return get_error(401, "Not your content")
 
     # Call modules for content verification
@@ -404,17 +424,16 @@ def update_content(
         if exception is not None:
             return get_error(400, exception)
 
-    con.execute(
-        "UPDATE content SET title=?, meta=?, data=?, version=version+1 WHERE project=? AND oid=?",
-        (
-            content.title,
-            content.meta,
-            content.payload,
-            project,
-            contentid,
-        ),
+    await database.execute(
+        "UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1 WHERE project=:project AND oid=:oid",
+        {
+            "title": content.title,
+            "meta": content.meta,
+            "data": content.payload,
+            "project": project,
+            "oid": contentid,
+        },
     )
-    con.commit()
 
     # Call modules for eventual post-processing
     for module in modules[project]:
@@ -429,20 +448,21 @@ def update_content(
     responses={401: {"model": Error}},
     tags=["Content"],
 )
-def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+async def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
+    if not owns_content(database, contentid, userid) and not is_moderator(
+        database, userid
+    ):
         return get_error(401, "Not your content")
 
-    con.execute(
-        "DELETE FROM content WHERE oid=?",
-        (contentid,),
+    await database.execute(
+        "DELETE FROM content WHERE oid=:contentid",
+        {"contentid": contentid},
     )
-    con.commit()
 
     return PlainSuccess()
 
@@ -453,20 +473,19 @@ def delete_content(project: str, contentid: int, token: str) -> PlainSuccess:
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Likes"],
 )
-def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+async def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if has_liked(con, userid, contentid):
+    if await has_liked(database, userid, contentid):
         return get_error(428, "Already liked")
 
-    con.execute(
-        "INSERT INTO likes (userid, contentid) VALUES(?, ?)",
-        (userid, contentid),
+    await database.execute(
+        "INSERT INTO likes (userid, contentid) VALUES(:userid, :contentid)",
+        {"userid": userid, "contentid": contentid},
     )
-    con.commit()
 
     return PlainSuccess()
 
@@ -477,38 +496,33 @@ def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Likes"],
 )
-def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+async def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not has_liked(con, userid, contentid):
+    if not await has_liked(database, userid, contentid):
         return get_error(428, "Not liked previously")
 
-    con.execute(
-        "DELETE FROM likes WHERE userid=? AND contentid=?",
-        (userid, contentid),
+    await database.execute(
+        "DELETE FROM likes WHERE userid=:userid AND contentid=:contentid",
+        {"userid": userid, "contentid": contentid},
     )
-    con.commit()
 
     return PlainSuccess()
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
-def list_project_tags(project: str) -> TagListSuccess:
-    cur = con.cursor()
-    tags = get_project_tags(cur, project)
-    cur.close()
+async def list_project_tags(project: str) -> TagListSuccess:
+    tags = await get_project_tags(database, project)
     return encode(TagListSuccess(tags=tags))
 
 
 # noinspection PyUnusedLocal
 @app.get("/v1/tag/{project}/{contentid}", tags=["Tags"])
-def list_content_tags(project: str, contentid: int) -> TagListSuccess:
-    cur = con.cursor()
-    tags = get_tags(cur, contentid)
-    cur.close()
+async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
+    tags = await get_tags(database, contentid)
     return encode(TagListSuccess(tags=tags))
 
 
@@ -518,26 +532,27 @@ def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
 )
-def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+async def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
+    if not await owns_content(database, contentid, userid) and not await is_moderator(
+        database, userid
+    ):
         return get_error(401, "Not your content")
 
     if "," in tag:
         return get_error(401, "Contains invalid characters")
 
-    if has_tag(con, contentid, tag):
+    if await has_tag(database, contentid, tag):
         return get_error(428, "Already tagged")
 
-    con.execute(
-        "INSERT INTO tags (contentid, tag) VALUES(?, ?)",
-        (contentid, tag),
+    await database.execute(
+        "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
+        {"contentid": contentid, "tag": tag},
     )
-    con.commit()
 
     return PlainSuccess()
 
@@ -548,23 +563,26 @@ def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
     responses={401: {"model": Error}, 428: {"model": Error}},
     tags=["Tags"],
 )
-def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+async def delete_tag(
+    project: str, contentid: int, tag: str, token: str
+) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not owns_content(con, contentid, userid) and not is_moderator(con, userid):
+    if not await owns_content(database, contentid, userid) and not await is_moderator(
+        database, userid
+    ):
         return get_error(401, "Not your content")
 
-    if not has_tag(con, contentid, tag):
+    if not await has_tag(database, contentid, tag):
         return get_error(428, "Not tagged")
 
-    con.execute(
-        "DELETE FROM tags WHERE contentid=? AND tag=?",
-        (contentid, tag),
+    await database.execute(
+        "DELETE FROM tags WHERE contentid=:contentid AND tag=:tag",
+        {"contentid": contentid, "tag": tag},
     )
-    con.commit()
 
     return PlainSuccess()
 
@@ -573,8 +591,8 @@ def delete_tag(project: str, contentid: int, tag: str, token: str) -> PlainSucce
     "/v1/user/{project}/",
     tags=["Users"],
 )
-def get_users(project: str) -> UserListSuccess:
-    content = con.execute(
+async def get_users(project: str) -> UserListSuccess:
+    content = await database.fetch_all(
         """
     SELECT oid,
        username,
@@ -588,7 +606,7 @@ def get_users(project: str) -> UserListSuccess:
 
          LEFT JOIN (SELECT content.userid, COUNT(content.oid) as submission_count
                     FROM content
-                    WHERE content.project = ?
+                    WHERE content.project = :project
                     GROUP BY content.userid) submitted_content ON submitted_content.userid = users.oid
 
          LEFT JOIN (SELECT likes.userid, COUNT(likes.oid) as count
@@ -598,11 +616,11 @@ def get_users(project: str) -> UserListSuccess:
          LEFT JOIN (SELECT c2.userid, COUNT(likes.oid) as count
                     FROM likes
                              INNER JOIN content c2 ON c2.oid = likes.contentid
-                             WHERE c2.project = ? AND likes.userid != c2.userid
+                             WHERE c2.project = :project AND likes.userid != c2.userid
                     GROUP BY c2.userid) likes_received on likes_received.userid = users.oid
     """,
-        (project, project),
-    ).fetchall()
+        {"project": project},
+    )
 
     return encode(UserListSuccess(users=[get_lite_user_class(*c) for c in content]))
 
@@ -612,8 +630,8 @@ def get_users(project: str) -> UserListSuccess:
     tags=["Users"],
     responses={401: {"model": Error}},
 )
-def get_me(project: str, token: str) -> UserSuccess:
-    userid = token_to_userid(con, token)
+async def get_me(project: str, token: str) -> UserSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
@@ -626,16 +644,16 @@ def get_me(project: str, token: str) -> UserSuccess:
     tags=["Users"],
     responses={404: {"model": Error}},
 )
-def get_user(project: str, userid: int) -> UserSuccess:
-    content = con.execute(
-        "SELECT oid, username, moderator FROM users WHERE oid=?",
-        (userid,),
-    ).fetchone()
+async def get_user(project: str, userid: int) -> UserSuccess:
+    content = await database.fetch_one(
+        "SELECT oid, username, moderator FROM users WHERE oid=:userid",
+        {"userid": userid},
+    )
 
     if content is None:
         return get_error(404, "User doesn't exist")
 
-    return encode(UserSuccess(user=get_user_class(con, project, *content)))
+    return encode(UserSuccess(user=await get_user_class(database, project, *content)))
 
 
 @app.put(
@@ -643,32 +661,36 @@ def get_user(project: str, userid: int) -> UserSuccess:
     tags=["Users"],
     responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
 )
-def set_user(
+async def set_user(
     userid: int, token: str, banned: bool = None, moderator: bool = None, purge=False
 ) -> PlainSuccess:
-    executor_userid = token_to_userid(con, token)
+    executor_userid = await token_to_userid(database, token)
 
     if executor_userid is None:
         return get_error(401, "Token invalid")
 
-    if not is_moderator(con, executor_userid):
+    if not await is_moderator(database, executor_userid):
         return get_error(403, "Not a moderator")
 
-    if not user_exists(con, userid):
+    if not await user_exists(database, userid):
         return get_error(404, "User does not exist")
 
     # Change banned status
     if banned is not None:
-        set_banned(con, userid, banned)
+        await set_banned(database, userid, banned)
 
     # Change moderator status
     if moderator is not None:
-        set_moderator(con, userid, moderator)
+        await set_moderator(database, userid, moderator)
 
     # Delete the users content
     if purge is True:
-        con.execute("DELETE FROM content WHERE userid=?", (userid,))
-        con.execute("DELETE FROM likes WHERE userid=?", (userid,))
+        await database.execute(
+            "DELETE FROM content WHERE userid=:userid", {"userid": userid}
+        )
+        await database.execute(
+            "DELETE FROM likes WHERE userid=:userid", {"userid": userid}
+        )
 
     return PlainSuccess()
 
@@ -681,20 +703,19 @@ def set_user(
     responses={401: {"model": Error}},
     tags=["Admin"],
 )
-def run_post_upload_callbacks(project: str, token: str) -> PlainSuccess:
-    userid = token_to_userid(con, token)
+async def run_post_upload_callbacks(project: str, token: str) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
 
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not is_moderator(con, userid):
+    if not is_moderator(database, userid):
         return get_error(401, "Not an moderator")
 
-    content = con.execute(
-        "SELECT oid FROM content WHERE project=?",
-        (project,),
+    content = await database.execute(
+        "SELECT oid FROM content WHERE project=:project",
+        {"project": project},
     )
-    con.commit()
 
     # Call modules for eventual post-processing
     processed = 0
