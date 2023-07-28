@@ -26,6 +26,7 @@ from api_types import (
     TagListSuccess,
     ContentUpload,
     IsAuthResponse,
+    LiteContent,
 )
 from modules.mca.valid import ValidModule
 from modules.module import Module
@@ -144,6 +145,13 @@ def setup():
     )
     cur.execute("CREATE INDEX IF NOT EXISTS content_project on content (project)")
 
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS reports (userid CHAR, contentid INTEGER, reason CHAR)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS reports_contentid_reason on reports (contentid, reason)"
+    )
+
     cur.execute("CREATE TABLE IF NOT EXISTS likes (userid CHAR, contentid INTEGER)")
     cur.execute("CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)")
 
@@ -164,6 +172,26 @@ modules["mca"].append(ValidModule(con))
 
 def encode(r: Response):
     return Response(orjson.dumps(r, default=vars), media_type="application/json")
+
+def decode(r: Response):
+    return orjson.loads(r.body)
+
+@app.get(
+    "/v1/stats/{project}",
+    responses={401: {"model": Error}, 400: {"model": Error}},
+    tags=["Auth"],
+    summary="Get some global stats",
+)
+def get_stats(project: str) -> dict:
+    total = decode(list_content_v2(project=project, dry=True))["total"]
+    banned = decode(list_content_v2(project=project, dry=True, filter_banned=False))["total"]
+    reported = decode(list_content_v2(project=project, dry=True, filter_reported=False))["total"]
+
+    return {
+        "total": total,
+        "banned": banned - total,
+        "reported": reported - total,
+    }
 
 
 @app.post(
@@ -225,8 +253,84 @@ def list_content(
         ).fetchall()
 
     return encode(
-        ContentListSuccess(contents=[get_lite_content_class(*c) for c in content])
+        ContentListSuccess(
+            contents=[get_lite_content_class(*c) for c in content], total=-1
+        )
     )
+
+
+def search_whitelist(terms: List[str], content: LiteContent):
+    for term in terms:
+        if term in content.tags:
+            continue
+        elif term in content.title:
+            continue
+        return False
+    return True
+
+
+def search_blacklist(terms: List[str], content: LiteContent):
+    for term in terms:
+        if term in content.tags:
+            return True
+    return False
+
+
+@app.get("/v2/content/{project}", tags=["Content"])
+def list_content_v2(
+    project: str,
+    whitelist: str = None,
+    blacklist: str = None,
+    filter_banned: bool = True,
+    filter_reported: bool = True,
+    offset: int = 0,
+    limit: int = 10,
+    order: str = "oid",
+    descending: bool = False,
+    dry: bool = False,
+) -> ContentListSuccess:
+    prompt = BASE_LITE_SELECT + "\n WHERE c.project = ?"
+    values = [project]
+
+    # Remove content from banned users
+    if filter_banned:
+        prompt += " AND NOT users.banned"
+
+    # Remove reported content
+    if filter_reported:
+        prompt += " AND 1 + likes / 10.0 - reports >= 0.0"
+
+    # Order by
+    if order in {"oid", "likes", "title", "reports"}:
+        prompt += "\n ORDER BY ? " + ("DESC" if descending else "ASC")
+        values.append(order)
+
+    # Fetch
+    content = con.execute(prompt, values).fetchall()
+    count = len(content)
+
+    if dry:
+        encode(ContentListSuccess(contents=[], total=count))
+
+    contents = [get_lite_content_class(*c) for c in content]
+
+    # Only if all terms matches either a tag or the title, allow this content
+    if whitelist is not None:
+        whitelist = list(v.strip() for v in whitelist.split(","))
+        contents = [c for c in contents if search_whitelist(whitelist, c)]
+
+    # If one term in the blacklist matches a tag, skip
+    if blacklist is not None:
+        blacklist = list(v.strip() for v in blacklist.split(","))
+        contents = [c for c in contents if not search_blacklist(blacklist, c)]
+
+    # Paging
+    contents = contents[offset : offset + limit]
+
+    # Hard limit
+    contents = contents[:1000]
+
+    return encode(ContentListSuccess(contents=contents, total=count))
 
 
 # noinspection PyUnusedLocal

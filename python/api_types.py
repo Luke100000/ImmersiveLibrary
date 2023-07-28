@@ -31,6 +31,7 @@ class LiteContent(BaseModel):
     userid: int
     username: str
     likes: int
+    reports: int
     tags: List[str]
     title: str
     version: int
@@ -63,6 +64,7 @@ class ContentSuccess(BaseModel):
 
 class ContentListSuccess(BaseModel):
     contents: List[LiteContent]
+    total: int
 
 
 class UserSuccess(BaseModel):

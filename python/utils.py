@@ -16,18 +16,24 @@ def get_base_select(data: bool):
            users.username,
            c.meta,
            c.data,
-           CASE WHEN liked_content.likes is NULL THEN 0 ELSE liked_content.likes END as likes,
-           CASE WHEN tagged_content.tags is NULL THEN '' ELSE tagged_content.tags END as tags
+           CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END as likes,
+           CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
+           CASE WHEN reported_content.c_reports is NULL THEN 0 ELSE reported_content.c_reports END as reports
     FROM content c
              INNER JOIN users ON c.userid = users.oid
 
-             LEFT JOIN (SELECT likes.contentid, COUNT(*) as likes
+             LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
                         FROM likes
                         GROUP BY likes.contentid) liked_content ON liked_content.contentid = c.oid
 
-             LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as tags
+             LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
                         FROM tags
                         GROUP BY tags.contentid) tagged_content on tagged_content.contentid = c.oid
+
+             LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_reports
+                        FROM reports
+                        WHERE reports.reason = 'DEFAULT'
+                        GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
 
     """
 
@@ -244,8 +250,9 @@ def get_lite_content_class(
     title: str,
     version: int,
     username: str,
-    likes: 0,
+    likes: int,
     tags: str,
+    reports: int,
 ):
     """
     Populates a lite content object
@@ -259,6 +266,7 @@ def get_lite_content_class(
         tags=tags.split(",") if tags else [],
         title=title,
         version=version,
+        reports=reports,
     )
 
 
