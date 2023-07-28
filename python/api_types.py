@@ -1,5 +1,7 @@
 import base64
-from typing import TypeVar, List
+from dataclasses import dataclass
+from functools import cached_property
+from typing import TypeVar, List, NamedTuple
 
 from pydantic import BaseModel
 

@@ -11,9 +11,9 @@ def get_base_select(data: bool):
     prompt = """
     SELECT c.oid,
            c.userid,
+           users.username,
            c.title,
            c.version,
-           users.username,
            c.meta,
            c.data,
            CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END as likes,
@@ -270,10 +270,10 @@ async def get_project_tags(database: Database, project: str) -> List[str]:
 
 def get_lite_content_class(
     contentid: int,
-    userid: str,
+    userid: int,
+    username: str,
     title: str,
     version: int,
-    username: str,
     likes: int,
     tags: str,
     reports: int,

@@ -25,7 +25,6 @@ from api_types import (
     TagListSuccess,
     ContentUpload,
     IsAuthResponse,
-    LiteContent,
 )
 from modules.mca.valid import ValidModule
 from modules.module import Module
@@ -45,10 +44,10 @@ from utils import (
     set_banned,
     user_exists,
     exists,
-    get_lite_content_class,
     BASE_SELECT,
     BASE_LITE_SELECT,
     get_lite_user_class,
+    get_lite_content_class,
 )
 
 load_dotenv()
@@ -112,7 +111,6 @@ app.openapi = custom_openapi
 # Open Database
 database = Database("sqlite:///database.db")
 
-
 # Prometheus integration
 instrumentator = Instrumentator().instrument(app)
 
@@ -138,7 +136,10 @@ async def setup():
         "CREATE TABLE IF NOT EXISTS reports (userid CHAR, contentid INTEGER, reason CHAR)"
     )
     await database.execute(
-        "CREATE INDEX IF NOT EXISTS reports_contentid_reason on reports (contentid, reason)"
+        "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS reports_reason on reports (reason)"
     )
 
     await database.execute(
@@ -252,40 +253,12 @@ async def is_auth(token: str) -> dict:
 async def list_content(
     project: str, tag_filter: str = None, invert_filter: bool = False
 ) -> ContentListSuccess:
-    if tag_filter is None:
-        content = await database.fetch_all(
-            BASE_LITE_SELECT + "WHERE c.project = :project",
-            {"project": project},
-        )
-    else:
-        content = await database.fetch_all(
-            BASE_LITE_SELECT
-            + f"WHERE c.project = :project AND {'NOT' if invert_filter else ''} EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag IS :tag_filter)",
-            {"project": project, "tag_filter": tag_filter},
-        )
-
-    return encode(
-        ContentListSuccess(
-            contents=[get_lite_content_class(*c) for c in content], total=-1
-        )
+    return await list_content_v2(
+        project,
+        whitelist=None if invert_filter else tag_filter,
+        blacklist=tag_filter if invert_filter else None,
+        limit=10000,
     )
-
-
-def search_whitelist(terms: List[str], content: LiteContent):
-    for term in terms:
-        if term in content.tags:
-            continue
-        elif term in content.title:
-            continue
-        return False
-    return True
-
-
-def search_blacklist(terms: List[str], content: LiteContent):
-    for term in terms:
-        if term in content.tags:
-            return True
-    return False
 
 
 @app.get("/v2/content/{project}", tags=["Content"])
@@ -306,16 +279,35 @@ async def list_content_v2(
 
     # Remove content from banned users
     if filter_banned:
-        prompt += " AND NOT users.banned"
+        prompt += "\n AND NOT users.banned"
 
     # Remove reported content
     if filter_reported:
-        prompt += " AND 1 + likes / 10.0 - reports >= 0.0"
+        prompt += "\n AND 1 + likes / 10.0 - reports >= 0.0"
+
+    # Only if all terms matches either a tag or the title, allow this content
+    if whitelist is not None:
+        whitelist = list(v.strip() for v in whitelist.split(","))
+        for index, term in enumerate(whitelist):
+            prompt += f"\n AND (title LIKE :whitelist_term_{index} OR EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :whitelist_term_{index}))"
+            values[f"whitelist_term_{index}"] = f"%{term}%"
+
+    # Only if no term matches a tag
+    if blacklist is not None:
+        blacklist = list(v.strip() for v in blacklist.split(","))
+        for index, term in enumerate(blacklist):
+            prompt += f"\n AND NOT EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :blacklist_term_{index})"
+            values[f"blacklist_term_{index}"] = f"%{term}%"
 
     # Order by
     if order in {"oid", "likes", "title", "reports"}:
         prompt += "\n ORDER BY :order " + ("DESC" if descending else "ASC")
         values["order"] = order
+
+    # Limit
+    prompt += "\n LIMIT :limit OFFSET :offset"
+    values["limit"] = limit
+    values["offset"] = offset
 
     # Fetch
     content = await database.fetch_all(prompt, values)
@@ -324,23 +316,8 @@ async def list_content_v2(
     if dry:
         encode(ContentListSuccess(contents=[], total=count))
 
+    # Convert to content accessors, which are more lightweight than the actual content instances
     contents = [get_lite_content_class(*c) for c in content]
-
-    # Only if all terms matches either a tag or the title, allow this content
-    if whitelist is not None:
-        whitelist = list(v.strip() for v in whitelist.split(","))
-        contents = [c for c in contents if search_whitelist(whitelist, c)]
-
-    # If one term in the blacklist matches a tag, skip
-    if blacklist is not None:
-        blacklist = list(v.strip() for v in blacklist.split(","))
-        contents = [c for c in contents if not search_blacklist(blacklist, c)]
-
-    # Paging
-    contents = contents[offset : offset + limit]
-
-    # Hard limit
-    contents = contents[:1000]
 
     return encode(ContentListSuccess(contents=contents, total=count))
 
