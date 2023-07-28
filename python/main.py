@@ -48,6 +48,7 @@ from utils import (
     BASE_LITE_SELECT,
     get_lite_user_class,
     get_lite_content_class,
+    has_reported,
 )
 
 load_dotenv()
@@ -485,6 +486,56 @@ async def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
     await database.execute(
         "DELETE FROM likes WHERE userid=:userid AND contentid=:contentid",
         {"userid": userid, "contentid": contentid},
+    )
+
+    return PlainSuccess()
+
+
+# noinspection PyUnusedLocal
+@app.post(
+    "/v1/report/{project}/{contentid}/{reason}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Likes"],
+)
+async def add_report(
+    project: str, contentid: int, reason: str, token: str
+) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if await has_reported(database, userid, contentid, reason):
+        return get_error(428, "Already reported")
+
+    await database.execute(
+        "INSERT INTO reports (userid, contentid, reason) VALUES(:userid, :contentid, :reason)",
+        {"userid": userid, "contentid": contentid, "reason": reason},
+    )
+
+    return PlainSuccess()
+
+
+# noinspection PyUnusedLocal
+@app.delete(
+    "/v1/report/{project}/{contentid}/{reason}",
+    responses={401: {"model": Error}, 428: {"model": Error}},
+    tags=["Likes"],
+)
+async def delete_report(
+    project: str, contentid: int, reason: str, token: str
+) -> PlainSuccess:
+    userid = await token_to_userid(database, token)
+
+    if userid is None:
+        return get_error(401, "Token invalid")
+
+    if not await has_reported(database, userid, contentid, reason):
+        return get_error(428, "Not liked previously")
+
+    await database.execute(
+        "DELETE FROM likes WHERE userid=:userid AND contentid=:contentid AND reason=:reason",
+        {"userid": userid, "contentid": contentid, "reason": reason},
     )
 
     return PlainSuccess()

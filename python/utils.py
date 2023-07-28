@@ -163,14 +163,25 @@ async def set_banned(database: Database, userid: int, banned: bool):
     )
 
 
-async def has_liked(con, userid, contentid):
+async def has_liked(database: Database, userid: int, contentid: int):
     """
     Checks if the given user has liked the content
     """
     return await exists(
-        con,
+        database,
         "SELECT count(*) FROM likes WHERE userid=:userid AND contentid=:contentid",
         {"userid": userid, "contentid": contentid},
+    )
+
+
+async def has_reported(database: Database, userid: int, contentid: int, reason: str):
+    """
+    Checks if the given user has reported the content with the given reason
+    """
+    return await exists(
+        database,
+        "SELECT count(*) FROM reports WHERE userid=:userid AND contentid=:contentid AND reason=:reason",
+        {"userid": userid, "contentid": contentid, "reason": reason},
     )
 
 
