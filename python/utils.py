@@ -7,8 +7,8 @@ from starlette.responses import JSONResponse
 from api_types import Error, Content, User, LiteContent, LiteUser
 
 
-def get_base_select(data: bool):
-    prompt = """
+def get_base_select(data: bool, report_reason="DEFAULT"):
+    prompt = f"""
     SELECT c.oid,
            c.userid,
            users.username,
@@ -32,7 +32,7 @@ def get_base_select(data: bool):
 
              LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_reports
                         FROM reports
-                        WHERE reports.reason = 'DEFAULT'
+                        WHERE reports.reason = '{report_reason}'
                         GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
 
     """

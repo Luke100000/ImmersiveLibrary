@@ -26,6 +26,7 @@ from api_types import (
     ContentUpload,
     IsAuthResponse,
 )
+from modules.mca.invalid_report import InvalidReport
 from modules.mca.valid import ValidModule
 from modules.module import Module
 from utils import (
@@ -176,6 +177,7 @@ async def _shutdown():
 modules: defaultdict[str, List[Module]] = defaultdict(lambda: [])
 
 modules["mca"].append(ValidModule(database))
+modules["mca"].append(InvalidReport(database))
 
 
 def encode(r: Response):
@@ -373,7 +375,7 @@ async def add_content(
 
     # Call modules for eventual post-processing
     for module in modules[project]:
-        module.post_upload(content)
+        await module.post_upload(content)
 
     return encode(ContentIdSuccess(contentid=content))
 
@@ -415,7 +417,7 @@ async def update_content(
 
     # Call modules for eventual post-processing
     for module in modules[project]:
-        module.post_upload(contentid)
+        await module.post_upload(contentid)
 
     return PlainSuccess()
 
@@ -512,6 +514,10 @@ async def add_report(
         "INSERT INTO reports (userid, contentid, reason) VALUES(:userid, :contentid, :reason)",
         {"userid": userid, "contentid": contentid, "reason": reason},
     )
+
+    # Call modules for eventual post-processing
+    for module in modules[project]:
+        await module.post_report(contentid, reason)
 
     return PlainSuccess()
 
@@ -750,7 +756,7 @@ async def run_post_upload_callbacks(project: str, token: str) -> PlainSuccess:
     for c in content:
         processed += 1
         for module in modules[project]:
-            module.post_upload(*c)
+            await module.post_upload(*c)
 
     return JSONResponse(
         status_code=200,

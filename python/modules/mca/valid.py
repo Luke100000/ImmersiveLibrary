@@ -80,9 +80,7 @@ MASK = np.array([
 
 
 class ValidModule(Module):
-    def pre_upload(self, content: ContentUpload) -> str:
-        super().pre_upload(content)
-
+    async def pre_upload(self, content: ContentUpload) -> str:
         try:
             image = Image.open(io.BytesIO(content.payload))
             image = np.array(image.convert("RGBA"))
@@ -92,21 +90,18 @@ class ValidModule(Module):
         except PIL.UnidentifiedImageError:
             return str("Not an valid image!")
 
-    def post_upload(self, contentid: int):
-        super().post_upload(contentid)
-
-        content = self.con.execute(
+    async def post_upload(self, contentid: int):
+        content = await self.database.fetch_one(
             "SELECT data FROM content WHERE oid=?", (contentid,)
-        ).fetchone()[0]
+        )
 
         image = Image.open(io.BytesIO(content))
         image = np.array(image.convert("RGBA"))
 
         errors = ((image[:, :, -1] == 0) * MASK).sum()
         if errors <= 6:
-            if not has_tag(self.con, contentid, "invalid"):
-                self.con.execute(
+            if not await has_tag(self.database, contentid, "invalid"):
+                await self.database.execute(
                     "INSERT INTO tags (contentid, tag) VALUES(?, ?)",
                     (contentid, "invalid"),
                 )
-                self.con.commit()
