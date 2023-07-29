@@ -278,7 +278,7 @@ async def list_content_v2(
 
     # Only show reported content
     if moderator:
-        prompt += "\n AND (reports > 0 OR users.banned)"
+        prompt += "\n AND (1 + likes / 10.0 - reports + counter_reports * 10.0 < 0.0 OR users.banned)"
     else:
         # Remove content from banned users
         if filter_banned:
@@ -303,9 +303,10 @@ async def list_content_v2(
             values[f"blacklist_term_{index}"] = f"%{term}%"
 
     # Order by
-    if order in {"oid", "likes", "title", "reports"}:
-        prompt += "\n ORDER BY :order " + ("DESC" if descending else "ASC")
-        values["order"] = order
+    if order in {"date", "likes", "title", "reports"}:
+        if order == "date":
+            order = "c.oid"
+        prompt += f"\n ORDER BY {order} " + ("DESC" if descending else "ASC")
 
     # Limit
     prompt += "\n LIMIT :limit OFFSET :offset"
@@ -354,7 +355,7 @@ async def add_content(
 
     # Call modules for content verification
     for module in modules[project]:
-        exception = module.pre_upload(content)
+        exception = await module.pre_upload(content)
         if exception is not None:
             return get_error(400, exception)
 
@@ -396,9 +397,9 @@ async def update_content(
 
     # Call modules for content verification
     for module in modules[project]:
-        exception = module.pre_upload(content)
+        exception = await module.pre_upload(content)
         if exception is not None:
-            return get_error(400, exception)
+            return get_error(400, str(exception))
 
     await database.execute(
         "UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1 WHERE project=:project AND oid=:oid",

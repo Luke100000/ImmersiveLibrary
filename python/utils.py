@@ -164,7 +164,7 @@ async def set_banned(database: Database, userid: int, banned: bool):
     Sets banned status
     """
     await database.execute(
-        "UPDATE users SET banned=:banned, token='' WHERE oid=:userid",
+        "UPDATE users SET banned=:banned WHERE oid=:userid",
         {"banned": banned, "userid": userid},
     )
 
