@@ -24,7 +24,7 @@ from api_types import (
     UserListSuccess,
     TagListSuccess,
     ContentUpload,
-    IsAuthResponse
+    IsAuthResponse,
 )
 from modules.mca.invalid_report import InvalidReport
 from modules.mca.valid import ValidModule
@@ -188,28 +188,6 @@ def decode(r: Response):
     return orjson.loads(r.body)
 
 
-@app.get(
-    "/v1/stats/{project}",
-    responses={401: {"model": Error}, 400: {"model": Error}},
-    tags=["Auth"],
-    summary="Get some global stats",
-)
-async def get_stats(project: str) -> dict:
-    total = decode(await list_content_v2(project=project, _dry=True))["total"]
-    banned = decode(
-        await list_content_v2(project=project, _dry=True, filter_banned=False)
-    )["total"]
-    reported = decode(
-        await list_content_v2(project=project, _dry=True, filter_reported=False)
-    )["total"]
-
-    return {
-        "total": total,
-        "banned": banned - total,
-        "reported": reported - total,
-    }
-
-
 @app.post(
     "/v1/auth",
     responses={401: {"model": Error}, 400: {"model": Error}},
@@ -271,34 +249,37 @@ async def list_content_v2(
     blacklist: str = None,
     filter_banned: bool = True,
     filter_reported: bool = True,
+    moderator: bool = False,
     offset: int = 0,
     limit: int = 10,
     order: str = "oid",
     descending: bool = False,
-    _dry: bool = False,
-    _inner: bool = False,
 ) -> ContentListSuccess:
     prompt = BASE_LITE_SELECT + "\n WHERE c.project = :project"
     values = {"project": project}
 
-    # Remove content from banned users
-    if filter_banned:
-        prompt += "\n AND NOT users.banned"
+    # Only show reported content
+    if moderator:
+        prompt += "\n AND (reports > 0 OR users.banned)"
+    else:
+        # Remove content from banned users
+        if filter_banned:
+            prompt += "\n AND NOT users.banned"
 
-    # Remove reported content
-    if filter_reported:
-        prompt += "\n AND 1 + likes / 10.0 - reports >= 0.0"
+        # Remove reported content
+        if filter_reported:
+            prompt += "\n AND 1 + likes / 10.0 - reports >= 0.0"
 
     # Only if all terms matches either a tag or the title, allow this content
     if whitelist:
-        whitelist = list(v.strip() for v in whitelist.split(","))
+        whitelist = list(v.strip() for v in whitelist.split(",") if v.strip)
         for index, term in enumerate(whitelist):
             prompt += f"\n AND (username LIKE :whitelist_term_{index} OR title LIKE :whitelist_term_{index} OR EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :whitelist_term_{index}))"
             values[f"whitelist_term_{index}"] = f"%{term}%"
 
     # Only if no term matches a tag
     if blacklist:
-        blacklist = list(v.strip() for v in blacklist.split(","))
+        blacklist = list(v.strip() for v in blacklist.split(",") if v.strip)
         for index, term in enumerate(blacklist):
             prompt += f"\n AND NOT EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :blacklist_term_{index})"
             values[f"blacklist_term_{index}"] = f"%{term}%"
@@ -315,18 +296,11 @@ async def list_content_v2(
 
     # Fetch
     content = await database.fetch_all(prompt, values)
-    count = len(content)
-
-    if _dry:
-        encode(ContentListSuccess(contents=[], total=count))
-
-    if _inner:
-        return content
 
     # Convert to content accessors, which are more lightweight than the actual content instances
     contents = [get_lite_content_class(*c) for c in content]
 
-    return encode(ContentListSuccess(contents=contents, total=count))
+    return encode(ContentListSuccess(contents=contents))
 
 
 # noinspection PyUnusedLocal

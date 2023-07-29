@@ -35,6 +35,11 @@ def get_base_select(data: bool, report_reason="DEFAULT"):
                         WHERE reports.reason = '{report_reason}'
                         GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
 
+             LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_reports
+                        FROM reports
+                        WHERE reports.reason = '{report_reason}'
+                        GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
+
     """
 
     if not data:

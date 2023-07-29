@@ -63,7 +63,6 @@ class ContentSuccess(BaseModel):
 
 class ContentListSuccess(BaseModel):
     contents: List[LiteContent]
-    total: int
 
 
 class UserSuccess(BaseModel):
