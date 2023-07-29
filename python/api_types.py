@@ -1,7 +1,5 @@
 import base64
-from dataclasses import dataclass
-from functools import cached_property
-from typing import TypeVar, List, NamedTuple
+from typing import TypeVar, List
 
 from pydantic import BaseModel
 
@@ -33,7 +31,6 @@ class LiteContent(BaseModel):
     userid: int
     username: str
     likes: int
-    reports: int
     tags: List[str]
     title: str
     version: int

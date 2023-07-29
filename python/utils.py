@@ -307,15 +307,14 @@ def get_lite_content_class(
 
 def get_content_class(
     contentid: int,
-    userid: str,
+    userid: int,
+    username: str,
     title: str,
     version: int,
-    username: str,
     meta: str,
     data: bytes,
-    likes: 0,
+    likes: int,
     tags: str,
-    reports: int,
 ):
     """
     Populates a content object
@@ -326,7 +325,6 @@ def get_content_class(
         userid=userid,
         username=username,
         likes=likes,
-        reports=reports,
         tags=tags.split(",") if tags else [],
         title=title,
         version=version,

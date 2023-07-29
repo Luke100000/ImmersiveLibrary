@@ -24,7 +24,7 @@ from api_types import (
     UserListSuccess,
     TagListSuccess,
     ContentUpload,
-    IsAuthResponse,
+    IsAuthResponse
 )
 from modules.mca.invalid_report import InvalidReport
 from modules.mca.valid import ValidModule
@@ -195,12 +195,12 @@ def decode(r: Response):
     summary="Get some global stats",
 )
 async def get_stats(project: str) -> dict:
-    total = decode(await list_content_v2(project=project, dry=True))["total"]
+    total = decode(await list_content_v2(project=project, _dry=True))["total"]
     banned = decode(
-        await list_content_v2(project=project, dry=True, filter_banned=False)
+        await list_content_v2(project=project, _dry=True, filter_banned=False)
     )["total"]
     reported = decode(
-        await list_content_v2(project=project, dry=True, filter_reported=False)
+        await list_content_v2(project=project, _dry=True, filter_reported=False)
     )["total"]
 
     return {
@@ -275,7 +275,8 @@ async def list_content_v2(
     limit: int = 10,
     order: str = "oid",
     descending: bool = False,
-    dry: bool = False,
+    _dry: bool = False,
+    _inner: bool = False,
 ) -> ContentListSuccess:
     prompt = BASE_LITE_SELECT + "\n WHERE c.project = :project"
     values = {"project": project}
@@ -289,14 +290,14 @@ async def list_content_v2(
         prompt += "\n AND 1 + likes / 10.0 - reports >= 0.0"
 
     # Only if all terms matches either a tag or the title, allow this content
-    if whitelist is not None:
+    if whitelist:
         whitelist = list(v.strip() for v in whitelist.split(","))
         for index, term in enumerate(whitelist):
-            prompt += f"\n AND (title LIKE :whitelist_term_{index} OR EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :whitelist_term_{index}))"
+            prompt += f"\n AND (username LIKE :whitelist_term_{index} OR title LIKE :whitelist_term_{index} OR EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :whitelist_term_{index}))"
             values[f"whitelist_term_{index}"] = f"%{term}%"
 
     # Only if no term matches a tag
-    if blacklist is not None:
+    if blacklist:
         blacklist = list(v.strip() for v in blacklist.split(","))
         for index, term in enumerate(blacklist):
             prompt += f"\n AND NOT EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :blacklist_term_{index})"
@@ -316,8 +317,11 @@ async def list_content_v2(
     content = await database.fetch_all(prompt, values)
     count = len(content)
 
-    if dry:
+    if _dry:
         encode(ContentListSuccess(contents=[], total=count))
+
+    if _inner:
+        return content
 
     # Convert to content accessors, which are more lightweight than the actual content instances
     contents = [get_lite_content_class(*c) for c in content]
@@ -670,7 +674,7 @@ async def get_me(project: str, token: str) -> UserSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    return get_user(project, userid)
+    return await get_user(project, userid)
 
 
 @app.get(
