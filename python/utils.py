@@ -18,7 +18,8 @@ def get_base_select(data: bool, report_reason="DEFAULT"):
            c.data,
            CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END as likes,
            CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
-           CASE WHEN reported_content.c_reports is NULL THEN 0 ELSE reported_content.c_reports END as reports
+           CASE WHEN reported_content.c_reports is NULL THEN 0 ELSE reported_content.c_reports END as reports,
+           CASE WHEN counter_reported_content.c_counter_reports is NULL THEN 0 ELSE counter_reported_content.c_counter_reports END as counter_reports
     FROM content c
              INNER JOIN users ON c.userid = users.oid
 
@@ -35,10 +36,10 @@ def get_base_select(data: bool, report_reason="DEFAULT"):
                         WHERE reports.reason = '{report_reason}'
                         GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
 
-             LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_reports
+             LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_counter_reports
                         FROM reports
-                        WHERE reports.reason = '{report_reason}'
-                        GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
+                        WHERE reports.reason = 'COUNTER_{report_reason}'
+                        GROUP BY reports.contentid) counter_reported_content on counter_reported_content.contentid = c.oid
 
     """
 
@@ -284,6 +285,7 @@ async def get_project_tags(database: Database, project: str) -> List[str]:
     return [t[0] for t in tags]
 
 
+# noinspection PyUnusedLocal
 def get_lite_content_class(
     contentid: int,
     userid: int,
@@ -293,6 +295,7 @@ def get_lite_content_class(
     likes: int,
     tags: str,
     reports: int,
+    counter_reports: int,
 ):
     """
     Populates a lite content object
@@ -306,10 +309,10 @@ def get_lite_content_class(
         tags=tags.split(",") if tags else [],
         title=title,
         version=version,
-        reports=reports,
     )
 
 
+# noinspection PyUnusedLocal
 def get_content_class(
     contentid: int,
     userid: int,
@@ -320,6 +323,8 @@ def get_content_class(
     data: bytes,
     likes: int,
     tags: str,
+    reports: int,
+    counter_reports: int,
 ):
     """
     Populates a content object

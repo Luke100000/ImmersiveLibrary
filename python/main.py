@@ -138,6 +138,9 @@ async def setup():
         "CREATE TABLE IF NOT EXISTS reports (userid CHAR, contentid INTEGER, reason CHAR)"
     )
     await database.execute(
+        "CREATE INDEX IF NOT EXISTS reports_userid on reports (userid)"
+    )
+    await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
     )
     await database.execute(
@@ -254,9 +257,24 @@ async def list_content_v2(
     limit: int = 10,
     order: str = "oid",
     descending: bool = False,
+    token: str = None,
 ) -> ContentListSuccess:
-    prompt = BASE_LITE_SELECT + "\n WHERE c.project = :project"
+    prompt = BASE_LITE_SELECT
     values = {"project": project}
+
+    prompt += "\n WHERE c.project = :project"
+
+    # Hide personal banned content
+    if token is not None and not moderator:
+        userid = await token_to_userid(database, token)
+
+        if userid is not None:
+            prompt += """
+             AND NOT EXISTS (SELECT *
+                        FROM reports
+                        WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :userid)
+            """
+            values["userid"] = userid
 
     # Only show reported content
     if moderator:
@@ -268,7 +286,7 @@ async def list_content_v2(
 
         # Remove reported content
         if filter_reported:
-            prompt += "\n AND 1 + likes / 10.0 - reports >= 0.0"
+            prompt += "\n AND 1 + likes / 10.0 - reports + counter_reports * 10.0 >= 0.0"
 
     # Only if all terms matches either a tag or the title, allow this content
     if whitelist:
@@ -600,6 +618,22 @@ async def delete_tag(
 
 
 @app.get(
+    "/v1/bans",
+    tags=["Users"],
+)
+async def get_users() -> Response:
+    content = await database.fetch_all(
+        """
+        SELECT oid, username
+        FROM users
+        WHERE banned == 1
+    """
+    )
+
+    return [{"userid": u[0], "username": u[1]} for u in content]
+
+
+@app.get(
     "/v1/user/{project}/",
     tags=["Users"],
 )
@@ -669,7 +703,7 @@ async def get_user(project: str, userid: int) -> UserSuccess:
 
 
 @app.put(
-    "/v1/user/{userid}/",
+    "/v1/user/{userid}",
     tags=["Users"],
     responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
 )
