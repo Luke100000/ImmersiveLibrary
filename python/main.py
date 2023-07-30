@@ -1,12 +1,12 @@
+import glob
 import os
-import shutil
 
 from prometheus_client import CollectorRegistry, multiprocess
 
 # Setup prometheus for multiprocessing
-shutil.rmtree("prometheus", ignore_errors=True)
-os.makedirs("prometheus", exist_ok=True)
-os.environ["prometheus_multiproc_dir"] = os.getcwd() + "/prometheus"
+prom_dir = os.environ["PROMETHEUS_MULTIPROC_DIR"]
+for f in glob.glob(prom_dir + "/*"):
+    os.remove(f)
 registry = CollectorRegistry()
 multiprocess.MultiProcessCollector(registry)
 
