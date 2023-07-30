@@ -1,4 +1,15 @@
 import os
+import shutil
+
+from prometheus_client import CollectorRegistry, multiprocess
+
+# Setup prometheus for multi processing
+shutil.rmtree("prometheus")
+os.makedirs("prometheus", exist_ok=True)
+os.environ["prometheus_multiproc_dir"] = os.getcwd() + "/prometheus"
+registry = CollectorRegistry()
+multiprocess.MultiProcessCollector(registry)
+
 from collections import defaultdict
 from typing import Annotated, List
 

@@ -1,6 +1,13 @@
 requests==2.31.0
 python-dotenv~=1.0.0
 fastapi==0.100.1
-starlette==0.31.0
+starlette==0.27.0
 pydantic==2.1.1
 google-auth==2.22.0
+databases~=0.7.0
+google-api-python-client==2.95.0
+orjson
+prometheus-fastapi-instrumentator==6.1.0
+Pillow==10.0.0
+aiosqlite
+python-multipart
