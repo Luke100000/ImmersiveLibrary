@@ -89,7 +89,7 @@ tags_metadata = [
 
 app = FastAPI()
 
-app.add_middleware(GZipMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 
 
 # Custom OpenAPI to fix missing description

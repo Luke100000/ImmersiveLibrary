@@ -17,14 +17,16 @@ async def refresh_precomputation(database: Database):
         INSERT OR
         REPLACE
         INTO precomputation (contentid, dirty, tags, likes, reports, counter_reports)
-        
         SELECT content.oid,
-            0,
-            CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
-            CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
-            CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
-            CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
+               0,
+               CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
+               CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
+               CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
+               CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
         FROM content
+                 LEFT JOIN precomputation
+                           ON content.oid = precomputation.contentid
+        
                  LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
                             FROM likes
                             GROUP BY likes.contentid) liked_content ON liked_content.contentid = content.oid
@@ -42,10 +44,7 @@ async def refresh_precomputation(database: Database):
                             FROM reports
                             WHERE reports.reason = 'COUNTER_DEFAULT'
                             GROUP BY reports.contentid) countered_c on countered_c.contentid = content.oid
-        
-                 LEFT JOIN precomputation
-                           ON content.oid = precomputation.contentid
-        WHERE precomputation.dirty = 1 OR precomputation.dirty is NULL
+        WHERE precomputation.dirty IS NOT 0
     """
     )
 
