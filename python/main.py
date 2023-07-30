@@ -3,8 +3,8 @@ import shutil
 
 from prometheus_client import CollectorRegistry, multiprocess
 
-# Setup prometheus for multi processing
-shutil.rmtree("prometheus")
+# Setup prometheus for multiprocessing
+shutil.rmtree("prometheus", ignore_errors=True)
 os.makedirs("prometheus", exist_ok=True)
 os.environ["prometheus_multiproc_dir"] = os.getcwd() + "/prometheus"
 registry = CollectorRegistry()
