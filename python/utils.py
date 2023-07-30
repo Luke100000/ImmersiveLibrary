@@ -7,39 +7,81 @@ from starlette.responses import JSONResponse
 from api_types import Error, Content, User, LiteContent, LiteUser
 
 
-def get_base_select(data: bool, report_reason="DEFAULT"):
+async def refresh_precomputation(database: Database):
+    """
+    Refreshes the database persistent cache
+    :param database: The database to refresh
+    """
+    await database.execute(
+        """
+        INSERT OR
+        REPLACE
+        INTO precomputation (contentid, dirty, tags, likes, reports, counter_reports)
+        
+        SELECT content.oid,
+            0,
+            CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
+            CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
+            CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
+            CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
+        FROM content
+                 LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
+                            FROM likes
+                            GROUP BY likes.contentid) liked_content ON liked_content.contentid = content.oid
+        
+                 LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
+                            FROM tags
+                            GROUP BY tags.contentid) tagged_content on tagged_content.contentid = content.oid
+        
+                 LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
+                            FROM reports
+                            WHERE reports.reason = 'DEFAULT'
+                            GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
+        
+                 LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
+                            FROM reports
+                            WHERE reports.reason = 'COUNTER_DEFAULT'
+                            GROUP BY reports.contentid) countered_c on countered_c.contentid = content.oid
+        
+                 LEFT JOIN precomputation
+                           ON content.oid = precomputation.contentid
+        WHERE precomputation.dirty = 1 OR precomputation.dirty is NULL
+    """
+    )
+
+
+async def set_dirty(database: Database, contentid: int):
+    """
+    Marks this content as dirty, recomputing the cached content once required
+    :param database: The database
+    :param contentid: The content id to mark as dirty
+    """
+    await database.execute(
+        """
+    UPDATE precomputation
+    SET dirty = 1
+    WHERE contentid = :contentid    
+    """,
+        {"contentid": contentid},
+    )
+
+
+def get_base_select(data: bool):
     prompt = f"""
-    SELECT c.oid,
-           c.userid,
-           users.username,
-           c.title,
-           c.version,
-           c.meta,
-           c.data,
-           CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END as likes,
-           CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
-           CASE WHEN reported_content.c_reports is NULL THEN 0 ELSE reported_content.c_reports END as reports,
-           CASE WHEN counter_reported_content.c_counter_reports is NULL THEN 0 ELSE counter_reported_content.c_counter_reports END as counter_reports
-    FROM content c
-             INNER JOIN users ON c.userid = users.oid
-
-             LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
-                        FROM likes
-                        GROUP BY likes.contentid) liked_content ON liked_content.contentid = c.oid
-
-             LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
-                        FROM tags
-                        GROUP BY tags.contentid) tagged_content on tagged_content.contentid = c.oid
-
-             LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_reports
-                        FROM reports
-                        WHERE reports.reason = '{report_reason}'
-                        GROUP BY reports.contentid) reported_content on reported_content.contentid = c.oid
-
-             LEFT JOIN (SELECT reports.contentid, COUNT(*) as c_counter_reports
-                        FROM reports
-                        WHERE reports.reason = 'COUNTER_{report_reason}'
-                        GROUP BY reports.contentid) counter_reported_content on counter_reported_content.contentid = c.oid
+        SELECT c.oid,
+               c.userid,
+               users.username,
+               c.title,
+               c.version,
+               c.meta,
+               c.data,
+               precomputation.likes,
+               precomputation.tags,
+               precomputation.reports,
+               precomputation.counter_reports
+        FROM content c
+                 INNER JOIN users ON c.userid = users.oid
+                 INNER JOIN precomputation ON c.oid = precomputation.contentid
 
     """
 

@@ -1,16 +1,26 @@
 from modules.module import Module
-from utils import get_base_select
+from utils import refresh_precomputation
 
 
 class InvalidReport(Module):
     async def post_report(self, contentid: int, reason: str):
-        prompt = get_base_select(False, "INVALID")
+        await refresh_precomputation(self.database)
 
-        prompt += (
-            "WHERE c.oid = :contentid AND 1.0 + likes / 10.0 - reports + counter_reports * 10.0 < 0.0"
+        content = await self.database.fetch_one(
+            """
+            SELECT *
+            FROM content
+                 INNER JOIN users ON content.userid = users.oid
+                 INNER JOIN precomputation ON content.oid = precomputation.contentid
+        
+                 LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
+                            FROM reports
+                            WHERE reports.reason = 'INVALID'
+                            GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
+            WHERE content.oid = :contentid AND 1.0 + likes / 10.0 - reported_c.reports < 0.0
+        """,
+            {"contentid": contentid},
         )
-
-        content = await self.database.fetch_one(prompt, {"contentid": contentid})
 
         if content:
             print(content)

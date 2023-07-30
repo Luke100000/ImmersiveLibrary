@@ -50,6 +50,8 @@ from utils import (
     get_lite_user_class,
     get_lite_content_class,
     has_reported,
+    refresh_precomputation,
+    set_dirty,
 )
 
 load_dotenv()
@@ -119,6 +121,7 @@ instrumentator = Instrumentator().instrument(app)
 
 # Create tables
 async def setup():
+    # Content
     await database.execute(
         "CREATE TABLE IF NOT EXISTS users (oid INTEGER PRIMARY KEY AUTOINCREMENT, google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
     )
@@ -127,6 +130,7 @@ async def setup():
     )
     await database.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
 
+    # Content
     await database.execute(
         "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
@@ -134,6 +138,7 @@ async def setup():
         "CREATE INDEX IF NOT EXISTS content_project on content (project)"
     )
 
+    # Reports
     await database.execute(
         "CREATE TABLE IF NOT EXISTS reports (userid CHAR, contentid INTEGER, reason CHAR)"
     )
@@ -147,6 +152,7 @@ async def setup():
         "CREATE INDEX IF NOT EXISTS reports_reason on reports (reason)"
     )
 
+    # Likes
     await database.execute(
         "CREATE TABLE IF NOT EXISTS likes (userid CHAR, contentid INTEGER)"
     )
@@ -154,12 +160,26 @@ async def setup():
         "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
     )
 
+    # Tags
     await database.execute(
         "CREATE TABLE IF NOT EXISTS tags (contentid INTEGER, tag CHAR)"
     )
     await database.execute(
         "CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)"
     )
+
+    # Precomputation
+    await database.execute(
+        "CREATE TABLE IF NOT EXISTS precomputation (contentid INTEGER PRIMARY KEY, dirty INTEGER, tags CHAR, likes INTEGER, reports INTEGER, counter_reports INTEGER)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS precomputation_contentid on precomputation (contentid)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS precomputation_dirty on precomputation (dirty)"
+    )
+
+    await refresh_precomputation(database)
 
 
 @app.on_event("startup")
@@ -259,6 +279,8 @@ async def list_content_v2(
     descending: bool = False,
     token: str = None,
 ) -> ContentListSuccess:
+    await refresh_precomputation(database)
+
     prompt = BASE_LITE_SELECT
     values = {"project": project}
 
@@ -286,7 +308,9 @@ async def list_content_v2(
 
         # Remove reported content
         if filter_reported:
-            prompt += "\n AND 1 + likes / 10.0 - reports + counter_reports * 10.0 >= 0.0"
+            prompt += (
+                "\n AND 1 + likes / 10.0 - reports + counter_reports * 10.0 >= 0.0"
+            )
 
     # Only if all terms matches either a tag or the title, allow this content
     if whitelist:
@@ -325,6 +349,8 @@ async def list_content_v2(
 # noinspection PyUnusedLocal
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
 async def get_content(project: str, contentid: int) -> ContentSuccess:
+    await refresh_precomputation(database)
+
     content = await database.fetch_one(
         BASE_SELECT + "WHERE c.oid = :contentid", {"contentid": contentid}
     )
@@ -416,6 +442,8 @@ async def update_content(
     for module in modules[project]:
         await module.post_upload(contentid)
 
+    await set_dirty(database, contentid)
+
     return PlainSuccess()
 
 
@@ -464,6 +492,8 @@ async def add_like(project: str, contentid: int, token: str) -> PlainSuccess:
         {"userid": userid, "contentid": contentid},
     )
 
+    await set_dirty(database, contentid)
+
     return PlainSuccess()
 
 
@@ -486,6 +516,8 @@ async def delete_like(project: str, contentid: int, token: str) -> PlainSuccess:
         "DELETE FROM likes WHERE userid=:userid AND contentid=:contentid",
         {"userid": userid, "contentid": contentid},
     )
+
+    await set_dirty(database, contentid)
 
     return PlainSuccess()
 
@@ -516,6 +548,8 @@ async def add_report(
     for module in modules[project]:
         await module.post_report(contentid, reason)
 
+    await set_dirty(database, contentid)
+
     return PlainSuccess()
 
 
@@ -541,11 +575,14 @@ async def delete_report(
         {"userid": userid, "contentid": contentid, "reason": reason},
     )
 
+    await set_dirty(database, contentid)
+
     return PlainSuccess()
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
 async def list_project_tags(project: str) -> TagListSuccess:
+    await refresh_precomputation(database)
     tags = await get_project_tags(database, project)
     return encode(TagListSuccess(tags=tags))
 
@@ -553,6 +590,7 @@ async def list_project_tags(project: str) -> TagListSuccess:
 # noinspection PyUnusedLocal
 @app.get("/v1/tag/{project}/{contentid}", tags=["Tags"])
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
+    await refresh_precomputation(database)
     tags = await get_tags(database, contentid)
     return encode(TagListSuccess(tags=tags))
 
@@ -585,6 +623,8 @@ async def add_tag(project: str, contentid: int, tag: str, token: str) -> PlainSu
         {"contentid": contentid, "tag": tag},
     )
 
+    await set_dirty(database, contentid)
+
     return PlainSuccess()
 
 
@@ -615,6 +655,8 @@ async def delete_tag(
         {"contentid": contentid, "tag": tag},
     )
 
+    await set_dirty(database, contentid)
+
     return PlainSuccess()
 
 
@@ -622,7 +664,7 @@ async def delete_tag(
     "/v1/bans",
     tags=["Users"],
 )
-async def get_users() -> Response:
+async def get_banned() -> Response:
     content = await database.fetch_all(
         """
         SELECT oid, username
@@ -639,6 +681,8 @@ async def get_users() -> Response:
     tags=["Users"],
 )
 async def get_users(project: str) -> UserListSuccess:
+    await refresh_precomputation(database)
+
     content = await database.fetch_all(
         """
     SELECT oid,
@@ -678,6 +722,8 @@ async def get_users(project: str) -> UserListSuccess:
     responses={401: {"model": Error}},
 )
 async def get_me(project: str, token: str) -> UserSuccess:
+    await refresh_precomputation(database)
+
     userid = await token_to_userid(database, token)
 
     if userid is None:
@@ -692,6 +738,8 @@ async def get_me(project: str, token: str) -> UserSuccess:
     responses={404: {"model": Error}},
 )
 async def get_user(project: str, userid: int) -> UserSuccess:
+    await refresh_precomputation(database)
+
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:userid",
         {"userid": userid},
