@@ -57,14 +57,17 @@ async def set_dirty(database: Database, contentid: int):
     :param database: The database
     :param contentid: The content id to mark as dirty
     """
-    await database.execute(
-        """
-    UPDATE precomputation
-    SET dirty = 1
-    WHERE contentid = :contentid    
-    """,
-        {"contentid": contentid},
-    )
+    if contentid > 0:
+        await database.execute(
+            """
+        UPDATE precomputation
+        SET dirty = 1
+        WHERE contentid = :contentid    
+        """,
+            {"contentid": contentid},
+        )
+
+    await refresh_precomputation(database)
 
 
 def get_base_select(data: bool):
@@ -274,7 +277,7 @@ async def get_likes(database: Database, contentid: int) -> int:
 
 
 async def get_liked_content(
-        database: Database, project: str, userid: int
+    database: Database, project: str, userid: int
 ) -> List[Content]:
     """
     Retrieves all content liked by the given user in a project
@@ -292,7 +295,7 @@ WHERE likes.userid=:userid AND c.project=:project
 
 
 async def get_submissions(
-        database: Database, project: str, userid: int
+    database: Database, project: str, userid: int
 ) -> List[Content]:
     """
     Retrieves all content submitted by a user in a project
@@ -330,15 +333,15 @@ async def get_project_tags(database: Database, project: str) -> List[str]:
 
 # noinspection PyUnusedLocal
 def get_lite_content_class(
-        contentid: int,
-        userid: int,
-        username: str,
-        title: str,
-        version: int,
-        likes: int,
-        tags: str,
-        reports: int,
-        counter_reports: int,
+    contentid: int,
+    userid: int,
+    username: str,
+    title: str,
+    version: int,
+    likes: int,
+    tags: str,
+    reports: int,
+    counter_reports: int,
 ):
     """
     Populates a lite content object
@@ -357,17 +360,17 @@ def get_lite_content_class(
 
 # noinspection PyUnusedLocal
 def get_content_class(
-        contentid: int,
-        userid: int,
-        username: str,
-        title: str,
-        version: int,
-        meta: str,
-        data: bytes,
-        likes: int,
-        tags: str,
-        reports: int,
-        counter_reports: int,
+    contentid: int,
+    userid: int,
+    username: str,
+    title: str,
+    version: int,
+    meta: str,
+    data: bytes,
+    likes: int,
+    tags: str,
+    reports: int,
+    counter_reports: int,
 ):
     """
     Populates a content object
@@ -387,12 +390,12 @@ def get_content_class(
 
 
 def get_lite_user_class(
-        userid: int,
-        username: str,
-        moderator: int,
-        submission_count: int,
-        likes_given: int,
-        likes_received: int,
+    userid: int,
+    username: str,
+    moderator: int,
+    submission_count: int,
+    likes_given: int,
+    likes_received: int,
 ):
     """
     Populates a user object
@@ -408,7 +411,7 @@ def get_lite_user_class(
 
 
 async def get_user_class(
-        database: Database, project: str, userid: int, username: str, moderator: int
+    database: Database, project: str, userid: int, username: str, moderator: int
 ):
     """
     Populates a user object

@@ -293,8 +293,6 @@ async def list_content_v2(
     descending: bool = False,
     token: str = None,
 ) -> ContentListSuccess:
-    await refresh_precomputation(database)
-
     prompt = BASE_LITE_SELECT
     values = {"project": project}
 
@@ -411,6 +409,8 @@ async def add_content(
     # Call modules for eventual post-processing
     for module in modules[project]:
         await module.post_upload(content)
+
+    await set_dirty(database, -1)
 
     return encode(ContentIdSuccess(contentid=content))
 
@@ -594,7 +594,6 @@ async def delete_report(
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
 async def list_project_tags(project: str) -> TagListSuccess:
-    await refresh_precomputation(database)
     tags = await get_project_tags(database, project)
     return encode(TagListSuccess(tags=tags))
 
@@ -602,7 +601,6 @@ async def list_project_tags(project: str) -> TagListSuccess:
 # noinspection PyUnusedLocal
 @app.get("/v1/tag/{project}/{contentid}", tags=["Tags"])
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
-    await refresh_precomputation(database)
     tags = await get_tags(database, contentid)
     return encode(TagListSuccess(tags=tags))
 
@@ -693,8 +691,6 @@ async def get_banned() -> Response:
     tags=["Users"],
 )
 async def get_users(project: str) -> UserListSuccess:
-    await refresh_precomputation(database)
-
     content = await database.fetch_all(
         """
     SELECT oid,
@@ -734,8 +730,6 @@ async def get_users(project: str) -> UserListSuccess:
     responses={401: {"model": Error}},
 )
 async def get_me(project: str, token: str) -> UserSuccess:
-    await refresh_precomputation(database)
-
     userid = await token_to_userid(database, token)
 
     if userid is None:
@@ -750,8 +744,6 @@ async def get_me(project: str, token: str) -> UserSuccess:
     responses={404: {"model": Error}},
 )
 async def get_user(project: str, userid: int) -> UserSuccess:
-    await refresh_precomputation(database)
-
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:userid",
         {"userid": userid},
