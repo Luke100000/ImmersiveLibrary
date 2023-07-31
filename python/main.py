@@ -6,7 +6,10 @@ from prometheus_client import CollectorRegistry, multiprocess
 # Setup prometheus for multiprocessing
 prom_dir = os.environ["PROMETHEUS_MULTIPROC_DIR"]
 for f in glob.glob(prom_dir + "/*"):
-    os.remove(f)
+    try:
+        os.remove(f)
+    except FileNotFoundError:
+        pass
 registry = CollectorRegistry()
 multiprocess.MultiProcessCollector(registry)
 
@@ -360,8 +363,6 @@ async def list_content_v2(
 # noinspection PyUnusedLocal
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
 async def get_content(project: str, contentid: int) -> ContentSuccess:
-    await refresh_precomputation(database)
-
     content = await database.fetch_one(
         BASE_SELECT + "WHERE c.oid = :contentid", {"contentid": contentid}
     )

@@ -17,34 +17,36 @@ async def refresh_precomputation(database: Database):
         INSERT OR
         REPLACE
         INTO precomputation (contentid, dirty, tags, likes, reports, counter_reports)
-        SELECT content.oid,
+        SELECT temp.oid,
                0,
                CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
                CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
                CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
                CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
-        FROM content
-                 LEFT JOIN precomputation
-                           ON content.oid = precomputation.contentid
+        FROM (SELECT content.oid
+              FROM content
+                       LEFT JOIN precomputation
+                                 ON content.oid = precomputation.contentid
+              WHERE precomputation.dirty IS NOT 0) as temp
+        
         
                  LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
                             FROM likes
-                            GROUP BY likes.contentid) liked_content ON liked_content.contentid = content.oid
+                            GROUP BY likes.contentid) liked_content ON liked_content.contentid = temp.oid
         
                  LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
                             FROM tags
-                            GROUP BY tags.contentid) tagged_content on tagged_content.contentid = content.oid
+                            GROUP BY tags.contentid) tagged_content on tagged_content.contentid = temp.oid
         
                  LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
                             FROM reports
                             WHERE reports.reason = 'DEFAULT'
-                            GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
+                            GROUP BY reports.contentid) reported_c on reported_c.contentid = temp.oid
         
                  LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
                             FROM reports
                             WHERE reports.reason = 'COUNTER_DEFAULT'
-                            GROUP BY reports.contentid) countered_c on countered_c.contentid = content.oid
-        WHERE precomputation.dirty IS NOT 0
+                            GROUP BY reports.contentid) countered_c on countered_c.contentid = temp.oid
     """
     )
 
@@ -272,7 +274,7 @@ async def get_likes(database: Database, contentid: int) -> int:
 
 
 async def get_liked_content(
-    database: Database, project: str, userid: int
+        database: Database, project: str, userid: int
 ) -> List[Content]:
     """
     Retrieves all content liked by the given user in a project
@@ -290,7 +292,7 @@ WHERE likes.userid=:userid AND c.project=:project
 
 
 async def get_submissions(
-    database: Database, project: str, userid: int
+        database: Database, project: str, userid: int
 ) -> List[Content]:
     """
     Retrieves all content submitted by a user in a project
@@ -328,15 +330,15 @@ async def get_project_tags(database: Database, project: str) -> List[str]:
 
 # noinspection PyUnusedLocal
 def get_lite_content_class(
-    contentid: int,
-    userid: int,
-    username: str,
-    title: str,
-    version: int,
-    likes: int,
-    tags: str,
-    reports: int,
-    counter_reports: int,
+        contentid: int,
+        userid: int,
+        username: str,
+        title: str,
+        version: int,
+        likes: int,
+        tags: str,
+        reports: int,
+        counter_reports: int,
 ):
     """
     Populates a lite content object
@@ -355,17 +357,17 @@ def get_lite_content_class(
 
 # noinspection PyUnusedLocal
 def get_content_class(
-    contentid: int,
-    userid: int,
-    username: str,
-    title: str,
-    version: int,
-    meta: str,
-    data: bytes,
-    likes: int,
-    tags: str,
-    reports: int,
-    counter_reports: int,
+        contentid: int,
+        userid: int,
+        username: str,
+        title: str,
+        version: int,
+        meta: str,
+        data: bytes,
+        likes: int,
+        tags: str,
+        reports: int,
+        counter_reports: int,
 ):
     """
     Populates a content object
@@ -385,12 +387,12 @@ def get_content_class(
 
 
 def get_lite_user_class(
-    userid: int,
-    username: str,
-    moderator: int,
-    submission_count: int,
-    likes_given: int,
-    likes_received: int,
+        userid: int,
+        username: str,
+        moderator: int,
+        submission_count: int,
+        likes_given: int,
+        likes_received: int,
 ):
     """
     Populates a user object
@@ -406,7 +408,7 @@ def get_lite_user_class(
 
 
 async def get_user_class(
-    database: Database, project: str, userid: int, username: str, moderator: int
+        database: Database, project: str, userid: int, username: str, moderator: int
 ):
     """
     Populates a user object
