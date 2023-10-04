@@ -810,10 +810,10 @@ async def run_post_upload_callbacks(project: str, token: str) -> PlainSuccess:
     if userid is None:
         return get_error(401, "Token invalid")
 
-    if not is_moderator(database, userid):
+    if not await is_moderator(database, userid):
         return get_error(401, "Not an moderator")
 
-    content = await database.execute(
+    content = await database.fetch_all(
         "SELECT oid FROM content WHERE project=:project",
         {"project": project},
     )
