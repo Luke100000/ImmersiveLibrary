@@ -151,7 +151,7 @@ async def setup():
         "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
     await database.execute(
-        "CREATE INDEX IF NOT EXISTS content_project on content (project)"
+        "DROP INDEX IF EXISTS content_project"
     )
 
     # Reports
@@ -165,7 +165,7 @@ async def setup():
         "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
     )
     await database.execute(
-        "CREATE INDEX IF NOT EXISTS reports_reason on reports (reason)"
+        "DROP INDEX IF EXISTS reports_reason"
     )
 
     # Likes
@@ -277,7 +277,7 @@ async def list_content(
         project,
         whitelist=None if invert_filter else tag_filter,
         blacklist=tag_filter if invert_filter else None,
-        limit=10000,
+        limit=1000,
     )
 
 
