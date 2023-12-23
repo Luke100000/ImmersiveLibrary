@@ -52,7 +52,7 @@
     skinMaterial.map = loadTexture("{{ url_for('static', path='/skin.png') }}");
 
     // Load texture from your endpoint
-    fetch('http://localhost:8000/v1/content/mca/{{ statistics_data.oid }}')
+    fetch('/v1/content/mca/{{ statistics_data.oid }}')
         .then(response => response.json())
         .then(data => {
             // Decode base64 and set it as the map for the material
