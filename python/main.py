@@ -2,6 +2,8 @@ import os
 import shutil
 
 from prometheus_client import CollectorRegistry, multiprocess
+from starlette.staticfiles import StaticFiles
+from starlette.templating import Jinja2Templates
 
 # Setup prometheus for multiprocessing
 prom_dir = (
@@ -21,14 +23,14 @@ from typing import Annotated, List
 import requests
 from databases import Database
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Request
 from fastapi.openapi.utils import get_openapi
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from orjson import orjson
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, HTMLResponse
 
 from api_types import (
     PlainSuccess,
@@ -107,6 +109,10 @@ app = FastAPI()
 
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+templates = Jinja2Templates(directory="templates")
+
 
 # Custom OpenAPI to fix missing description
 async def custom_openapi():
@@ -150,9 +156,7 @@ async def setup():
     await database.execute(
         "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
-    await database.execute(
-        "DROP INDEX IF EXISTS content_project"
-    )
+    await database.execute("DROP INDEX IF EXISTS content_project")
 
     # Reports
     await database.execute(
@@ -164,9 +168,7 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
     )
-    await database.execute(
-        "DROP INDEX IF EXISTS reports_reason"
-    )
+    await database.execute("DROP INDEX IF EXISTS reports_reason")
 
     # Likes
     await database.execute(
@@ -227,6 +229,14 @@ def decode(r: Response):
     return orjson.loads(r.body)
 
 
+@app.get("/", response_class=HTMLResponse)
+async def get_front(request: Request):
+    return templates.TemplateResponse(
+        "statistics.html",
+        {"request": request, "statistics_data": await get_statistics()},
+    )
+
+
 @app.post(
     "/v1/auth",
     responses={401: {"model": Error}, 400: {"model": Error}},
@@ -267,6 +277,45 @@ async def is_auth(token: str) -> dict:
         return encode(IsAuthResponse(authenticated=False))
     else:
         return encode(IsAuthResponse(authenticated=True))
+
+
+@app.get("/v1/stats")
+async def get_statistics():
+    content_count = await database.fetch_one("SELECT count(*) from content")
+    content_count_liked = await database.fetch_one(
+        """
+        SELECT count(*)
+        FROM content
+        INNER JOIN precomputation ON content.oid = precomputation.contentid
+        WHERE precomputation.likes > 10
+    """
+    )
+    users_count = await database.fetch_one("SELECT count(*) FROM users")
+    likes_count = await database.fetch_one("SELECT count(*) FROM likes")
+    reports_count = await database.fetch_one("SELECT count(*) FROM reports")
+
+    random_oid = await database.fetch_one(
+        """
+        SELECT oid
+        FROM (
+            SELECT content.oid
+            FROM content
+            INNER JOIN precomputation ON content.oid = precomputation.contentid
+            WHERE precomputation.likes > 100
+            ORDER BY RANDOM()
+            LIMIT 1
+        );
+    """
+    )
+
+    return {
+        "oid": random_oid[0],
+        "content": "{:,}".format(content_count[0]),
+        "content_liked": "{:,}".format(content_count_liked[0]),
+        "users": "{:,}".format(users_count[0]),
+        "likes": "{:,}".format(likes_count[0]),
+        "reports": "{:,}".format(reports_count[0]),
+    }
 
 
 @app.get("/v1/content/{project}", tags=["Content"])

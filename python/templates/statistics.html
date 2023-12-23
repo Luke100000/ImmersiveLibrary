@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en_us">
+<head>
+    <title>Minecraft Skin Renderer</title>
+    <script src="https://threejs.org/build/three.min.js"></script>
+    <script src="{{ url_for('static', path='/model.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+
+<body>
+
+<div class="dashboard-container">
+    <div class="statistics-container">
+        <div class="header">Immersive Library</div>
+        <div class="subtitle">Statistics</div>
+        <div class="statistic-item">{{ statistics_data.content }} Skins uploaded</div>
+        <div class="statistic-item">{{ statistics_data.content_liked }} with more than 10 likes</div>
+        <div class="statistic-item">{{ statistics_data.users }} Users registered</div>
+        <div class="statistic-item">{{ statistics_data.likes }} Likes casted</div>
+        <div class="statistic-item">{{ statistics_data.reports }} Reports sent</div>
+    </div>
+    <div class="renderers-box">
+        <div class="header" id="title"></div>
+        <div class="subtitle" id="author"></div>
+        <div id="renderer-container" style="margin-left: auto;  margin-right: auto;"></div>
+    </div>
+</div>
+
+
+<script>
+    function loadTexture(url) {
+        let map = new THREE.TextureLoader().load(url);
+        map.magFilter = THREE.NearestFilter;
+        map.minFilter = THREE.NearestFilter;
+        map.wrapS = THREE.ClampToEdgeWrapping;
+        map.wrapT = THREE.ClampToEdgeWrapping;
+        return map;
+    }
+
+    // Set up Three.js scene
+    const width = 200;
+    const height = 400;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({alpha: true});
+    renderer.setSize(width, height);
+    document.getElementById('renderer-container').appendChild(renderer.domElement);
+
+    const clothingMaterial = new THREE.MeshBasicMaterial({alphaTest: 0.5, side: THREE.DoubleSide});
+    const skinMaterial = new THREE.MeshBasicMaterial();
+
+    skinMaterial.map = loadTexture("{{ url_for('static', path='/skin.png') }}");
+
+    // Load texture from your endpoint
+    fetch('http://localhost:8000/v1/content/mca/{{ statistics_data.oid }}')
+        .then(response => response.json())
+        .then(data => {
+            // Decode base64 and set it as the map for the material
+            clothingMaterial.map = loadTexture('data:image/png;base64,' + data.content.data);
+
+            document.getElementById('title').innerHTML = data.content.title;
+            document.getElementById('author').innerHTML = "by " + data.content.username;
+
+            // Update material when the texture is loaded
+            clothingMaterial.needsUpdate = true;
+            clothingMaterial.needsUpdate = true;
+        })
+        .catch(error => console.error('Error loading texture:', error));
+
+    const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);
+    const skinMeshes = getMeshes(skinMaterial, 0.0, ["Head", "Torso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"]);
+
+    // Add meshes to scene
+    for (const mesh of Object.values(clothingMeshes)) {
+        scene.add(mesh);
+    }
+    for (const mesh of Object.values(skinMeshes)) {
+        scene.add(mesh);
+    }
+
+    // Render loop
+    const animate = function () {
+        requestAnimationFrame(animate);
+
+        // Rotate the character for animation
+        const distance = 50;
+        camera.rotation.y = 0.25;
+        camera.position.x = Math.sin(camera.rotation.y) * distance;
+        camera.position.z = Math.cos(camera.rotation.y) * distance;
+
+        let time = Date.now()
+        clothingMeshes["Head"].rotation.y = Math.cos(time * 0.001) * 0.5;
+        clothingMeshes["Head"].rotation.x = Math.cos(time * 0.0007) * 0.2;
+        clothingMeshes["Helm"].rotation.y = clothingMeshes["Head"].rotation.y;
+        clothingMeshes["Helm"].rotation.x = clothingMeshes["Head"].rotation.x;
+        skinMeshes["Head"].rotation.y = clothingMeshes["Head"].rotation.y;
+        skinMeshes["Head"].rotation.x = clothingMeshes["Head"].rotation.x;
+
+        function rotate(name, x, y, z) {
+            clothingMeshes[name].rotation.x = x;
+            clothingMeshes[name].rotation.y = y;
+            clothingMeshes[name].rotation.z = z;
+
+            clothingMeshes[name + " Layer 2"].rotation.x = x;
+            clothingMeshes[name + " Layer 2"].rotation.y = y;
+            clothingMeshes[name + " Layer 2"].rotation.z = z;
+
+            skinMeshes[name].rotation.x = x;
+            skinMeshes[name].rotation.y = y;
+            skinMeshes[name].rotation.z = z;
+        }
+
+
+        rotate("Left Arm", Math.cos(time * 0.0013) * 0.1, 0.01, 0.1);
+        rotate("Right Arm", Math.cos(-time * 0.0013) * 0.1, -0.01, -0.1);
+        rotate("Left Leg", -0.025, 0.01, 0);
+        rotate("Right Leg", 0.025, -0.01, 0);
+
+        // Render the scene
+        renderer.render(scene, camera);
+    };
+
+    animate();
+</script>
+
+</body>
+</html>
