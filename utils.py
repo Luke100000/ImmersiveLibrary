@@ -114,7 +114,7 @@ async def token_to_userid(
     """
     Return the userid for a given token, or None if the token is invalid
     """
-    if authorization.startswith("Bearer "):
+    if authorization is not None and authorization.startswith("Bearer "):
         token = sha256(authorization[7:])
     if token is None:
         return None
