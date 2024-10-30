@@ -1,4 +1,4 @@
-from sqlite3 import Connection
+from typing import Optional
 
 from databases import Database
 
@@ -11,7 +11,7 @@ class Module:
 
         self.database = database
 
-    async def pre_upload(self, content: ContentUpload) -> str:
+    async def pre_upload(self, content: ContentUpload) -> Optional[str]:
         pass
 
     async def post_upload(self, contentid: int):

@@ -1,4 +1,5 @@
 import io
+from typing import Optional
 
 import PIL
 import numpy as np
@@ -10,6 +11,7 @@ from utils import has_tag
 
 # A lookup to verify the skins alpha channel, true values should contain at least some alpha pixels
 # fmt: off
+# noinspection DuplicatedCode
 MASK = np.array([
     [False, False, False, False, False, False, False, False, True, True, True, True, True, True, True, True, False,
      False, False, False, True, True, True, True, True, True, True, True, True, True, True, True, False, False, False,
@@ -274,25 +276,26 @@ MASK = np.array([
 
 
 class ValidModule(Module):
-    async def pre_upload(self, content: ContentUpload) -> str:
+    async def pre_upload(self, content: ContentUpload) -> Optional[str]:
         try:
             image = Image.open(io.BytesIO(content.payload))
             image = np.array(image.convert("RGBA"))
 
             if image.shape != (64, 64, 4):
-                return str("Shape is not (64, 64, 4)!")
+                return "Shape is not (64, 64, 4)!"
         except PIL.UnidentifiedImageError:
-            return str("Not an valid image!")
+            return "Not an valid image!"
 
     async def post_upload(self, contentid: int):
-        content = (
-            await self.database.fetch_one(
-                "SELECT data FROM content WHERE oid=:contentid",
-                {"contentid": contentid},
-            )
-        )[0]
+        content = await self.database.fetch_one(
+            "SELECT data FROM content WHERE oid=:contentid",
+            {"contentid": contentid},
+        )
 
-        image = Image.open(io.BytesIO(content))
+        if content is None:
+            return
+
+        image = Image.open(io.BytesIO(content[0]))
         image = np.array(image.convert("RGBA"))
 
         errors = ((image[:, :, -1] == 0) * MASK).sum()
