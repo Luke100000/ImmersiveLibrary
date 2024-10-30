@@ -16,7 +16,7 @@ class ContentUpload(BaseModel):
 
 class Content(BaseModel):
     contentid: int
-    userid: str
+    userid: int
     username: str
     likes: int
     tags: List[str]
@@ -85,14 +85,14 @@ class ContentIdSuccess(BaseModel):
     contentid: int
 
 
+class BanEntry(BaseModel):
+    userid: int
+    username: str
+
+
 class PlainSuccess(BaseModel):
     pass
 
 
 class Error(BaseModel):
     message: str
-
-    def to_json(self):
-        return {
-            "message": self.message,
-        }

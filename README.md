@@ -18,19 +18,21 @@ A generic user asset library, accessible via REST API, authenticated via Google 
 The server is implemented in python using FastAPI. Launch using e.g. uvicorn:
 
 ```sh
-cd python
 uvicorn --reload main:app
 ```
 
 ### Client
 
-For most methods a user-chosen access token is required. To acquire, call Google Sign-In and forward the response to
+For most methods a user-chosen access token is required.
+To acquire, call Google Sign-In and forward the response to
 
 ```
-/v1/auth?token=YOUR_TOKEN
+/v1/auth
 ```
 
-A Java example is included in the repo. The token should be securely random and sufficient in size.
+The state var needs to be a json object with the following keys:
+* `username` A username as shown to other users
+* `token` A freely chosen token to authenticate with, sha256 hashed. Use the original token as Bearer token for all other requests.
 
 ## API
 

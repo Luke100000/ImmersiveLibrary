@@ -1,10 +1,12 @@
 import base64
-from typing import List, Tuple
+import hashlib
+from typing import List, Optional, Any
 
 from databases import Database
-from starlette.responses import JSONResponse
+from databases.interfaces import Record
+from fastapi import Header
 
-from api_types import Error, Content, User, LiteContent, LiteUser
+from api_types import Content, User, LiteContent, LiteUser
 
 
 async def refresh_precomputation(database: Database):
@@ -71,7 +73,7 @@ async def set_dirty(database: Database, contentid: int):
 
 
 def get_base_select(data: bool):
-    prompt = f"""
+    prompt = """
         SELECT c.oid,
                c.userid,
                users.username,
@@ -100,10 +102,22 @@ BASE_SELECT = get_base_select(True)
 BASE_LITE_SELECT = get_base_select(False)
 
 
-async def token_to_userid(database: Database, token: str) -> int:
+def sha256(string: str) -> str:
+    sha256_hash = hashlib.sha256()
+    sha256_hash.update(string.encode("utf-8"))
+    return sha256_hash.hexdigest()
+
+
+async def token_to_userid(
+    database: Database, token: Optional[str] = None, authorization: str = Header(None)
+) -> Optional[int]:
     """
     Return the userid for a given token, or None if the token is invalid
     """
+    if authorization.startswith("Bearer "):
+        token = sha256(authorization[7:])
+    if token is None:
+        return None
     if len(token) == 0:
         return None
     userid = await database.fetch_one(
@@ -112,11 +126,12 @@ async def token_to_userid(database: Database, token: str) -> int:
     return None if userid is None else userid[0]
 
 
-async def get_count(database: Database, query: str, params: Tuple[any]):
-    return (await database.fetch_one(query, params))[0]
+async def get_count(database: Database, query: str, params: dict[str, Any]):
+    row = await database.fetch_one(query, params)
+    return row[0] if row is not None else 0
 
 
-async def exists(database: Database, query: str, params: Tuple[any]):
+async def exists(database: Database, query: str, params: dict[str, Any]):
     return await get_count(database, query, params) > 0
 
 
@@ -248,14 +263,7 @@ async def has_tag(database: Database, contentid: int, tag: str) -> bool:
     )
 
 
-def get_error(status: int, message: str) -> JSONResponse:
-    """
-    Wrap a status and message into a JSON
-    """
-    return JSONResponse(status_code=status, content=Error(message=message).to_json())
-
-
-async def get_username(database: Database, userid: int) -> str:
+async def get_username(database: Database, userid: int) -> Optional[str]:
     """
     Retrieves the username of a user
     """
@@ -278,7 +286,7 @@ async def get_likes(database: Database, contentid: int) -> int:
 
 async def get_liked_content(
     database: Database, project: str, userid: int
-) -> List[Content]:
+) -> List[LiteContent]:
     """
     Retrieves all content liked by the given user in a project
     """
@@ -291,12 +299,12 @@ WHERE likes.userid=:userid AND c.project=:project
         {"userid": userid, "project": project},
     )
 
-    return [get_lite_content_class(*c) for c in content]
+    return [get_lite_content_class(c) for c in content]
 
 
 async def get_submissions(
     database: Database, project: str, userid: int
-) -> List[Content]:
+) -> List[LiteContent]:
     """
     Retrieves all content submitted by a user in a project
     """
@@ -307,7 +315,7 @@ async def get_submissions(
         """,
         {"userid": userid, "project": project},
     )
-    return [get_lite_content_class(*c) for c in content]
+    return [get_lite_content_class(c) for c in content]
 
 
 async def get_tags(database: Database, contentid: int) -> List[str]:
@@ -331,61 +339,39 @@ async def get_project_tags(database: Database, project: str) -> List[str]:
     return [t[0] for t in tags]
 
 
-# noinspection PyUnusedLocal
-def get_lite_content_class(
-    contentid: int,
-    userid: int,
-    username: str,
-    title: str,
-    version: int,
-    likes: int,
-    tags: str,
-    reports: int,
-    counter_reports: int,
-):
+def get_lite_content_class(record: Record) -> LiteContent:
     """
     Populates a lite content object
     """
-
+    # noinspection PyProtectedMember
+    m = record._mapping
     return LiteContent(
-        contentid=contentid,
-        userid=userid,
-        username=username,
-        likes=likes,
-        tags=tags.split(",") if tags else [],
-        title=title,
-        version=version,
+        contentid=m["oid"],
+        userid=m["userid"],
+        username=m["username"],
+        likes=m["likes"],
+        tags=m["tags"].split(",") if m["tags"] else [],
+        title=m["title"],
+        version=m["version"],
     )
 
 
-# noinspection PyUnusedLocal
-def get_content_class(
-    contentid: int,
-    userid: int,
-    username: str,
-    title: str,
-    version: int,
-    meta: str,
-    data: bytes,
-    likes: int,
-    tags: str,
-    reports: int,
-    counter_reports: int,
-):
+def get_content_class(record: Record) -> Content:
     """
     Populates a content object
     """
-
+    # noinspection PyProtectedMember
+    m = record._mapping
     return Content(
-        contentid=contentid,
-        userid=userid,
-        username=username,
-        likes=likes,
-        tags=tags.split(",") if tags else [],
-        title=title,
-        version=version,
-        meta=meta,
-        data=base64.b64encode(data),
+        contentid=m["oid"],
+        userid=m["userid"],
+        username=m["username"],
+        likes=m["likes"],
+        tags=m["tags"].split(",") if m["tags"] else [],
+        title=m["title"],
+        version=m["version"],
+        meta=m["meta"],
+        data=base64.b64encode(m["data"]).decode("utf-8"),
     )
 
 

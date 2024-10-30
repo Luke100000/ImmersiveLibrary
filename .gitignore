@@ -1,5 +1,6 @@
-/.idea/
-/venv/
-/.env/
-/python/database.db
-/python/prometheus/
+.idea
+.venv
+.env
+
+database.db
+prometheus/
