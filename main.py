@@ -108,7 +108,20 @@ tags_metadata = [
     },
 ]
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await database.connect()
+    await setup()
+
+    instrumentator.expose(_app)
+
+    yield
+
+    await database.disconnect()
+
+
+app = FastAPI(lifespan=lifespan)
 
 # noinspection PyTypeChecker
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
@@ -143,18 +156,6 @@ database = Database("sqlite:///database.db")
 
 # Prometheus integration
 instrumentator = Instrumentator().instrument(app)
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    await database.connect()
-    await setup()
-
-    instrumentator.expose(_app)
-
-    yield
-
-    await database.disconnect()
 
 
 @app.exception_handler(HTTPException)
