@@ -24,15 +24,13 @@ uvicorn --reload main:app
 ### Client
 
 For most methods a user-chosen access token is required.
-To acquire, call Google Sign-In and forward the response to
-
-```
-/v1/auth
-```
+To acquire, call Google Sign-In and forward the response to `/v1/auth`.
 
 The state var needs to be a json object with the following keys:
-* `username` A username as shown to other users
-* `token` A freely chosen token to authenticate with, sha256 hashed. Use the original token as Bearer token for all other requests.
+
+* `username` A username as shown to other users, base64 encoded.
+* `token` A freely chosen token to authenticate with, sha256 hashed. Base64 encoded. Use the original token as Bearer
+  token for all other requests.
 
 ## API
 

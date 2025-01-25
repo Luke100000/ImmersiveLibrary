@@ -250,7 +250,7 @@ def decode(r: Union[BaseModel, Response]) -> dict:
 @app.get("/", response_class=HTMLResponse)
 async def get_front(request: Request):
     return templates.TemplateResponse(
-        "statistics.html",
+        "statistics.jinja",
         {"request": request, "statistics_data": await get_statistics()},
     )
 
@@ -266,7 +266,7 @@ async def auth(
     state: Annotated[Optional[str], Form()] = None,
     username: Optional[str] = None,
     token: Optional[str] = None,
-) -> JSONResponse:
+) -> HTMLResponse:
     if state is not None:
         state_dict = orjson.loads(state)
         token = base64.b64decode(state_dict.get("token")).decode("utf-8")
@@ -288,10 +288,7 @@ async def auth(
         # Update session for user
         await login_user(database, userid, username, token)
 
-        return JSONResponse(
-            status_code=200,
-            content="Authentication successful! You may now close the browser.",
-        )
+        return templates.TemplateResponse("success.html")
     except ValueError:
         raise HTTPException(401, "Validation failed")
 
@@ -310,6 +307,18 @@ async def is_auth(
         return encode(IsAuthResponse(authenticated=False))
     else:
         return encode(IsAuthResponse(authenticated=True))
+
+
+@app.get(
+    "/v1/login",
+    tags=["Auth"],
+    summary="Login",
+)
+async def get_login(request: Request, state: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "login.jinja",
+        {"request": request, "state": base64.b64decode(state)},
+    )
 
 
 @app.get("/v1/stats")
