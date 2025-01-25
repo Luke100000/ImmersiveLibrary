@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import shutil
 from contextlib import asynccontextmanager
@@ -317,7 +318,7 @@ async def is_auth(
 async def get_login(request: Request, state: str) -> HTMLResponse:
     return templates.TemplateResponse(
         "login.jinja",
-        {"request": request, "state": base64.b64decode(state)},
+        {"request": request, "state": json.loads(base64.b64decode(state))},
     )
 
 
