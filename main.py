@@ -263,6 +263,7 @@ async def get_front(request: Request):
     summary="Authenticate user",
 )
 async def auth(
+    request: Request,
     credential: Annotated[str, Form()],
     state: Annotated[Optional[str], Form()] = None,
     username: Optional[str] = None,
@@ -289,7 +290,7 @@ async def auth(
         # Update session for user
         await login_user(database, userid, username, token)
 
-        return templates.TemplateResponse("success.html")
+        return templates.TemplateResponse("success.jinja", {"request": request})
     except ValueError:
         raise HTTPException(401, "Validation failed")
 
