@@ -1,6 +1,6 @@
 import base64
 import hashlib
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
 from databases import Database
 from databases.interfaces import Record
@@ -328,15 +328,27 @@ async def get_tags(database: Database, contentid: int) -> List[str]:
     return [t[0] for t in tags]
 
 
-async def get_project_tags(database: Database, project: str) -> List[str]:
+async def get_project_tags(
+    database: Database, project: str, k: int = 100, offset: int = 0
+) -> Dict[str, int]:
     """
-    Retrieves all distinct tags of a project
+    Retrieves the top k most common tags of a project.
     """
-    tags = await database.fetch_all(
-        "SELECT DISTINCT tag FROM tags INNER JOIN content ON tags.contentid=content.oid WHERE content.project=:project",
-        {"project": project},
+    rows = await database.fetch_all(
+        """
+        SELECT tag, COUNT(*) as count
+        FROM tags
+        INNER JOIN content ON tags.contentid = content.oid
+        WHERE content.project = :project
+        GROUP BY tag
+        ORDER BY count DESC
+        LIMIT :k
+        OFFSET :offset
+        """,
+        {"project": project, "k": k, "offset": offset},
     )
-    return [t[0] for t in tags]
+
+    return {row["tag"]: row["count"] for row in rows}
 
 
 def get_lite_content_class(record: Record) -> LiteContent:

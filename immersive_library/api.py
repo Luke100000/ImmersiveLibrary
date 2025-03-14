@@ -733,8 +733,10 @@ async def delete_report(
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
-async def list_project_tags(project: str) -> TagListSuccess:
-    tags = await get_project_tags(database, project)
+async def list_project_tags(
+    project: str, limit: int = 100, offset: int = 0
+) -> TagListSuccess:
+    tags = await get_project_tags(database, project, limit, offset)
     return encode(TagListSuccess(tags=tags))
 
 

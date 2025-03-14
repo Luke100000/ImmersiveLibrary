@@ -1,5 +1,5 @@
 import base64
-from typing import TypeVar, List
+from typing import TypeVar, List, Dict
 
 from pydantic import BaseModel
 
@@ -81,7 +81,7 @@ class UserListSuccess(BaseModel):
 
 
 class TagListSuccess(BaseModel):
-    tags: List[str]
+    tags: Dict[str, int]
 
 
 class ContentIdSuccess(BaseModel):
