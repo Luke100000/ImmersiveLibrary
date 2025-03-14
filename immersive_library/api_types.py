@@ -13,6 +13,9 @@ class ContentUpload(BaseModel):
     def payload(self) -> bytes:
         return base64.b64decode(self.data)
 
+    def replace(self, data: bytes):
+        self.data = base64.b64encode(data).decode()
+
 
 class Content(BaseModel):
     contentid: int

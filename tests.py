@@ -6,8 +6,8 @@ from typing import Any
 
 from starlette.responses import Response
 
-from api_types import ContentUpload, CustomHTTPException
-from utils import set_moderator, token_to_userid
+from src.api_types import ContentUpload, CustomHTTPException
+from src.utils import set_moderator, token_to_userid
 
 
 def print_json(param: Any):

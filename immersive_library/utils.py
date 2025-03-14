@@ -6,7 +6,7 @@ from databases import Database
 from databases.interfaces import Record
 from fastapi import Header
 
-from api_types import Content, User, LiteContent, LiteUser
+from immersive_library.api_types import Content, User, LiteContent, LiteUser
 
 
 async def refresh_precomputation(database: Database):

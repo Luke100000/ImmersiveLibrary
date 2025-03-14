@@ -1,12 +1,14 @@
-from modules.module import Module
-from utils import refresh_precomputation
+from databases import Database
+
+from immersive_library.utils import refresh_precomputation
+from immersive_library.validators.validator import Validator
 
 
-class InvalidReport(Module):
-    async def post_report(self, contentid: int, reason: str):
-        await refresh_precomputation(self.database)
+class InvalidReportValidator(Validator):
+    async def post_report(self, database: Database, contentid: int, reason: str):
+        await refresh_precomputation(database)
 
-        content = await self.database.fetch_one(
+        content = await database.fetch_one(
             """
             SELECT *
             FROM content
@@ -23,9 +25,7 @@ class InvalidReport(Module):
         )
 
         if content:
-            print(content)
-
-            await self.database.execute(
+            await database.execute(
                 "INSERT INTO tags (contentid, tag) VALUES (:contentid, :tag)",
                 {"contentid": contentid, "tag": "invalid"},
             )

@@ -4,10 +4,11 @@ from typing import Optional
 import PIL
 import numpy as np
 from PIL import Image
+from databases import Database
 
-from api_types import ContentUpload
-from modules.module import Module
-from utils import has_tag
+from immersive_library.api_types import ContentUpload
+from immersive_library.utils import has_tag
+from immersive_library.validators.validator import Validator
 
 # A lookup to verify the skins alpha channel, true values should contain at least some alpha pixels
 # fmt: off
@@ -275,8 +276,10 @@ MASK = np.array([
 # fmt: on
 
 
-class ValidModule(Module):
-    async def pre_upload(self, content: ContentUpload) -> Optional[str]:
+class ValidClothingValidator(Validator):
+    async def pre_upload(
+        self, database: Database, userid: int, content: ContentUpload
+    ) -> Optional[str]:
         try:
             image = Image.open(io.BytesIO(content.payload))
             image = np.array(image.convert("RGBA"))
@@ -286,8 +289,11 @@ class ValidModule(Module):
         except PIL.UnidentifiedImageError:
             return "Not an valid image!"
 
-    async def post_upload(self, contentid: int):
-        content = await self.database.fetch_one(
+    async def post_upload(self, database: Database, userid: int, contentid: int):
+        """
+        Mark skins as invalid if several pixels which are expected to be transparent are not.
+        """
+        content = await database.fetch_one(
             "SELECT data FROM content WHERE oid=:contentid",
             {"contentid": contentid},
         )
@@ -300,8 +306,8 @@ class ValidModule(Module):
 
         errors = ((image[:, :, -1] == 0) * MASK).sum()
         if errors <= 6:
-            if not await has_tag(self.database, contentid, "invalid"):
-                await self.database.execute(
+            if not await has_tag(database, contentid, "invalid"):
+                await database.execute(
                     "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
                     {"contentid": contentid, "tag": "invalid"},
                 )
