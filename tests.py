@@ -6,8 +6,8 @@ from typing import Any
 
 from starlette.responses import Response
 
-from src.api_types import ContentUpload, CustomHTTPException
-from src.utils import set_moderator, token_to_userid
+from immersive_library.api_types import ContentUpload
+from immersive_library.utils import token_to_userid, set_moderator
 
 
 def print_json(param: Any):
@@ -19,7 +19,7 @@ def print_json(param: Any):
         print(json.dumps(param.dict()))
 
 
-from main import (
+from immersive_library.api import (
     login_user,
     add_content,
     get_content,
@@ -35,19 +35,15 @@ from main import (
     list_content_tags,
     set_user,
     database,
-    decode,
     run_post_upload_callbacks,
+    decode,
 )
 
 
 async def catch(func, *args, **kwargs) -> Any:
     try:
         return await func(*args, **kwargs)
-    except CustomHTTPException as e:
-        return e.dict()
     except Exception as e:
-        if isinstance(e, CustomHTTPException):
-            return e.dict()
         return {"message": str(e)}
 
 
