@@ -1,5 +1,5 @@
 import base64
-from typing import TypeVar, List, Dict
+from typing import TypeVar, List, Dict, Union, Any, Optional
 
 from pydantic import BaseModel
 
@@ -25,7 +25,7 @@ class Content(BaseModel):
     tags: List[str]
     title: str
     version: int
-    meta: str
+    meta: Union[str, Dict[str, Any]]
     data: str
 
 
@@ -37,6 +37,7 @@ class LiteContent(BaseModel):
     tags: List[str]
     title: str
     version: int
+    meta: Optional[Union[str, Dict[str, Any]]]
 
 
 class LiteUser(BaseModel):

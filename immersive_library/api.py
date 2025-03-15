@@ -46,13 +46,12 @@ from immersive_library.utils import (
     set_banned,
     user_exists,
     exists,
-    BASE_SELECT,
-    BASE_LITE_SELECT,
     get_lite_user_class,
     get_lite_content_class,
     has_reported,
     refresh_precomputation,
     set_dirty,
+    get_base_select,
 )
 from immersive_library.validators.validator import Validator
 
@@ -233,8 +232,10 @@ T = TypeVar("T", bound=BaseModel)
 
 
 def encode(r: T) -> T:
-    # noinspection PyTypeChecker
-    return Response(orjson.dumps(r, default=vars), media_type="application/json")  # pyright: ignore [reportReturnType]
+    return Response(
+        orjson.dumps(r.model_dump(exclude_none=True), default=vars),
+        media_type="application/json",
+    )
 
 
 def decode(r: Union[BaseModel, Response]) -> dict:
@@ -399,10 +400,12 @@ async def list_content_v2(
     limit: int = 10,
     order: str = "oid",
     descending: bool = False,
+    include_meta: bool = False,
+    parse_meta: bool = False,
     token: Optional[str] = None,
     authorization: str = Header(None),
 ) -> ContentListSuccess:
-    prompt = BASE_LITE_SELECT
+    prompt = get_base_select(False, include_meta)
     values: dict[str, Union[str, int]] = {"project": project}
 
     prompt += "\n WHERE c.project = :project"
@@ -464,23 +467,26 @@ async def list_content_v2(
     content = await database.fetch_all(prompt, values)
 
     # Convert to content accessors, which are more lightweight than the actual content instances
-    contents = [get_lite_content_class(c) for c in content]
+    contents = [get_lite_content_class(c, include_meta, parse_meta) for c in content]
 
     return encode(ContentListSuccess(contents=contents))
 
 
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
-async def get_content(project: str, contentid: int) -> ContentSuccess:
+async def get_content(
+    project: str, contentid: int, parse_meta: bool = False
+) -> ContentSuccess:
     assert project
     content = await database.fetch_one(
-        BASE_SELECT + "WHERE c.oid = :contentid", {"contentid": contentid}
+        get_base_select(True, True) + "WHERE c.oid = :contentid",
+        {"contentid": contentid},
     )
 
     if content is None:
         raise HTTPException(404, "Content not found")
 
     # noinspection PyArgumentList
-    return encode(ContentSuccess(content=get_content_class(content)))
+    return encode(ContentSuccess(content=get_content_class(content, parse_meta)))
 
 
 @app.post(
@@ -900,7 +906,9 @@ async def get_me(
     tags=["Users"],
     responses={404: {"model": Error}},
 )
-async def get_user(project: str, userid: int) -> UserSuccess:
+async def get_user(
+    project: str, userid: int, include_meta: bool = False, parse_meta: bool = False
+) -> UserSuccess:
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:userid",
         {"userid": userid},
@@ -917,6 +925,8 @@ async def get_user(project: str, userid: int) -> UserSuccess:
                 content["oid"],
                 content["username"],
                 content["moderator"],
+                include_meta,
+                parse_meta,
             )
         )
     )

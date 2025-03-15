@@ -2,11 +2,18 @@ import base64
 import hashlib
 from typing import List, Optional, Any, Dict
 
+import orjson
+from cachetools import cached
 from databases import Database
 from databases.interfaces import Record
 from fastapi import Header
 
-from immersive_library.api_types import Content, User, LiteContent, LiteUser
+from immersive_library.api_types import (
+    Content,
+    User,
+    LiteContent,
+    LiteUser,
+)
 
 
 async def refresh_precomputation(database: Database):
@@ -72,7 +79,8 @@ async def set_dirty(database: Database, contentid: int):
     await refresh_precomputation(database)
 
 
-def get_base_select(data: bool):
+@cached(cache={})
+def get_base_select(include_data: bool, include_meta: bool):
     prompt = """
         SELECT c.oid,
                c.userid,
@@ -91,15 +99,13 @@ def get_base_select(data: bool):
 
     """
 
-    if not data:
+    if not include_meta:
         prompt = prompt.replace("c.meta,", "")
+
+    if not include_data:
         prompt = prompt.replace("c.data,", "")
 
     return prompt
-
-
-BASE_SELECT = get_base_select(True)
-BASE_LITE_SELECT = get_base_select(False)
 
 
 def sha256(string: str) -> str:
@@ -285,37 +291,45 @@ async def get_likes(database: Database, contentid: int) -> int:
 
 
 async def get_liked_content(
-    database: Database, project: str, userid: int
+    database: Database,
+    project: str,
+    userid: int,
+    include_meta: bool,
+    parse_meta: bool,
 ) -> List[LiteContent]:
     """
     Retrieves all content liked by the given user in a project
     """
     content = await database.fetch_all(
-        BASE_LITE_SELECT
+        get_base_select(False, include_meta)
         + """
-INNER JOIN likes on likes.contentid=c.oid
-WHERE likes.userid=:userid AND c.project=:project
+            INNER JOIN likes on likes.contentid=c.oid
+            WHERE likes.userid=:userid AND c.project=:project
         """,
         {"userid": userid, "project": project},
     )
 
-    return [get_lite_content_class(c) for c in content]
+    return [get_lite_content_class(c, include_meta, parse_meta) for c in content]
 
 
 async def get_submissions(
-    database: Database, project: str, userid: int
+    database: Database,
+    project: str,
+    userid: int,
+    include_meta: bool,
+    parse_meta: bool,
 ) -> List[LiteContent]:
     """
     Retrieves all content submitted by a user in a project
     """
     content = await database.fetch_all(
-        BASE_LITE_SELECT
+        get_base_select(False, include_meta)
         + """
             WHERE c.userid=:userid AND c.project=:project
         """,
         {"userid": userid, "project": project},
     )
-    return [get_lite_content_class(c) for c in content]
+    return [get_lite_content_class(c, include_meta, parse_meta) for c in content]
 
 
 async def get_tags(database: Database, contentid: int) -> List[str]:
@@ -351,7 +365,9 @@ async def get_project_tags(
     return {row["tag"]: row["count"] for row in rows}
 
 
-def get_lite_content_class(record: Record) -> LiteContent:
+def get_lite_content_class(
+    record: Record, include_meta: bool, parse_meta: bool
+) -> LiteContent:
     """
     Populates a lite content object
     """
@@ -365,10 +381,21 @@ def get_lite_content_class(record: Record) -> LiteContent:
         tags=m["tags"].split(",") if m["tags"] else [],
         title=m["title"],
         version=m["version"],
+        meta=(safe_parse(m["meta"]) if parse_meta else m["meta"])
+        if include_meta
+        else None,
     )
 
 
-def get_content_class(record: Record) -> Content:
+def safe_parse(meta: str) -> Dict[str, Any]:
+    # noinspection PyBroadException
+    try:
+        return orjson.loads(meta)
+    except Exception:
+        return {}
+
+
+def get_content_class(record: Record, parse_meta: bool = True) -> Content:
     """
     Populates a content object
     """
@@ -382,7 +409,7 @@ def get_content_class(record: Record) -> Content:
         tags=m["tags"].split(",") if m["tags"] else [],
         title=m["title"],
         version=m["version"],
-        meta=m["meta"],
+        meta=safe_parse(m["meta"]) if parse_meta else m["meta"],
         data=base64.b64encode(m["data"]).decode("utf-8"),
     )
 
@@ -409,13 +436,21 @@ def get_lite_user_class(
 
 
 async def get_user_class(
-    database: Database, project: str, userid: int, username: str, moderator: int
+    database: Database,
+    project: str,
+    userid: int,
+    username: str,
+    moderator: int,
+    include_meta: bool,
+    parse_meta: bool,
 ):
     """
     Populates a user object
     """
-    submissions = await get_submissions(database, project, userid)
-    likes = await get_liked_content(database, project, userid)
+    submissions = await get_submissions(
+        database, project, userid, include_meta, parse_meta
+    )
+    likes = await get_liked_content(database, project, userid, include_meta, parse_meta)
     likes_received = sum([c.likes for c in submissions])
     return User(
         userid=userid,
