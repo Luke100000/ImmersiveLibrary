@@ -9,10 +9,14 @@ import orjson
 from databases import Database
 from fastapi import FastAPI, Form, Request, HTTPException, Header, Query
 from fastapi.openapi.utils import get_openapi
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
+from redis import asyncio as aioredis
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse, HTMLResponse, PlainTextResponse
 from starlette.staticfiles import StaticFiles
@@ -95,6 +99,9 @@ async def lifespan(_app: FastAPI):
     await setup()
 
     instrumentator.expose(_app)
+
+    redis = aioredis.from_url("redis://localhost")
+    FastAPICache.init(RedisBackend(redis), prefix="immersive-library")
 
     yield
 
@@ -297,6 +304,7 @@ async def get_login(request: Request, state: str) -> HTMLResponse:
 
 
 @app.get("/v1/stats")
+@cache(expire=60)
 async def get_statistics():
     content_count = await database.fetch_one("SELECT count(*) from content")
     content_count_liked = await database.fetch_one(
@@ -308,6 +316,9 @@ async def get_statistics():
     """
     )
     users_count = await database.fetch_one("SELECT count(*) FROM users")
+    users_banned_count = await database.fetch_one(
+        "SELECT count(*) FROM users WHERE banned > 0"
+    )
     likes_count = await database.fetch_one("SELECT count(*) FROM likes")
     reports_count = await database.fetch_one("SELECT count(*) FROM reports")
 
@@ -334,31 +345,13 @@ async def get_statistics():
     """
     )
 
-    if (
-        content_count is None
-        or content_count_liked is None
-        or users_count is None
-        or likes_count is None
-        or reports_count is None
-        or top_tags is None
-        or random_oid is None
-    ):
-        return {
-            "oid": 0,
-            "top_tags": "None",
-            "content": "0",
-            "content_liked": "0",
-            "users": "0",
-            "likes": "0",
-            "reports": "0",
-        }
-
     return {
         "oid": random_oid[0],
         "top_tags": ", ".join([t[0] for t in top_tags[3:]]),
         "content": "{:,}".format(content_count[0]),
         "content_liked": "{:,}".format(content_count_liked[0]),
         "users": "{:,}".format(users_count[0]),
+        "users_banned_count": "{:,}".format(users_banned_count[0]),
         "likes": "{:,}".format(likes_count[0]),
         "reports": "{:,}".format(reports_count[0]),
     }
@@ -370,6 +363,7 @@ async def get_statistics():
     deprecated=True,
     response_model_exclude_none=True,
 )
+@cache(expire=60)
 async def list_content(
     project: str, tag_filter: Optional[str] = None, invert_filter: bool = False
 ) -> ContentListSuccess:
@@ -395,6 +389,7 @@ class ContentOrder(str, Enum):
 
 
 @app.get("/v2/content/{project}", tags=["Content"], response_model_exclude_none=True)
+@cache(expire=60)
 async def list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
@@ -486,10 +481,13 @@ async def list_content_v2(
 
 
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
+@cache(expire=60)
 async def get_content(
-    project: str, contentid: int, parse_meta: bool = False
+    project: str, contentid: int, parse_meta: bool = False, version: int = 0
 ) -> ContentSuccess:
     assert project
+    assert version is not None
+
     content = await database.fetch_one(
         get_base_select(True, True) + "WHERE c.oid = :contentid",
         {"contentid": contentid},
@@ -591,7 +589,6 @@ async def update_content(
     return PlainSuccess()
 
 
-# noinspection PyUnusedLocal
 @app.delete(
     "/v1/content/{project}/{contentid}",
     responses={401: {"model": Error}},
@@ -622,7 +619,6 @@ async def delete_content(
     return PlainSuccess()
 
 
-# noinspection PyUnusedLocal
 @app.post(
     "/v1/like/{project}/{contentid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -653,7 +649,6 @@ async def add_like(
     return PlainSuccess()
 
 
-# noinspection PyUnusedLocal
 @app.delete(
     "/v1/like/{project}/{contentid}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -684,7 +679,6 @@ async def delete_like(
     return PlainSuccess()
 
 
-# noinspection PyUnusedLocal
 @app.post(
     "/v1/report/{project}/{contentid}/{reason}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -718,7 +712,6 @@ async def add_report(
     return PlainSuccess()
 
 
-# noinspection PyUnusedLocal
 @app.delete(
     "/v1/report/{project}/{contentid}/{reason}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -751,6 +744,7 @@ async def delete_report(
 
 
 @app.get("/v1/tag/{project}", tags=["Tags"])
+@cache(expire=60)
 async def list_project_tags(
     project: str, limit: int = 100, offset: int = 0
 ) -> TagListSuccess:
@@ -758,15 +752,14 @@ async def list_project_tags(
     return TagListSuccess(tags=tags)
 
 
-# noinspection PyUnusedLocal
 @app.get("/v1/tag/{project}/{contentid}", tags=["Tags"])
+@cache(expire=60)
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     assert project
     tags = await get_tags(database, contentid)
     return TagListSuccess(tags=tags)
 
 
-# noinspection PyUnusedLocal
 @app.post(
     "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -806,7 +799,6 @@ async def add_tag(
     return PlainSuccess()
 
 
-# noinspection PyUnusedLocal
 @app.delete(
     "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
@@ -870,6 +862,7 @@ class UserOrder(str, Enum):
     "/v1/user/{project}",
     tags=["Users"],
 )
+@cache(expire=60)
 async def get_users(
     project: str,
     limit: int = 100,
@@ -925,13 +918,11 @@ async def get_users(
     "/v1/user/{project}/me",
     tags=["Users"],
     responses={401: {"model": Error}},
+    deprecated=True,
 )
+@cache(expire=60)
 async def get_me(
     project: str,
-    include_meta: bool = False,
-    parse_meta: bool = False,
-    limit: int = 100,
-    offset: int = 0,
     token: Optional[str] = None,
     authorization: str = Header(None),
 ) -> UserSuccess:
@@ -940,7 +931,7 @@ async def get_me(
     if userid is None:
         raise HTTPException(401, "Token invalid")
 
-    return await get_user(project, userid, include_meta, parse_meta, limit, offset)
+    return await get_user(project, userid)
 
 
 @app.get(
@@ -949,6 +940,7 @@ async def get_me(
     responses={404: {"model": Error}},
     deprecated=True,
 )
+@cache(expire=60)
 async def get_user(
     project: str,
     userid: int,
@@ -991,6 +983,7 @@ async def get_user(
     tags=["Users"],
     responses={404: {"model": Error}},
 )
+@cache(expire=60)
 async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
     users = await get_users(project, 1, 0, UserOrder.OID, False, userid)
     if not users.users:

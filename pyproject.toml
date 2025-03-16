@@ -19,10 +19,11 @@ orjson = "^3.10.10"
 prometheus-fastapi-instrumentator = "^7.0.0"
 pillow = "^11.0.0"
 aiosqlite = "^0.20.0"
-python-multipart = "^0.0.16"
+python-multipart = "0.0.19"
 numpy = "<2"
 jinja2 = "^3.1.4"
 uvicorn = "^0.32.0"
+fastapi-cache2 = {extras = ["redis"], version = "^0.2.2"}
 
 
 [build-system]
