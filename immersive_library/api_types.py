@@ -37,7 +37,7 @@ class LiteContent(BaseModel):
     tags: List[str]
     title: str
     version: int
-    meta: Optional[Union[str, Dict[str, Any]]]
+    meta: Optional[Union[str, Dict[str, Any]]] = None
 
 
 class LiteUser(BaseModel):

@@ -3,13 +3,15 @@ import json
 import os
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import Annotated, List, Optional, Union
+from functools import partial
+from typing import Annotated, List, Optional, Union, Any
 
 import orjson
 from databases import Database
 from fastapi import FastAPI, Form, Request, HTTPException, Header, Query
+from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.utils import get_openapi
-from fastapi_cache import FastAPICache
+from fastapi_cache import FastAPICache, Coder
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.decorator import cache
 from google.auth.transport import requests
@@ -93,6 +95,24 @@ tags_metadata = [
 ]
 
 
+class FastAPIJsonCoder(Coder):
+    """
+    Basically only required to get the exclude_none flag through the cache.
+    """
+
+    @classmethod
+    def encode(cls, value: Any) -> bytes:
+        return orjson.dumps(
+            value,
+            default=partial(jsonable_encoder, exclude_none=True),
+            option=orjson.OPT_NON_STR_KEYS | orjson.OPT_SERIALIZE_NUMPY,
+        )
+
+    @classmethod
+    def decode(cls, value: bytes) -> Any:
+        return orjson.loads(value)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await database.connect()
@@ -101,7 +121,9 @@ async def lifespan(_app: FastAPI):
     instrumentator.expose(_app)
 
     redis = aioredis.from_url("redis://localhost")
-    FastAPICache.init(RedisBackend(redis), prefix="immersive-library")
+    FastAPICache.init(
+        RedisBackend(redis), prefix="immersive-library", coder=FastAPIJsonCoder
+    )
 
     yield
 
@@ -388,7 +410,12 @@ class ContentOrder(str, Enum):
     REPORTS = "reports"
 
 
-@app.get("/v2/content/{project}", tags=["Content"], response_model_exclude_none=True)
+@app.get(
+    "/v2/content/{project}",
+    tags=["Content"],
+    response_model_exclude_none=True,
+    response_model=ContentListSuccess,
+)
 @cache(expire=60)
 async def list_content_v2(
     project: str,
@@ -480,7 +507,9 @@ async def list_content_v2(
     return ContentListSuccess(contents=contents)
 
 
-@app.get("/v1/content/{project}/{contentid}", tags=["Content"])
+@app.get(
+    "/v1/content/{project}/{contentid}", tags=["Content"], response_model=ContentSuccess
+)
 @cache(expire=60)
 async def get_content(
     project: str, contentid: int, parse_meta: bool = False, version: int = 0
@@ -743,7 +772,7 @@ async def delete_report(
     return PlainSuccess()
 
 
-@app.get("/v1/tag/{project}", tags=["Tags"])
+@app.get("/v1/tag/{project}", tags=["Tags"], response_model=TagListSuccess)
 @cache(expire=60)
 async def list_project_tags(
     project: str, limit: int = 100, offset: int = 0
@@ -752,7 +781,7 @@ async def list_project_tags(
     return TagListSuccess(tags=tags)
 
 
-@app.get("/v1/tag/{project}/{contentid}", tags=["Tags"])
+@app.get("/v1/tag/{project}/{contentid}", tags=["Tags"], response_model=TagListSuccess)
 @cache(expire=60)
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     assert project
@@ -861,6 +890,7 @@ class UserOrder(str, Enum):
 @app.get(
     "/v1/user/{project}",
     tags=["Users"],
+    response_model=UserListSuccess,
 )
 @cache(expire=60)
 async def get_users(
@@ -918,6 +948,8 @@ async def get_users(
     "/v1/user/{project}/me",
     tags=["Users"],
     responses={401: {"model": Error}},
+    response_model_exclude_none=True,
+    response_model=UserSuccess,
     deprecated=True,
 )
 @cache(expire=60)
@@ -938,6 +970,8 @@ async def get_me(
     "/v1/user/{project}/{userid}",
     tags=["Users"],
     responses={404: {"model": Error}},
+    response_model_exclude_none=True,
+    response_model=UserSuccess,
     deprecated=True,
 )
 @cache(expire=60)
@@ -982,6 +1016,7 @@ async def get_user(
     "/v2/user/{project}/{userid}",
     tags=["Users"],
     responses={404: {"model": Error}},
+    response_model=LiteUserSuccess,
 )
 @cache(expire=60)
 async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
