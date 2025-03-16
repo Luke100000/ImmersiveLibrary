@@ -2,8 +2,10 @@ import asyncio
 import base64
 import json
 import random
-from typing import Any
+from typing import Any, Union
 
+import orjson
+from pydantic import BaseModel
 from starlette.responses import Response
 
 from immersive_library.api_types import ContentUpload
@@ -36,8 +38,14 @@ from immersive_library.api import (
     set_user,
     database,
     run_post_upload_callbacks,
-    decode,
 )
+
+
+def decode(r: Union[BaseModel, Response]) -> dict:
+    if isinstance(r, Response):
+        return orjson.loads(r.body)
+    else:
+        return r.model_dump()
 
 
 async def catch(func, *args, **kwargs) -> Any:

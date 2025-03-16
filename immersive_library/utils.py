@@ -120,7 +120,7 @@ async def token_to_userid(
     """
     Return the userid for a given token, or None if the token is invalid
     """
-    if authorization is not None and authorization.startswith("Bearer "):
+    if authorization is not None and str(authorization).startswith("Bearer "):
         token = sha256(authorization[7:])
     if token is None:
         return None
@@ -290,48 +290,6 @@ async def get_likes(database: Database, contentid: int) -> int:
     )
 
 
-async def get_liked_content(
-    database: Database,
-    project: str,
-    userid: int,
-    include_meta: bool,
-    parse_meta: bool,
-) -> List[LiteContent]:
-    """
-    Retrieves all content liked by the given user in a project
-    """
-    content = await database.fetch_all(
-        get_base_select(False, include_meta)
-        + """
-            INNER JOIN likes on likes.contentid=c.oid
-            WHERE likes.userid=:userid AND c.project=:project
-        """,
-        {"userid": userid, "project": project},
-    )
-
-    return [get_lite_content_class(c, include_meta, parse_meta) for c in content]
-
-
-async def get_submissions(
-    database: Database,
-    project: str,
-    userid: int,
-    include_meta: bool,
-    parse_meta: bool,
-) -> List[LiteContent]:
-    """
-    Retrieves all content submitted by a user in a project
-    """
-    content = await database.fetch_all(
-        get_base_select(False, include_meta)
-        + """
-            WHERE c.userid=:userid AND c.project=:project
-        """,
-        {"userid": userid, "project": project},
-    )
-    return [get_lite_content_class(c, include_meta, parse_meta) for c in content]
-
-
 async def get_tags(database: Database, contentid: int) -> List[str]:
     """
     Get all tags for a given content
@@ -414,43 +372,30 @@ def get_content_class(record: Record, parse_meta: bool = True) -> Content:
     )
 
 
-def get_lite_user_class(
-    userid: int,
-    username: str,
-    moderator: int,
-    submission_count: int,
-    likes_given: int,
-    likes_received: int,
-):
+def get_lite_user_class(record: Record):
     """
     Populates a user object
     """
     return LiteUser(
-        userid=userid,
-        username=username,
-        submission_count=submission_count,
-        likes_given=likes_given,
-        likes_received=likes_received,
-        moderator=moderator > 0,
+        userid=record["oid"],
+        username=record["username"],
+        submission_count=record["submission_count"],
+        likes_given=record["likes_given"],
+        likes_received=record["likes_received"],
+        moderator=record["moderator"] > 0,
     )
 
 
 async def get_user_class(
-    database: Database,
-    project: str,
     userid: int,
     username: str,
     moderator: int,
-    include_meta: bool,
-    parse_meta: bool,
+    submissions: list[LiteContent],
+    likes: list[LiteContent],
 ):
     """
     Populates a user object
     """
-    submissions = await get_submissions(
-        database, project, userid, include_meta, parse_meta
-    )
-    likes = await get_liked_content(database, project, userid, include_meta, parse_meta)
     likes_received = sum([c.likes for c in submissions])
     return User(
         userid=userid,

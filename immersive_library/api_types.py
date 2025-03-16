@@ -1,5 +1,5 @@
 import base64
-from typing import TypeVar, List, Dict, Union, Any, Optional
+from typing import List, Dict, Union, Any, Optional
 
 from pydantic import BaseModel
 
@@ -53,12 +53,9 @@ class User(BaseModel):
     userid: int
     username: str
     likes_received: int
-    likes: List[LiteContent]
-    submissions: List[LiteContent]
+    likes: Union[List[LiteContent], List[int]]
+    submissions: Union[List[LiteContent], List[int]]
     moderator: bool
-
-
-DataType = TypeVar("DataType")
 
 
 class ContentSuccess(BaseModel):
@@ -71,6 +68,10 @@ class ContentListSuccess(BaseModel):
 
 class UserSuccess(BaseModel):
     user: User
+
+
+class LiteUserSuccess(BaseModel):
+    user: LiteUser
 
 
 class IsAuthResponse(BaseModel):

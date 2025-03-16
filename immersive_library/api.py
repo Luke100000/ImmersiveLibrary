@@ -2,18 +2,19 @@ import base64
 import json
 import os
 from contextlib import asynccontextmanager
+from enum import Enum
 from typing import Annotated, List, Optional, Union
 
 import orjson
 from databases import Database
-from fastapi import FastAPI, Form, Request, HTTPException, Header
+from fastapi import FastAPI, Form, Request, HTTPException, Header, Query
 from fastapi.openapi.utils import get_openapi
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.responses import JSONResponse, Response, HTMLResponse, PlainTextResponse
+from starlette.responses import JSONResponse, HTMLResponse, PlainTextResponse
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from typing_extensions import TypeVar
@@ -30,6 +31,7 @@ from immersive_library.api_types import (
     IsAuthResponse,
     BanEntry,
     Error,
+    LiteUserSuccess,
 )
 from immersive_library.utils import (
     login_user,
@@ -231,20 +233,6 @@ async def setup():
 T = TypeVar("T", bound=BaseModel)
 
 
-def encode(r: T) -> T:
-    return Response(
-        orjson.dumps(r.model_dump(exclude_none=True), default=vars),
-        media_type="application/json",
-    )
-
-
-def decode(r: Union[BaseModel, Response]) -> dict:
-    if isinstance(r, Response):
-        return orjson.loads(r.body)
-    else:
-        return r.model_dump()
-
-
 @app.post(
     "/v1/auth",
     responses={401: {"model": Error}, 400: {"model": Error}},
@@ -293,7 +281,7 @@ async def is_auth(
     token: Optional[str] = None, authorization: str = Header(None)
 ) -> IsAuthResponse:
     executor_userid = await token_to_userid(database, token, authorization)
-    return encode(IsAuthResponse(authenticated=executor_userid is not None))
+    return IsAuthResponse(authenticated=executor_userid is not None)
 
 
 @app.get(
@@ -376,7 +364,12 @@ async def get_statistics():
     }
 
 
-@app.get("/v1/content/{project}", tags=["Content"], deprecated=True)
+@app.get(
+    "/v1/content/{project}",
+    tags=["Content"],
+    deprecated=True,
+    response_model_exclude_none=True,
+)
 async def list_content(
     project: str, tag_filter: Optional[str] = None, invert_filter: bool = False
 ) -> ContentListSuccess:
@@ -388,32 +381,58 @@ async def list_content(
     )
 
 
-@app.get("/v2/content/{project}", tags=["Content"])
+class TrackEnum(str, Enum):
+    ALL = "all"
+    LIKES = "likes"
+    SUBMISSIONS = "submissions"
+
+
+class ContentOrder(str, Enum):
+    DATE = "date"
+    LIKES = "likes"
+    TITLE = "title"
+    REPORTS = "reports"
+
+
+@app.get("/v2/content/{project}", tags=["Content"], response_model_exclude_none=True)
 async def list_content_v2(
     project: str,
+    track: TrackEnum = TrackEnum.ALL,
+    userid: Optional[None] = None,
     whitelist: Optional[str] = None,
     blacklist: Optional[str] = None,
     filter_banned: bool = True,
     filter_reported: bool = True,
-    moderator: bool = False,
     offset: int = 0,
-    limit: int = 10,
-    order: str = "oid",
+    limit: int = 100,
+    order: ContentOrder = ContentOrder.DATE,
     descending: bool = False,
     include_meta: bool = False,
     parse_meta: bool = False,
     token: Optional[str] = None,
     authorization: str = Header(None),
 ) -> ContentListSuccess:
+    # Use me user if none is provided
+    userid = userid or await token_to_userid(database, token, authorization)
+
     prompt = get_base_select(False, include_meta)
     values: dict[str, Union[str, int]] = {"project": project}
 
-    prompt += "\n WHERE c.project = :project"
+    # Filter for a specific track
+    if track == TrackEnum.ALL:
+        prompt += "\n WHERE c.project = :project"
+    elif track == TrackEnum.LIKES:
+        prompt += "\n INNER JOIN likes on likes.contentid=c.oid"
+        prompt += "\n WHERE c.project=:project AND likes.userid=:userid"
+        values["userid"] = userid
+    elif track == TrackEnum.SUBMISSIONS:
+        prompt += "\n WHERE c.project=:project AND c.userid=:userid"
+        values["userid"] = userid
+    else:
+        raise HTTPException(400, "Invalid track")
 
     # Hide personal banned content
-    if token is not None and not moderator:
-        userid = await token_to_userid(database, token, authorization)
-
+    if token is not None:
         if userid is not None:
             prompt += """
              AND NOT EXISTS (SELECT *
@@ -422,19 +441,13 @@ async def list_content_v2(
             """
             values["userid"] = userid
 
-    # Only show reported content
-    if moderator:
-        prompt += "\n AND (1 + likes / 10.0 - reports + counter_reports * 10.0 < 0.0 OR users.banned)"
-    else:
-        # Remove content from banned users
-        if filter_banned:
-            prompt += "\n AND NOT users.banned"
+    # Remove content from banned users
+    if filter_banned:
+        prompt += "\n AND NOT users.banned"
 
-        # Remove reported content
-        if filter_reported:
-            prompt += (
-                "\n AND 1 + likes / 10.0 - reports + counter_reports * 10.0 >= 0.0"
-            )
+    # Remove reported content
+    if filter_reported:
+        prompt += "\n AND 1 + likes / 10.0 - reports + counter_reports * 10.0 >= 0.0"
 
     # Only if all terms matches either a tag or the title, allow this content
     if whitelist:
@@ -453,10 +466,10 @@ async def list_content_v2(
             values[f"blacklist_term_{index}"] = f"%{term}%"
 
     # Order by
-    if order in {"date", "likes", "title", "reports"}:
-        if order == "date":
-            order = "c.oid"
-        prompt += f"\n ORDER BY {order} " + ("DESC" if descending else "ASC")
+    prompt += (
+        f"\n ORDER BY {'c.oid' if order == ContentOrder.DATE else order.name} "
+        + ("DESC" if descending else "ASC")
+    )
 
     # Limit
     prompt += "\n LIMIT :limit OFFSET :offset"
@@ -469,7 +482,7 @@ async def list_content_v2(
     # Convert to content accessors, which are more lightweight than the actual content instances
     contents = [get_lite_content_class(c, include_meta, parse_meta) for c in content]
 
-    return encode(ContentListSuccess(contents=contents))
+    return ContentListSuccess(contents=contents)
 
 
 @app.get("/v1/content/{project}/{contentid}", tags=["Content"])
@@ -485,8 +498,7 @@ async def get_content(
     if content is None:
         raise HTTPException(404, "Content not found")
 
-    # noinspection PyArgumentList
-    return encode(ContentSuccess(content=get_content_class(content, parse_meta)))
+    return ContentSuccess(content=get_content_class(content, parse_meta))
 
 
 @app.post(
@@ -532,7 +544,7 @@ async def add_content(
 
     await set_dirty(database, -1)
 
-    return encode(ContentIdSuccess(contentid=contentid))
+    return ContentIdSuccess(contentid=contentid)
 
 
 @app.put(
@@ -743,7 +755,7 @@ async def list_project_tags(
     project: str, limit: int = 100, offset: int = 0
 ) -> TagListSuccess:
     tags = await get_project_tags(database, project, limit, offset)
-    return encode(TagListSuccess(tags=tags))
+    return TagListSuccess(tags=tags)
 
 
 # noinspection PyUnusedLocal
@@ -751,7 +763,7 @@ async def list_project_tags(
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     assert project
     tags = await get_tags(database, contentid)
-    return encode(TagListSuccess(tags=tags))
+    return TagListSuccess(tags=tags)
 
 
 # noinspection PyUnusedLocal
@@ -847,42 +859,66 @@ async def get_banned() -> List[BanEntry]:
     return [BanEntry(userid=u[0], username=u[1]) for u in content]
 
 
+class UserOrder(str, Enum):
+    OID = "date"
+    SUBMISSION_COUNT = "submissions"
+    LIKES_GIVEN = "likes_given"
+    LIKES_RECEIVED = "likes_received"
+
+
 @app.get(
-    "/v1/user/{project}/",
+    "/v1/user/{project}",
     tags=["Users"],
 )
-async def get_users(project: str) -> UserListSuccess:
+async def get_users(
+    project: str,
+    limit: int = 100,
+    offset: int = 0,
+    order: UserOrder = UserOrder.OID,
+    descending: bool = False,
+    _userid: Optional[int] = Query(None, include_in_schema=False),
+) -> UserListSuccess:
     content = await database.fetch_all(
-        """
-    SELECT oid,
-       username,
-       moderator,
-       CASE
-           WHEN submitted_content.submission_count is NULL THEN 0
-           ELSE submitted_content.submission_count END                             as submission_count,
-       CASE WHEN likes_given.count is NULL THEN 0 ELSE likes_given.count END       as likes_given,
-       CASE WHEN likes_received.count is NULL THEN 0 ELSE likes_received.count END as likes_received
-    FROM users
+        f"""
+            SELECT users.oid,
+                   users.username,
+                   users.moderator,
+                   COALESCE(submitted_content.submission_count, 0) as submission_count,
+                   COALESCE(likes_given.count, 0) as likes_given,
+                   COALESCE(likes_received.count, 0) as likes_received
+            FROM users
 
-         LEFT JOIN (SELECT content.userid, COUNT(content.oid) as submission_count
-                    FROM content
-                    WHERE content.project = :project
-                    GROUP BY content.userid) submitted_content ON submitted_content.userid = users.oid
+            LEFT JOIN (
+                SELECT content.userid, COUNT(content.oid) as submission_count
+                FROM content
+                WHERE content.project = :project
+                GROUP BY content.userid
+            ) submitted_content ON submitted_content.userid = users.oid
 
-         LEFT JOIN (SELECT likes.userid, COUNT(likes.oid) as count
-                    FROM likes
-                    GROUP BY likes.userid) likes_given ON likes_given.userid = users.oid
+            LEFT JOIN (
+                SELECT likes.userid, COUNT(likes.oid) as count
+                FROM likes
+                GROUP BY likes.userid
+            ) likes_given ON likes_given.userid = users.oid
 
-         LEFT JOIN (SELECT c2.userid, COUNT(likes.oid) as count
-                    FROM likes
-                             INNER JOIN content c2 ON c2.oid = likes.contentid
-                             WHERE c2.project = :project AND likes.userid != c2.userid
-                    GROUP BY c2.userid) likes_received on likes_received.userid = users.oid
-    """,
-        {"project": project},
+            LEFT JOIN (
+                SELECT c2.userid, SUM(COALESCE(precomputation.likes, 0)) as count
+                FROM content c2
+                LEFT JOIN precomputation ON precomputation.contentid = c2.oid
+                WHERE c2.project = :project
+                GROUP BY c2.userid
+            ) likes_received ON likes_received.userid = users.oid
+
+            WHERE users.banned = 0
+            {"" if _userid is None else f"AND users.oid = {int(_userid)}"}
+
+            ORDER BY {order.name} {"DESC" if descending else "ASC"}
+            LIMIT :limit
+            OFFSET :offset
+        """,
+        {"project": project, "limit": limit, "offset": offset},
     )
-
-    return encode(UserListSuccess(users=[get_lite_user_class(*c) for c in content]))
+    return UserListSuccess(users=[get_lite_user_class(c) for c in content])
 
 
 @app.get(
@@ -891,23 +927,31 @@ async def get_users(project: str) -> UserListSuccess:
     responses={401: {"model": Error}},
 )
 async def get_me(
-    project: str, token: Optional[str] = None, authorization: str = Header(None)
+    project: str,
+    include_meta: bool = False,
+    parse_meta: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+    token: Optional[str] = None,
+    authorization: str = Header(None),
 ) -> UserSuccess:
     userid = await token_to_userid(database, token, authorization)
 
     if userid is None:
         raise HTTPException(401, "Token invalid")
 
-    return await get_user(project, userid)
+    return await get_user(project, userid, include_meta, parse_meta, limit, offset)
 
 
 @app.get(
-    "/v1/user/{project}/{userid}/",
+    "/v1/user/{project}/{userid}",
     tags=["Users"],
     responses={404: {"model": Error}},
+    deprecated=True,
 )
 async def get_user(
-    project: str, userid: int, include_meta: bool = False, parse_meta: bool = False
+    project: str,
+    userid: int,
 ) -> UserSuccess:
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:userid",
@@ -917,19 +961,41 @@ async def get_user(
     if content is None:
         raise HTTPException(404, "User doesn't exist")
 
-    return encode(
-        UserSuccess(
-            user=await get_user_class(
-                database,
-                project,
-                content["oid"],
-                content["username"],
-                content["moderator"],
-                include_meta,
-                parse_meta,
-            )
+    submissions = await list_content_v2(
+        project,
+        track=TrackEnum.SUBMISSIONS,
+        limit=1000,
+        userid=userid,
+    )
+
+    likes = await list_content_v2(
+        project,
+        track=TrackEnum.LIKES,
+        limit=1000,
+        userid=userid,
+    )
+
+    return UserSuccess(
+        user=await get_user_class(
+            content["oid"],
+            content["username"],
+            content["moderator"],
+            submissions.contents,
+            likes.contents,
         )
     )
+
+
+@app.get(
+    "/v2/user/{project}/{userid}",
+    tags=["Users"],
+    responses={404: {"model": Error}},
+)
+async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
+    users = await get_users(project, 1, 0, UserOrder.OID, False, userid)
+    if not users.users:
+        raise HTTPException(404, "User doesn't exist")
+    return LiteUserSuccess(user=users.users[0])
 
 
 @app.put(

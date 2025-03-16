@@ -45,6 +45,13 @@ projects["mca"].validators = [
     InvalidReportValidator(),
 ]
 
+# Add Immersive Furniture specific validators
+projects["furniture"] = Project()
+projects["furniture"].validators = [
+    TitleLengthValidator(),
+    MaxSizeValidator(262144),
+]
+
 
 @app.get("/", response_class=HTMLResponse)
 async def get_front(request: Request):
