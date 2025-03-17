@@ -74,6 +74,20 @@ files = [
 ]
 
 [[package]]
+name = "cachetools-async"
+version = "0.0.4"
+description = "Provides decorators that are inspired by and work closely with cachetools' for caching asyncio functions and methods."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "cachetools_async-0.0.4-py3-none-any.whl", hash = "sha256:cfbb910f2a81fb6f2032fec1d13df2ebcead4fe9fa6f5353667662f8a4626f2f"},
+    {file = "cachetools_async-0.0.4.tar.gz", hash = "sha256:2fccadddef345152d924dfe6340726d7cd627cb706911ae01bc5508aa4dabac9"},
+]
+
+[package.dependencies]
+cachetools = ">=5"
+
+[[package]]
 name = "certifi"
 version = "2025.1.31"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -1192,13 +1206,13 @@ cli = ["click (>=5.0)"]
 
 [[package]]
 name = "python-multipart"
-version = "0.0.16"
+version = "0.0.19"
 description = "A streaming multipart parser for Python"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "python_multipart-0.0.16-py3-none-any.whl", hash = "sha256:c2759b7b976ef3937214dfb592446b59dfaa5f04682a076f78b117c94776d87a"},
-    {file = "python_multipart-0.0.16.tar.gz", hash = "sha256:8dee37b88dab9b59922ca173c35acb627cc12ec74019f5cd4578369c6df36554"},
+    {file = "python_multipart-0.0.19-py3-none-any.whl", hash = "sha256:f8d5b0b9c618575bf9df01c684ded1d94a338839bdd8223838afacfb4bb2082d"},
+    {file = "python_multipart-0.0.19.tar.gz", hash = "sha256:905502ef39050557b7a6af411f454bc19526529ca46ae6831508438890ce12cc"},
 ]
 
 [[package]]
@@ -1461,4 +1475,4 @@ standard = ["colorama (>=0.4)", "httptools (>=0.6.3)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "77ca843b118967b1788b5b34835af768464805c1e3400ef7f1f9e27e90298bf2"
+content-hash = "178e96c9e4d6f1ebd72190b3614db971d95566314c67f7b36a2246ee67fdfa74"

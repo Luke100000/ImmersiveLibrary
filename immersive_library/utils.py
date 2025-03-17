@@ -3,7 +3,9 @@ import hashlib
 from typing import List, Optional, Any, Dict
 
 import orjson
-from cachetools import cached
+from cachetools import cached, TTLCache
+from cachetools.keys import hashkey
+from cachetools_async import cached as cached_async
 from databases import Database
 from databases.interfaces import Record
 from fastapi import Header
@@ -23,8 +25,7 @@ async def refresh_precomputation(database: Database):
     """
     await database.execute(
         """
-        INSERT OR
-        REPLACE
+        INSERT OR REPLACE
         INTO precomputation (contentid, dirty, tags, likes, reports, counter_reports)
         SELECT temp.oid,
                0,
@@ -57,6 +58,64 @@ async def refresh_precomputation(database: Database):
                             WHERE reports.reason = 'COUNTER_DEFAULT'
                             GROUP BY reports.contentid) countered_c on countered_c.contentid = temp.oid
     """
+    )
+
+
+@cached_async(
+    TTLCache(maxsize=10000, ttl=1800), key=lambda database, project: hashkey(project)
+)
+async def refresh_user_precomputation(database: Database, project: str):
+    """
+    Refreshes the user precomputation cache for a given project.
+    """
+    await database.execute(
+        """
+        INSERT OR REPLACE
+        INTO precomputation_users (userid, project, submission_count, likes_given, likes_received)
+        SELECT
+            users.oid as userid,
+            :project,
+            COALESCE(submissions.submission_count, 0) as submission_count,
+            COALESCE(submissions.likes_received, 0) as likes_received,
+            COALESCE(likes_given_counts.likes_given, 0) as likes_given
+        FROM
+            users
+        LEFT JOIN (
+            SELECT
+                content.userid,
+                COUNT(content.oid) as submission_count,
+                SUM(COALESCE(precomputation.likes, 0)) as likes_received
+            FROM
+                content
+            LEFT JOIN
+                precomputation ON precomputation.contentid = content.oid
+            WHERE
+                content.project = :project
+            GROUP BY
+                content.userid
+        ) submissions ON submissions.userid = users.oid
+        
+        LEFT JOIN (
+            SELECT
+                likes.userid,
+                COUNT(likes.oid) as likes_given
+            FROM
+                likes
+            LEFT JOIN
+                content ON likes.contentid = content.oid
+            WHERE
+                content.project = :project
+            GROUP BY
+                likes.userid
+        ) likes_given_counts ON likes_given_counts.userid = users.oid
+        
+        WHERE
+            COALESCE(submissions.submission_count, 0) > 0
+            OR COALESCE(submissions.likes_received, 0) > 0
+            OR COALESCE(likes_given_counts.likes_given, 0) > 0;
+
+    """,
+        {"project": project},
     )
 
 

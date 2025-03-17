@@ -60,6 +60,7 @@ from immersive_library.utils import (
     refresh_precomputation,
     set_dirty,
     get_base_select,
+    refresh_user_precomputation,
 )
 from immersive_library.validators.validator import Validator
 
@@ -215,7 +216,9 @@ async def setup():
     await database.execute(
         "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
     )
-    await database.execute("DROP INDEX IF EXISTS content_project")
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS content_userid on content (userid)"
+    )
 
     # Reports
     await database.execute(
@@ -227,7 +230,6 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
     )
-    await database.execute("DROP INDEX IF EXISTS reports_reason")
 
     # Likes
     await database.execute(
@@ -254,6 +256,14 @@ async def setup():
     )
     await database.execute(
         "CREATE INDEX IF NOT EXISTS precomputation_dirty on precomputation (dirty)"
+    )
+
+    # User precomputation
+    await database.execute(
+        "CREATE TABLE IF NOT EXISTS precomputation_users (userid INTEGER PRIMARY KEY, project CHAR, submission_count INTEGER, likes_given INTEGER, likes_received INTEGER)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS precomputation_users_userid on precomputation_users (userid)"
     )
 
     await refresh_precomputation(database)
@@ -901,36 +911,20 @@ async def get_users(
     descending: bool = False,
     _userid: Optional[int] = Query(None, include_in_schema=False),
 ) -> UserListSuccess:
+    await refresh_user_precomputation(database, project)
+
     content = await database.fetch_all(
         f"""
             SELECT users.oid,
                    users.username,
                    users.moderator,
-                   COALESCE(submitted_content.submission_count, 0) as submission_count,
-                   COALESCE(likes_given.count, 0) as likes_given,
-                   COALESCE(likes_received.count, 0) as likes_received
+                   COALESCE(precomputation_users.submission_count, 0) as submission_count,
+                   COALESCE(precomputation_users.likes_given, 0) as likes_given,
+                   COALESCE(precomputation_users.likes_received, 0) as likes_received
             FROM users
 
-            LEFT JOIN (
-                SELECT content.userid, COUNT(content.oid) as submission_count
-                FROM content
-                WHERE content.project = :project
-                GROUP BY content.userid
-            ) submitted_content ON submitted_content.userid = users.oid
-
-            LEFT JOIN (
-                SELECT likes.userid, COUNT(likes.oid) as count
-                FROM likes
-                GROUP BY likes.userid
-            ) likes_given ON likes_given.userid = users.oid
-
-            LEFT JOIN (
-                SELECT c2.userid, SUM(COALESCE(precomputation.likes, 0)) as count
-                FROM content c2
-                LEFT JOIN precomputation ON precomputation.contentid = c2.oid
-                WHERE c2.project = :project
-                GROUP BY c2.userid
-            ) likes_received ON likes_received.userid = users.oid
+            LEFT JOIN precomputation_users
+            ON precomputation_users.userid = users.oid
 
             WHERE users.banned = 0
             {"" if _userid is None else f"AND users.oid = {int(_userid)}"}
@@ -939,7 +933,7 @@ async def get_users(
             LIMIT :limit
             OFFSET :offset
         """,
-        {"project": project, "limit": limit, "offset": offset},
+        {"limit": limit, "offset": offset},
     )
     return UserListSuccess(users=[get_lite_user_class(c) for c in content])
 
