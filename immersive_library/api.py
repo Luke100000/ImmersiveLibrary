@@ -924,7 +924,7 @@ async def get_users(
             FROM users
 
             LEFT JOIN precomputation_users
-            ON precomputation_users.userid = users.oid
+            ON precomputation_users.userid = users.oid AND precomputation_users.project = :project
 
             WHERE users.banned = 0
             {"" if _userid is None else f"AND users.oid = {int(_userid)}"}
@@ -933,7 +933,7 @@ async def get_users(
             LIMIT :limit
             OFFSET :offset
         """,
-        {"limit": limit, "offset": offset},
+        {"limit": limit, "offset": offset, "project": project},
     )
     return UserListSuccess(users=[get_lite_user_class(c) for c in content])
 
