@@ -83,6 +83,10 @@ class UserListSuccess(BaseModel):
 
 
 class TagListSuccess(BaseModel):
+    tags: List[str]
+
+
+class TagDictSuccess(BaseModel):
     tags: Dict[str, int]
 
 

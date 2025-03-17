@@ -1,6 +1,6 @@
 import base64
 import hashlib
-from typing import List, Optional, Any, Dict
+from typing import Optional, Any, Dict
 
 import orjson
 from cachetools import cached, TTLCache
@@ -10,7 +10,7 @@ from databases import Database
 from databases.interfaces import Record
 from fastapi import Header
 
-from immersive_library.api_types import (
+from immersive_library.models import (
     Content,
     User,
     LiteContent,
@@ -306,7 +306,9 @@ async def has_liked(database: Database, userid: int, contentid: int):
     )
 
 
-async def has_reported(database: Database, userid: int, contentid: int, reason: str):
+async def has_reported(
+    database: Database, userid: int, contentid: int, reason: str
+) -> object:
     """
     Checks if the given user has reported the content with the given reason
     """
@@ -326,60 +328,6 @@ async def has_tag(database: Database, contentid: int, tag: str) -> bool:
         "SELECT count(*) FROM tags WHERE tag=:tag AND contentid=:contentid",
         {"tag": tag, "contentid": contentid},
     )
-
-
-async def get_username(database: Database, userid: int) -> Optional[str]:
-    """
-    Retrieves the username of a user
-    """
-    username = await database.fetch_one(
-        "SELECT username FROM users WHERE oid=:userid", {"userid": userid}
-    )
-    return None if username is None else username[0]
-
-
-async def get_likes(database: Database, contentid: int) -> int:
-    """
-    Retrieves the total likes a content received
-    """
-    return await get_count(
-        database,
-        "SELECT COUNT(*) FROM likes WHERE contentid=:contentid",
-        {"contentid": contentid},
-    )
-
-
-async def get_tags(database: Database, contentid: int) -> List[str]:
-    """
-    Get all tags for a given content
-    """
-    tags = await database.fetch_all(
-        "SELECT tag FROM tags WHERE contentid=:contentid", {"contentid": contentid}
-    )
-    return [t[0] for t in tags]
-
-
-async def get_project_tags(
-    database: Database, project: str, k: int = 100, offset: int = 0
-) -> Dict[str, int]:
-    """
-    Retrieves the top k most common tags of a project.
-    """
-    rows = await database.fetch_all(
-        """
-        SELECT tag, COUNT(*) as count
-        FROM tags
-        INNER JOIN content ON tags.contentid = content.oid
-        WHERE content.project = :project
-        GROUP BY tag
-        ORDER BY count DESC
-        LIMIT :k
-        OFFSET :offset
-        """,
-        {"project": project, "k": k, "offset": offset},
-    )
-
-    return {row["tag"]: row["count"] for row in rows}
 
 
 def get_lite_content_class(

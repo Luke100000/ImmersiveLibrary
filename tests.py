@@ -8,8 +8,21 @@ import orjson
 from pydantic import BaseModel
 from starlette.responses import Response
 
-from immersive_library.api_types import ContentUpload
-from immersive_library.utils import token_to_userid, set_moderator
+from immersive_library.common import database
+from immersive_library.models import ContentUpload
+from immersive_library.routers.content import add_content, get_content, update_content
+from immersive_library.routers.deprecated.content import list_content
+from immersive_library.routers.deprecated.user import get_user
+from immersive_library.routers.like import add_like, delete_like
+from immersive_library.routers.tag import (
+    add_tag,
+    delete_tag,
+    list_project_tags,
+    list_content_tags,
+)
+from immersive_library.routers.tools import run_post_upload_callbacks
+from immersive_library.routers.user import get_users, set_user
+from immersive_library.utils import token_to_userid, set_moderator, login_user
 
 
 def print_json(param: Any):
@@ -18,27 +31,7 @@ def print_json(param: Any):
     elif isinstance(param, dict):
         print(json.dumps(param))
     else:
-        print(json.dumps(param.dict()))
-
-
-from immersive_library.api import (
-    login_user,
-    add_content,
-    get_content,
-    update_content,
-    list_content,
-    add_like,
-    delete_like,
-    add_tag,
-    delete_tag,
-    get_users,
-    get_user,
-    list_project_tags,
-    list_content_tags,
-    set_user,
-    database,
-    run_post_upload_callbacks,
-)
+        print(param.model_dump_json())
 
 
 def decode(r: Union[BaseModel, Response]) -> dict:

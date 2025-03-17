@@ -3,7 +3,7 @@ from typing import Optional
 from databases import Database
 from pydantic import ValidationError, BaseModel
 
-from immersive_library.api_types import ContentUpload
+from immersive_library.models import ContentUpload
 from immersive_library.validators.validator import Validator
 
 

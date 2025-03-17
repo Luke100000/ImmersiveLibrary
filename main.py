@@ -4,14 +4,9 @@ from fastapi.requests import Request
 from pydantic import BaseModel, StringConstraints
 from starlette.responses import HTMLResponse
 
-from immersive_library.api import (
-    app,
-    templates,
-    get_statistics,
-    projects,
-    Project,
-    default_project,
-)
+from immersive_library.api import app
+from immersive_library.common import default_project, projects, Project, templates
+from immersive_library.routers.misc import get_statistics
 from immersive_library.validators.common import (
     ReadOnlyValidator,
     TitleLengthValidator,

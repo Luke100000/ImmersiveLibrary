@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from databases import Database
 
-from immersive_library.api_types import ContentUpload
+from immersive_library.models import ContentUpload
 from immersive_library.utils import has_tag
 from immersive_library.validators.validator import Validator
 
