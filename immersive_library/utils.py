@@ -153,9 +153,8 @@ def get_base_select(include_data: bool, include_meta: bool):
                precomputation.reports,
                precomputation.counter_reports
         FROM content c
-                 INNER JOIN users ON c.userid = users.oid
-                 INNER JOIN precomputation ON c.oid = precomputation.contentid
-
+            INNER JOIN users ON c.userid = users.oid
+            INNER JOIN precomputation ON c.oid = precomputation.contentid
     """
 
     if not include_meta:

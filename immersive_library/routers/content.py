@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional, Union
 
-from fastapi import HTTPException, Header, APIRouter
+from fastapi import HTTPException, Header, APIRouter, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.common import database, get_project
@@ -47,6 +47,61 @@ class ContentOrder(str, Enum):
 )
 @cache(expire=60)
 async def list_content_v2(
+    project: str,
+    track: TrackEnum = TrackEnum.ALL,
+    userid: Optional[None] = Query(
+        None, description="Only include a given users submissions."
+    ),
+    whitelist: Optional[str] = Query(
+        None,
+        description="Only include content that matches every comma separated term in either the username, title, or tags.",
+    ),
+    blacklist: Optional[str] = Query(
+        None,
+        description="Exclude content that matches any comma separated term in the tags.",
+    ),
+    filter_banned: bool = Query(True, description="Exclude content from banned users."),
+    filter_reported: bool = Query(
+        True, description="Exclude content which has been reported by several users."
+    ),
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching content from."
+    ),
+    limit: int = Query(
+        10, ge=1, le=500, description="The maximum amount of content to fetch."
+    ),
+    order: ContentOrder = ContentOrder.DATE,
+    descending: bool = False,
+    include_meta: bool = Query(
+        False, description="Include the meta field in the response."
+    ),
+    parse_meta: bool = Query(
+        False,
+        description="Parse the meta field and return it as a dict rather than a JSON encoded string.",
+    ),
+    token: Optional[str] = None,
+    authorization: str = Header(None),
+) -> ContentListSuccess:
+    return await inner_list_content_v2(
+        project,
+        track,
+        userid,
+        whitelist,
+        blacklist,
+        filter_banned,
+        filter_reported,
+        offset,
+        limit,
+        order,
+        descending,
+        include_meta,
+        parse_meta,
+        token,
+        authorization,
+    )
+
+
+async def inner_list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
     userid: Optional[None] = None,
@@ -105,7 +160,7 @@ async def list_content_v2(
         for index, term in enumerate(
             list(v.strip() for v in whitelist.split(",") if v.strip)
         ):
-            prompt += f"\n AND (username LIKE :whitelist_term_{index} OR title LIKE :whitelist_term_{index} OR EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :whitelist_term_{index}))"
+            prompt += f"\n AND (username LIKE :whitelist_term_{index} OR title LIKE :whitelist_term_{index} OR tags LIKE :whitelist_term_{index})"
             values[f"whitelist_term_{index}"] = f"%{term}%"
 
     # Only if no term matches a tag
@@ -113,7 +168,7 @@ async def list_content_v2(
         for index, term in enumerate(
             list(v.strip() for v in blacklist.split(",") if v.strip)
         ):
-            prompt += f"\n AND NOT EXISTS(SELECT * FROM tags WHERE tags.contentid == c.oid AND tags.tag LIKE :blacklist_term_{index})"
+            prompt += f"\n AND NOT tags LIKE :blacklist_term_{index}"
             values[f"blacklist_term_{index}"] = f"%{term}%"
 
     # Order by

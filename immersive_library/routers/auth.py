@@ -4,7 +4,7 @@ import os
 from typing import Annotated, Optional
 
 import orjson
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi import Form, Request, HTTPException, Header
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -32,8 +32,8 @@ async def auth(
     request: Request,
     credential: Annotated[str, Form()],
     state: Annotated[Optional[str], Form()] = None,
-    username: Optional[str] = None,
-    token: Optional[str] = None,
+    username: Optional[str] = Query(None, deprecated=True),
+    token: Optional[str] = Query(None, deprecated=True),
 ) -> HTMLResponse:
     if state is not None:
         state_dict = orjson.loads(state)

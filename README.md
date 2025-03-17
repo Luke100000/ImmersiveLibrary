@@ -4,15 +4,12 @@ A generic user asset library, accessible via REST API, authenticated via Google 
 
 ## Features
 
-* Read access by anyone
+* Public read, authenticated write
 * Authentication via Google Sign-In
-* Tags
-* Likes
+* Tags, Likes, Reports
 * Moderation tools
 
-## How to use
-
-### Server
+## Server
 
 The server is implemented in python using FastAPI. Launch using e.g. uvicorn:
 
@@ -20,10 +17,12 @@ The server is implemented in python using FastAPI. Launch using e.g. uvicorn:
 uvicorn --reload main:app
 ```
 
-### Client
+## Client
 
-For most methods a user-chosen access token is required.
+For some methods a user-chosen access token is required.
 To acquire, call Google Sign-In and forward the response to `/v1/auth`.
+
+Alternatively call `/v1/login` to let the server handle the Google Sign-In.
 
 The state var needs to be a json object with the following keys:
 
@@ -40,12 +39,32 @@ Access the documentation in your browser at `/redoc` or `/docs`.
 A piece of content consists of:
 
 * `contentid` A unique identifier
-* `title` A title
+* `title` A short title
 * `meta` An unstructured metadata dictionary, JSON compliant
 * `data` Arbitrary (binary) data, base64 encoded during transfer
 * `version` An incrementing version number when the content has been changed
 
+Content should be locally cached by the client, and only updated when the version number changes.
+
+### Tags
+
+Tags are used for filtering or marking content, either set by the user or as part of project validation.
+
+### Likes
+
+Simple like/favorite system, one like per user per content.
+Likes are considered public information.
+
+### Reports
+
+Reports are used to flag content for moderation, with a custom reason enum.
+
+`DEFAULT` and `COUNTER_DEFAULT` are used for user based heuristic moderation.
+
+Additional reports can be handled in the project validators.
+
 ### Projects
 
-Projects define a collection of content and can have several processors, to validate, reject, or post-process content.
-Define the `default` project to allow user-chosen projects.
+Projects define a collection of content and can have several validators, to reject, or post-process content.
+The `default` projects can allow user-chosen projects.
+See `main.py` for examples.

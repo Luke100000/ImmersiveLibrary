@@ -8,7 +8,7 @@ from immersive_library.models import (
     UserSuccess,
     Error,
 )
-from immersive_library.routers.content import list_content_v2, TrackEnum
+from immersive_library.routers.content import TrackEnum, inner_list_content_v2
 from immersive_library.utils import (
     token_to_userid,
     get_user_class,
@@ -60,17 +60,17 @@ async def get_user(
     if content is None:
         raise HTTPException(404, "User doesn't exist")
 
-    submissions = await list_content_v2(
+    submissions = await inner_list_content_v2(
         project,
         track=TrackEnum.SUBMISSIONS,
-        limit=1000,
+        limit=200,
         userid=userid,
     )
 
-    likes = await list_content_v2(
+    likes = await inner_list_content_v2(
         project,
         track=TrackEnum.LIKES,
-        limit=1000,
+        limit=200,
         userid=userid,
     )
 
