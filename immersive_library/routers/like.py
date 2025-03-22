@@ -10,7 +10,7 @@ from immersive_library.models import (
 )
 from immersive_library.utils import (
     token_to_userid,
-    set_dirty,
+    update_precomputation,
     has_liked,
 )
 
@@ -41,7 +41,7 @@ async def add_like(
         {"userid": userid, "contentid": contentid},
     )
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()
 
@@ -70,6 +70,6 @@ async def delete_like(
         {"userid": userid, "contentid": contentid},
     )
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()

@@ -10,7 +10,7 @@ from immersive_library.models import (
 )
 from immersive_library.utils import (
     token_to_userid,
-    set_dirty,
+    update_precomputation,
     has_reported,
 )
 
@@ -44,7 +44,7 @@ async def add_report(
     # Call validators for eventual post-processing
     await get_project(project).call("post_report", database, userid, contentid)
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()
 
@@ -74,6 +74,6 @@ async def delete_report(
         {"userid": userid, "contentid": contentid, "reason": reason},
     )
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()

@@ -15,7 +15,7 @@ from immersive_library.utils import (
     owns_content,
     has_tag,
     is_moderator,
-    set_dirty,
+    update_precomputation,
 )
 
 router = APIRouter(tags=["Tags"])
@@ -86,7 +86,7 @@ async def add_tag(
         {"contentid": contentid, "tag": tag},
     )
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()
 
@@ -121,6 +121,6 @@ async def delete_tag(
         {"contentid": contentid, "tag": tag},
     )
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()

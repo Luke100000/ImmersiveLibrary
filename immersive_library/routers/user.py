@@ -19,7 +19,6 @@ from immersive_library.utils import (
     set_banned,
     user_exists,
     get_lite_user_class,
-    refresh_user_precomputation,
 )
 
 router = APIRouter(tags=["Users"])
@@ -62,20 +61,36 @@ async def get_users(
     descending: bool = False,
     _userid: Optional[int] = Query(None, include_in_schema=False),
 ) -> UserListSuccess:
-    await refresh_user_precomputation(database, project)
-
     content = await database.fetch_all(
         f"""
             SELECT users.oid,
                    users.username,
                    users.moderator,
-                   COALESCE(precomputation_users.submission_count, 0) as submission_count,
-                   COALESCE(precomputation_users.likes_given, 0) as likes_given,
-                   COALESCE(precomputation_users.likes_received, 0) as likes_received
+                   COALESCE(submitted_content.submission_count, 0) as submission_count,
+                   COALESCE(likes_given.count, 0) as likes_given,
+                   COALESCE(likes_received.count, 0) as likes_received
             FROM users
 
-            LEFT JOIN precomputation_users
-            ON precomputation_users.userid = users.oid AND precomputation_users.project = :project
+            LEFT JOIN (
+                SELECT content.userid, COUNT(content.oid) as submission_count
+                FROM content
+                WHERE content.project = :project
+                GROUP BY content.userid
+            ) submitted_content ON submitted_content.userid = users.oid
+
+            LEFT JOIN (
+                SELECT likes.userid, COUNT(likes.oid) as count
+                FROM likes
+                GROUP BY likes.userid
+            ) likes_given ON likes_given.userid = users.oid
+
+            LEFT JOIN (
+                SELECT c2.userid, SUM(COALESCE(precomputation.likes, 0)) as count
+                FROM content c2
+                LEFT JOIN precomputation ON precomputation.contentid = c2.oid
+                WHERE c2.project = :project
+                GROUP BY c2.userid
+            ) likes_received ON likes_received.userid = users.oid
 
             WHERE users.banned = 0
             {"" if _userid is None else f"AND users.oid = {int(_userid)}"}

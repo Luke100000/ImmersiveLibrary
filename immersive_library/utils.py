@@ -3,9 +3,7 @@ import hashlib
 from typing import Optional, Any, Dict
 
 import orjson
-from cachetools import cached, TTLCache
-from cachetools.keys import hashkey
-from cachetools_async import cached as cached_async
+from cachetools import cached
 from databases import Database
 from databases.interfaces import Record
 from fastapi import Header
@@ -18,124 +16,44 @@ from immersive_library.models import (
 )
 
 
-async def refresh_precomputation(database: Database):
+async def update_precomputation(database: Database, contentid: Optional[int] = None):
     """
     Refreshes the database persistent cache
     :param database: The database to refresh
+    :param contentid: The contentid to refresh, or None to refresh all
     """
     await database.execute(
-        """
+        f"""
         INSERT OR REPLACE
-        INTO precomputation (contentid, dirty, tags, likes, reports, counter_reports)
-        SELECT temp.oid,
-               0,
+        INTO precomputation (contentid, tags, likes, reports, counter_reports)
+        SELECT content.oid,
                CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
                CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
                CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
                CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
-        FROM (SELECT content.oid
-              FROM content
-                       LEFT JOIN precomputation
-                                 ON content.oid = precomputation.contentid
-              WHERE precomputation.dirty IS NOT 0) as temp
+        FROM content
+        {"" if contentid is None else "WHERE content.oid = :contentid"}
         
-        
-                 LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
-                            FROM likes
-                            GROUP BY likes.contentid) liked_content ON liked_content.contentid = temp.oid
-        
-                 LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
-                            FROM tags
-                            GROUP BY tags.contentid) tagged_content on tagged_content.contentid = temp.oid
-        
-                 LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
-                            FROM reports
-                            WHERE reports.reason = 'DEFAULT'
-                            GROUP BY reports.contentid) reported_c on reported_c.contentid = temp.oid
-        
-                 LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
-                            FROM reports
-                            WHERE reports.reason = 'COUNTER_DEFAULT'
-                            GROUP BY reports.contentid) countered_c on countered_c.contentid = temp.oid
-    """
-    )
+         LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
+                    FROM likes
+                    GROUP BY likes.contentid) liked_content ON liked_content.contentid = content.oid
 
+         LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
+                    FROM tags
+                    GROUP BY tags.contentid) tagged_content on tagged_content.contentid = content.oid
 
-@cached_async(
-    TTLCache(maxsize=10000, ttl=1800), key=lambda database, project: hashkey(project)
-)
-async def refresh_user_precomputation(database: Database, project: str):
-    """
-    Refreshes the user precomputation cache for a given project.
-    """
-    await database.execute(
-        """
-        INSERT OR REPLACE
-        INTO precomputation_users (userid, project, submission_count, likes_given, likes_received)
-        SELECT
-            users.oid as userid,
-            :project,
-            COALESCE(submissions.submission_count, 0) as submission_count,
-            COALESCE(submissions.likes_received, 0) as likes_received,
-            COALESCE(likes_given_counts.likes_given, 0) as likes_given
-        FROM
-            users
-        LEFT JOIN (
-            SELECT
-                content.userid,
-                COUNT(content.oid) as submission_count,
-                SUM(COALESCE(precomputation.likes, 0)) as likes_received
-            FROM
-                content
-            LEFT JOIN
-                precomputation ON precomputation.contentid = content.oid
-            WHERE
-                content.project = :project
-            GROUP BY
-                content.userid
-        ) submissions ON submissions.userid = users.oid
-        
-        LEFT JOIN (
-            SELECT
-                likes.userid,
-                COUNT(likes.oid) as likes_given
-            FROM
-                likes
-            LEFT JOIN
-                content ON likes.contentid = content.oid
-            WHERE
-                content.project = :project
-            GROUP BY
-                likes.userid
-        ) likes_given_counts ON likes_given_counts.userid = users.oid
-        
-        WHERE
-            COALESCE(submissions.submission_count, 0) > 0
-            OR COALESCE(submissions.likes_received, 0) > 0
-            OR COALESCE(likes_given_counts.likes_given, 0) > 0;
+         LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
+                    FROM reports
+                    WHERE reports.reason = 'DEFAULT'
+                    GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
 
+         LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
+                    FROM reports
+                    WHERE reports.reason = 'COUNTER_DEFAULT'
+                    GROUP BY reports.contentid) countered_c on countered_c.contentid = content.oid
     """,
-        {"project": project},
+        {} if contentid is None else {"contentid": contentid},
     )
-
-
-async def set_dirty(database: Database, contentid: int):
-    """
-    Marks this content as dirty, recomputing the cached content once required
-    :param database: The database
-    :param contentid: The content id to mark as dirty
-    """
-    if contentid > 0:
-        await database.execute(
-            """
-        UPDATE precomputation
-        SET dirty = 1
-        WHERE contentid = :contentid    
-        """,
-            {"contentid": contentid},
-        )
-
-    await refresh_precomputation(database)
 
 
 @cached(cache={})

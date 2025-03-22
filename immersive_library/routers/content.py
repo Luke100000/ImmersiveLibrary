@@ -17,7 +17,7 @@ from immersive_library.utils import (
     token_to_userid,
     owns_content,
     is_moderator,
-    set_dirty,
+    update_precomputation,
     get_base_select,
     get_lite_content_class,
     get_content_class,
@@ -250,7 +250,7 @@ async def add_content(
     # Call validators for eventual post-processing
     await get_project(project).call("post_upload", database, userid, contentid)
 
-    await set_dirty(database, -1)
+    await update_precomputation(database, contentid)
 
     return ContentIdSuccess(contentid=contentid)
 
@@ -293,7 +293,7 @@ async def update_content(
     # Call validators for eventual post-processing
     await get_project(project).call("post_upload", database, userid, contentid)
 
-    await set_dirty(database, contentid)
+    await update_precomputation(database, contentid)
 
     return PlainSuccess()
 

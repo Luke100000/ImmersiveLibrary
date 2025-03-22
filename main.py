@@ -38,6 +38,7 @@ projects["mca"].validators = [
     JsonMetaValidator(MetaSchema),
     ValidClothingValidator(),
     InvalidReportValidator(),
+    # ReportValidator(["DEFAULT", "INVALID"], ["COUNTER_DEFAULT"]),
 ]
 
 # Add Immersive Furniture specific validators

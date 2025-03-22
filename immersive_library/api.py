@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Any
@@ -27,9 +28,7 @@ from immersive_library.routers import (
 )
 from immersive_library.routers.deprecated import content as deprecated_content
 from immersive_library.routers.deprecated import user as deprecated_user
-from immersive_library.utils import (
-    refresh_precomputation,
-)
+from immersive_library.utils import update_precomputation
 
 description = """
 A simple and generic user asset library.
@@ -141,27 +140,48 @@ async def validation_exception_handler(request: Request, exc: HTTPException):
 
 # Create tables
 async def setup():
-    # Content
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS users (oid INTEGER PRIMARY KEY AUTOINCREMENT, google_userid CHAR, token CHAR, username CHAR, moderator INTEGER, banned INTEGER)"
-    )
+    # Users
+    await database.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            oid INTEGER PRIMARY KEY AUTOINCREMENT,
+            google_userid CHAR,
+            token CHAR,
+            username CHAR,
+            moderator INTEGER,
+            banned INTEGER
+        )
+    """)
     await database.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
     )
-    await database.execute("CREATE INDEX IF NOT EXISTS users_token on users (token)")
+    await database.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS users_token on users (token)"
+    )
 
     # Content
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS content (oid INTEGER PRIMARY KEY AUTOINCREMENT, userid CHAR, project CHAR, title CHAR, version int DEFAULT 0, meta TEXT, data BLOB)"
-    )
+    await database.execute("""
+        CREATE TABLE IF NOT EXISTS content (
+            oid INTEGER PRIMARY KEY AUTOINCREMENT,
+            userid INTEGER,
+            project CHAR,
+            title CHAR,
+            version int DEFAULT 0,
+            meta TEXT,
+            data BLOB
+        )
+    """)
     await database.execute(
         "CREATE INDEX IF NOT EXISTS content_userid on content (userid)"
     )
 
     # Reports
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS reports (userid CHAR, contentid INTEGER, reason CHAR)"
-    )
+    await database.execute("""
+        CREATE TABLE IF NOT EXISTS reports (
+            userid INTEGER,
+            contentid INTEGER,
+            reason CHAR
+        )
+    """)
     await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_userid on reports (userid)"
     )
@@ -171,8 +191,9 @@ async def setup():
 
     # Likes
     await database.execute(
-        "CREATE TABLE IF NOT EXISTS likes (userid CHAR, contentid INTEGER)"
+        "CREATE TABLE IF NOT EXISTS likes (userid INTEGER, contentid INTEGER)"
     )
+    await database.execute("CREATE INDEX IF NOT EXISTS likes_userid on likes (userid)")
     await database.execute(
         "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
     )
@@ -186,25 +207,17 @@ async def setup():
     )
 
     # Precomputation
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS precomputation (contentid INTEGER PRIMARY KEY, dirty INTEGER, tags CHAR, likes INTEGER, reports INTEGER, counter_reports INTEGER)"
-    )
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS precomputation_contentid on precomputation (contentid)"
-    )
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS precomputation_dirty on precomputation (dirty)"
-    )
+    await database.execute("""
+        CREATE TABLE IF NOT EXISTS precomputation (
+            contentid INTEGER PRIMARY KEY,
+            tags CHAR,
+            likes INTEGER,
+            reports INTEGER,
+            counter_reports INTEGER
+        ) WITHOUT ROWID
+    """)
 
-    # User precomputation
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS precomputation_users (userid INTEGER PRIMARY KEY, project CHAR, submission_count INTEGER, likes_given INTEGER, likes_received INTEGER)"
-    )
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS precomputation_users_userid on precomputation_users (userid)"
-    )
-
-    await refresh_precomputation(database)
+    asyncio.create_task(update_precomputation(database))
 
 
 # Deprecated routes
