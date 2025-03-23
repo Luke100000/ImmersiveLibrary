@@ -55,3 +55,11 @@ async def get_front(request: Request):
         "statistics.jinja",
         {"request": request, "statistics_data": await get_statistics()},
     )
+
+
+@app.get("/skin/{contentid}", response_class=HTMLResponse)
+async def get_skin_front(request: Request, contentid: int):
+    return templates.TemplateResponse(
+        "skin.jinja",
+        {"request": request, "contentid": contentid},
+    )

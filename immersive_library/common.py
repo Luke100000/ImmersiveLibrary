@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from databases import Database
 from fastapi import HTTPException
@@ -23,9 +23,11 @@ class Project:
             if exception is not None:
                 raise HTTPException(400, exception)
 
-    async def call(self, callback: str, *args):
+    async def call(self, callback: str, *args, **kwargs) -> List[Optional[str]]:
+        log = []
         for validator in self.validators:
-            await validator.__getattribute__(callback)(*args)
+            log.append(await validator.__getattribute__(callback)(*args, **kwargs))
+        return log
 
 
 default_project = Project()

@@ -36,11 +36,51 @@ async def run_post_upload_callbacks(
     )
 
     # Call validators for eventual post-processing
-    processed = 0
+    log = []
     for c in content:
-        processed += 1
-        await get_project(project).call("post_upload", database, userid, *c)
+        for message in await get_project(project).call(
+            "post_upload", database, userid, c["oid"]
+        ):
+            if message is not None:
+                print(message)
+                log.append(message)
 
     return PlainTextResponse(
-        f"Processed {processed} entries.",
+        content="\n".join(log),
+        media_type="text/plain",
+        status_code=200,
+    )
+
+
+@router.get(
+    "/v1/tools/post-process/{project}/{content_id}",
+    responses={401: {"model": Error}},
+)
+async def run_post_upload_callbacks_content_id(
+    project: str,
+    content_id: str,
+    token: Optional[str] = None,
+    authorization: str = Header(None),
+) -> PlainTextResponse:
+    userid = await token_to_userid(database, token, authorization)
+
+    if userid is None:
+        raise HTTPException(401, "Token invalid")
+
+    if not await is_moderator(database, userid):
+        raise HTTPException(401, "Not an moderator")
+
+    # Call validators for eventual post-processing
+    log = []
+    for message in await get_project(project).call(
+        "post_upload", database, userid, content_id
+    ):
+        if message is not None:
+            print(message)
+            log.append(message)
+
+    return PlainTextResponse(
+        content="\n".join(log),
+        media_type="text/plain",
+        status_code=200,
     )

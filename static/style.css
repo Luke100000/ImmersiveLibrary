@@ -9,15 +9,24 @@ body {
 
 .dashboard-container {
     display: flex;
-    width: 40%;
+    width: 700px;
 }
 
-.statistics-container {
-    flex: 1;
+.statistics-box {
+    width: 600px;
 }
 
-.statistics-container,
 .renderers-box {
+    width: 200px;
+}
+
+.skin-box {
+    width: 300px;
+}
+
+.statistics-box,
+.renderers-box,
+.skin-box {
     margin: 5px;
     padding: 20px;
     border: 2px solid #333;
@@ -26,10 +35,6 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 1px 2px 4px rgba(0, 0, 0, .2);
-}
-
-.renderers-box {
-    width: 250px;
 }
 
 .header {
@@ -43,6 +48,11 @@ body {
     font-size: 20px;
     color: rgba(170, 170, 170, 255);
     margin-bottom: 20px;
+}
+
+.footer {
+    font-size: 16px;
+    color: rgba(170, 170, 170, 255);
 }
 
 .statistic-item {

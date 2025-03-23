@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-from fastapi_cache.decorator import cache
 
 from immersive_library.common import database
 
@@ -7,7 +6,6 @@ router = APIRouter()
 
 
 @router.get("/v1/stats")
-@cache(expire=60)
 async def get_statistics():
     content_count = await database.fetch_one("SELECT count(*) from content")
     content_count_liked = await database.fetch_one(
