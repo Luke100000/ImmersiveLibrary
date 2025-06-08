@@ -22,6 +22,7 @@ from immersive_library.utils import (
     get_lite_content_class,
     get_content_class,
     exists,
+    set_tags,
 )
 
 router = APIRouter(tags=["Content"])
@@ -247,6 +248,9 @@ async def add_content(
         },
     )
 
+    if content.tags is not None:
+        await set_tags(database, contentid, content.tags)
+
     # Call validators for eventual post-processing
     await get_project(project).call("post_upload", database, userid, contentid)
 
@@ -289,6 +293,9 @@ async def update_content(
             "oid": contentid,
         },
     )
+
+    if content.tags is not None:
+        await set_tags(database, contentid, content.tags)
 
     # Call validators for eventual post-processing
     await get_project(project).call("post_upload", database, userid, contentid)

@@ -32,7 +32,6 @@ async def update_precomputation(database: Database, contentid: Optional[int] = N
                CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
                CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
         FROM content
-        {"" if contentid is None else "WHERE content.oid = :contentid"}
         
          LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
                     FROM likes
@@ -51,6 +50,8 @@ async def update_precomputation(database: Database, contentid: Optional[int] = N
                     FROM reports
                     WHERE reports.reason = 'COUNTER_DEFAULT'
                     GROUP BY reports.contentid) countered_c on countered_c.contentid = content.oid
+                    
+        {"" if contentid is None else "WHERE content.oid = :contentid"}
     """,
         {} if contentid is None else {"contentid": contentid},
     )
@@ -245,6 +246,22 @@ async def has_tag(database: Database, contentid: int, tag: str) -> bool:
         "SELECT count(*) FROM tags WHERE tag=:tag AND contentid=:contentid",
         {"tag": tag, "contentid": contentid},
     )
+
+
+async def set_tags(database: Database, contentid: int, tags: list[str]):
+    """
+    Replaces the tags for a given content
+    """
+    await database.execute(
+        "DELETE FROM tags WHERE contentid=:contentid",
+        {"contentid": contentid},
+    )
+
+    for tag in tags:
+        await database.execute(
+            "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
+            {"contentid": contentid, "tag": tag},
+        )
 
 
 def get_lite_content_class(

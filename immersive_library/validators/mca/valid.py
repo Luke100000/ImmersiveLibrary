@@ -71,7 +71,8 @@ class ValidClothingValidator(Validator):
                     "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
                     {"contentid": contentid, "tag": "invalid"},
                 )
-                return f"{contentid} has been marked as invalid! http://localhost:8000/skin/{contentid}"
+                return f"{contentid} has been marked as invalid!"
         else:
             if is_invalid:
-                return f"{contentid} seems valid but was marked as invalid! http://localhost:8000/skin/{contentid}"
+                return f"{contentid} seems valid but was marked as invalid!"
+        return None

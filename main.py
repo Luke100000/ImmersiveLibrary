@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi.requests import Request
 from pydantic import BaseModel, StringConstraints
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 
 from immersive_library.api import app
 from immersive_library.common import default_project, projects, Project, templates
@@ -50,14 +50,19 @@ projects["furniture"].validators = [
 
 
 @app.get("/", response_class=HTMLResponse)
+async def get_index():
+    return RedirectResponse(url="/mca")
+
+
+@app.get("/mca", response_class=HTMLResponse)
 async def get_front(request: Request):
     return templates.TemplateResponse(
         "statistics.jinja",
-        {"request": request, "statistics_data": await get_statistics()},
+        {"request": request, "statistics_data": await get_statistics("mca")},
     )
 
 
-@app.get("/skin/{contentid}", response_class=HTMLResponse)
+@app.get("/mca/{contentid}", response_class=HTMLResponse)
 async def get_skin_front(request: Request, contentid: int):
     return templates.TemplateResponse(
         "skin.jinja",

@@ -8,6 +8,7 @@ class ContentUpload(BaseModel):
     title: str
     meta: str
     data: str
+    tags: Optional[List[str]] = None
 
     @property
     def payload(self) -> bytes:

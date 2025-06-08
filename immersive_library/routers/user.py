@@ -90,7 +90,7 @@ async def get_users(
                 LEFT JOIN precomputation ON precomputation.contentid = c2.oid
                 WHERE c2.project = :project
                 GROUP BY c2.userid
-            ) likes_received ON likes_received.userid = users.oid
+            ) likes_receivedgi ON likes_received.userid = users.oid
 
             WHERE users.banned = 0
             {"" if _userid is None else f"AND users.oid = {int(_userid)}"}
@@ -150,7 +150,7 @@ async def set_user(
     if moderator is not None:
         await set_moderator(database, userid, moderator)
 
-    # Delete the users content
+    # Delete the user's content
     if purge is True:
         await database.execute(
             "DELETE FROM content WHERE userid=:userid", {"userid": userid}
