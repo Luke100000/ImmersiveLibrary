@@ -11,7 +11,6 @@ from immersive_library.validators.common import (
     ReadOnlyValidator,
     TitleLengthValidator,
     MaxSizeValidator,
-    JsonMetaValidator,
 )
 from immersive_library.validators.mca import (
     InvalidReportValidator,
@@ -35,7 +34,7 @@ projects["mca"] = Project()
 projects["mca"].validators = [
     TitleLengthValidator(),
     MaxSizeValidator(65536),
-    JsonMetaValidator(MetaSchema),
+    # JsonMetaValidator(MetaSchema),
     ValidClothingValidator(),
     InvalidReportValidator(),
     # ReportValidator(["DEFAULT", "INVALID"], ["COUNTER_DEFAULT"]),
