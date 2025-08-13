@@ -153,7 +153,7 @@ async def inner_list_content_v2(
 
     # Remove reported content
     if filter_reported:
-        prompt += "\n AND 1 + likes / 10.0 - reports + counter_reports * 10.0 >= 0.0"
+        prompt += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
 
     # Only if all terms matches either a tag or the title, allow this content
     if whitelist:

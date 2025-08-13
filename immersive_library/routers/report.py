@@ -33,6 +33,10 @@ async def add_report(
     if userid is None:
         raise HTTPException(401, "Token invalid")
 
+    await get_project(project).validate(
+        "pre_report", database, userid, contentid, reason
+    )
+
     if await has_reported(database, userid, contentid, reason):
         raise HTTPException(428, "Already reported")
 
@@ -42,7 +46,7 @@ async def add_report(
     )
 
     # Call validators for eventual post-processing
-    await get_project(project).call("post_report", database, userid, contentid)
+    await get_project(project).call("post_report", database, userid, contentid, reason)
 
     await update_precomputation(database, contentid)
 

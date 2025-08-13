@@ -47,7 +47,7 @@ class ValidClothingValidator(Validator):
         )
 
         if content is None:
-            return
+            return None
 
         image = Image.open(io.BytesIO(content[0]))
         image = np.array(image.convert("RGBA"))

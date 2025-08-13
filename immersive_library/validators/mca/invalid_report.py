@@ -5,20 +5,23 @@ from immersive_library.validators.validator import Validator
 
 
 class InvalidReportValidator(Validator):
-    async def post_report(self, database: Database, contentid: int, reason: str):
+    async def post_report(
+        self, database: Database, userid: int, contentid: int, reason: str
+    ):
         content = await database.fetch_one(
             """
             SELECT *
             FROM content
-                 INNER JOIN users ON content.userid = users.oid
-                 INNER JOIN precomputation ON content.oid = precomputation.contentid
-        
-                 LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
-                            FROM reports
-                            WHERE reports.reason = 'INVALID'
-                            GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
-            WHERE content.oid = :contentid AND 1.0 + likes / 10.0 - reported_c.reports < 0.0
-        """,
+                     INNER JOIN users ON content.userid = users.oid
+                     INNER JOIN precomputation ON content.oid = precomputation.contentid
+
+                     LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
+                                FROM reports
+                                WHERE reports.reason = 'INVALID'
+                                GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
+            WHERE content.oid = :contentid
+              AND 1.0 + likes / 10.0 - reported_c.reports < 0.0
+            """,
             {"contentid": contentid},
         )
 

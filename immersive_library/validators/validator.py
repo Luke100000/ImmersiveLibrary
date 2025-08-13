@@ -16,5 +16,12 @@ class Validator:
     ) -> Optional[str]:
         pass
 
-    async def post_report(self, database: Database, contentid: int, reason: str):
+    async def pre_report(
+        self, database: Database, userid: int, contentid: int, reason: str
+    ):
+        pass
+
+    async def post_report(
+        self, database: Database, userid: int, contentid: int, reason: str
+    ):
         pass

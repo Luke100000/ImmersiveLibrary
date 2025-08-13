@@ -12,6 +12,7 @@ from immersive_library.validators.common import (
     TitleLengthValidator,
     MaxSizeValidator,
 )
+from immersive_library.validators.common.report import ReportValidator
 from immersive_library.validators.mca import (
     InvalidReportValidator,
     ValidClothingValidator,
@@ -37,7 +38,7 @@ projects["mca"].validators = [
     # JsonMetaValidator(MetaSchema),
     ValidClothingValidator(),
     InvalidReportValidator(),
-    # ReportValidator(["DEFAULT", "INVALID"], ["COUNTER_DEFAULT"]),
+    ReportValidator(lambda reason: reason in ["DEFAULT", "INVALID"]),
 ]
 
 # Add Immersive Furniture specific validators

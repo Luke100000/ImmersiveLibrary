@@ -25,12 +25,11 @@ async def update_precomputation(database: Database, contentid: Optional[int] = N
     await database.execute(
         f"""
         INSERT OR REPLACE
-        INTO precomputation (contentid, tags, likes, reports, counter_reports)
+        INTO precomputation (contentid, tags, likes, reports)
         SELECT content.oid,
                CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
                CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
-               CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports,
-               CASE WHEN countered_c.reports is NULL THEN 0 ELSE countered_c.reports END      as counter_reports
+               CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports 
         FROM content
         
          LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
@@ -45,11 +44,6 @@ async def update_precomputation(database: Database, contentid: Optional[int] = N
                     FROM reports
                     WHERE reports.reason = 'DEFAULT'
                     GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
-
-         LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
-                    FROM reports
-                    WHERE reports.reason = 'COUNTER_DEFAULT'
-                    GROUP BY reports.contentid) countered_c on countered_c.contentid = content.oid
                     
         {"" if contentid is None else "WHERE content.oid = :contentid"}
     """,
@@ -69,8 +63,7 @@ def get_base_select(include_data: bool, include_meta: bool):
                c.data,
                precomputation.likes,
                precomputation.tags,
-               precomputation.reports,
-               precomputation.counter_reports
+               precomputation.reports
         FROM content c
             INNER JOIN users ON c.userid = users.oid
             INNER JOIN precomputation ON c.oid = precomputation.contentid

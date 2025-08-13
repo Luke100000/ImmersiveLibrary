@@ -212,8 +212,7 @@ async def setup():
             contentid INTEGER PRIMARY KEY,
             tags CHAR,
             likes INTEGER,
-            reports INTEGER,
-            counter_reports INTEGER
+            reports INTEGER
         ) WITHOUT ROWID
     """)
 
