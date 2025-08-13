@@ -105,7 +105,7 @@ async def list_content_v2(
 async def inner_list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
-    userid: Optional[None] = None,
+    userid: Optional[int] = None,
     whitelist: Optional[str] = None,
     blacklist: Optional[str] = None,
     filter_banned: bool = True,
@@ -138,15 +138,14 @@ async def inner_list_content_v2(
     else:
         raise HTTPException(400, "Invalid track")
 
-    # Hide personal banned content
-    if token is not None:
-        if userid is not None:
-            prompt += """
-             AND NOT EXISTS (SELECT *
-                        FROM reports
-                        WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :userid)
-            """
-            values["userid"] = userid
+    # Hide personally banned content
+    if token is not None and userid is not None:
+        prompt += """
+         AND NOT EXISTS (SELECT *
+                    FROM reports
+                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :userid)
+        """
+        values["userid"] = userid
 
     # Remove content from banned users
     if filter_banned:

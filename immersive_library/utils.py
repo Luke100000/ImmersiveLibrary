@@ -140,9 +140,9 @@ async def user_exists(database: Database, userid: int) -> bool:
 
 async def login_user(database: Database, google_userid, username, token):
     """
-    Logins the user, creating an account of necessary and updating username and token
+    Logs in the user, creating an account of necessary and updating username and token
     """
-    # Invalidate same tokens, the token has to be unique
+    # Invalidate the same tokens, the token has to be unique
     await database.execute(
         "UPDATE users SET token='' WHERE token=:token",
         {"token": token},

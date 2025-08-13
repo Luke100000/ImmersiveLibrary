@@ -2,5 +2,5 @@
 .venv
 .env
 
-database.db
+database.db*
 prometheus/

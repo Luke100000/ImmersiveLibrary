@@ -24,11 +24,11 @@ To acquire, call Google Sign-In and forward the response to `/v1/auth`.
 
 Alternatively call `/v1/login` to let the server handle the Google Sign-In.
 
-The state var needs to be a json object with the following keys:
+The state var needs to be a JSON object with the following keys:
 
 * `username` A username as shown to other users, base64 encoded.
 * `token` A freely chosen token to authenticate with, sha256 hashed, base64 encoded.
-    * Use the original token as Bearer token for all other requests.
+    * Use the original token as a Bearer token for all other requests.
 
 ## API
 
@@ -44,7 +44,7 @@ A piece of content consists of:
 * `data` Arbitrary (binary) data, base64 encoded during transfer
 * `version` An incrementing version number when the content has been changed
 
-Content should be locally cached by the client, and only updated when the version number changes.
+Content should be locally cached by the client and only updated when the version number changes.
 
 ### Tags
 
@@ -59,12 +59,12 @@ Likes are considered public information.
 
 Reports are used to flag content for moderation, with a custom reason enum.
 
-`DEFAULT` and `COUNTER_DEFAULT` are used for user based heuristic moderation.
+`DEFAULT` and `COUNTER_DEFAULT` are used for user-based heuristic moderation.
 
 Additional reports can be handled in the project validators.
 
 ### Projects
 
-Projects define a collection of content and can have several validators, to reject, or post-process content.
+Projects define a collection of content and can have several validators to reject, or post-process content.
 The `default` projects can allow user-chosen projects.
 See `main.py` for examples.
