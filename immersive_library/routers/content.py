@@ -1,3 +1,4 @@
+import time
 from enum import Enum
 from typing import Optional, Union
 
@@ -39,6 +40,7 @@ class ContentOrder(str, Enum):
     LIKES = "likes"
     TITLE = "title"
     REPORTS = "reports"
+    RECOMMENDATIONS = "recommendations"
 
 
 @router.get(
@@ -172,10 +174,17 @@ async def inner_list_content_v2(
             values[f"blacklist_term_{index}"] = f"%{term}%"
 
     # Order by
-    prompt += (
-        f"\n ORDER BY {'c.oid' if order == ContentOrder.DATE else order.name} "
-        + ("DESC" if descending else "ASC")
-    )
+    if order == ContentOrder.RECOMMENDATIONS:
+        prompt += (
+            "\n ORDER BY sqrt(likes) * (abs(mod(:seed + c.oid * 1103515245 + 12345, 2147483648)) / 2147483647.0) "
+            + ("DESC" if descending else "ASC")
+        )
+        values["seed"] = (0 if userid is None else userid) + int(time.time() / 86400)
+    else:
+        prompt += (
+            f"\n ORDER BY {'c.oid' if order == ContentOrder.DATE else order.name} "
+            + ("DESC" if descending else "ASC")
+        )
 
     # Limit
     prompt += "\n LIMIT :limit OFFSET :offset"
