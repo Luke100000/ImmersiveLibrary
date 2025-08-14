@@ -176,10 +176,11 @@ async def inner_list_content_v2(
     # Order by
     if order == ContentOrder.RECOMMENDATIONS:
         prompt += (
-            "\n ORDER BY sqrt(likes) * (abs(mod(:seed + c.oid * 1103515245 + 12345, 2147483648)) / 2147483647.0) "
+            "\n ORDER BY (likes + :like_norm) * (abs(mod(:seed + c.oid * 1103515245 + 12345, 2147483648)) / 2147483647.0) "
             + ("DESC" if descending else "ASC")
         )
         values["seed"] = (0 if userid is None else userid) + int(time.time() / 86400)
+        values["like_norm"] = 100
     else:
         prompt += (
             f"\n ORDER BY {'c.oid' if order == ContentOrder.DATE else order.name} "
