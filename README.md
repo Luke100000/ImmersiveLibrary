@@ -19,10 +19,9 @@ uvicorn --reload main:app
 
 ## Client
 
-For some methods a user-chosen access token is required.
-To acquire, call Google Sign-In and forward the response to `/v1/auth`.
+For some endpoints a user-chosen access token is required.
 
-Alternatively call `/v1/login` to let the server handle the Google Sign-In.
+Call `/v1/login` to let the server handle the Google Sign-In.
 
 The state var needs to be a JSON object with the following keys:
 
@@ -58,13 +57,11 @@ Likes are considered public information.
 ### Reports
 
 Reports are used to flag content for moderation, with a custom reason enum.
-
-`DEFAULT` and `COUNTER_DEFAULT` are used for user-based heuristic moderation.
-
+`DEFAULT` is used for user-based heuristic moderation.
 Additional reports can be handled in the project validators.
 
 ### Projects
 
 Projects define a collection of content and can have several validators to reject, or post-process content.
-The `default` projects can allow user-chosen projects.
+The `default` fallback can allow user-chosen projects.
 See `main.py` for examples.
