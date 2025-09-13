@@ -4,10 +4,10 @@ from functools import partial
 from typing import Any
 
 import orjson
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.utils import get_openapi
-from fastapi_cache import FastAPICache, Coder
+from fastapi_cache import Coder, FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from prometheus_fastapi_instrumentator import Instrumentator
 from redis import asyncio as aioredis
@@ -17,7 +17,6 @@ from starlette.staticfiles import StaticFiles
 
 from immersive_library.common import database
 from immersive_library.routers import (
-    user,
     auth,
     content,
     like,
@@ -25,6 +24,7 @@ from immersive_library.routers import (
     report,
     tag,
     tools,
+    user,
 )
 from immersive_library.routers.deprecated import content as deprecated_content
 from immersive_library.routers.deprecated import user as deprecated_user
@@ -104,7 +104,7 @@ app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# Custom OpenAPI to fix missing description
+# Custom OpenAPI to fix the missing description
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema

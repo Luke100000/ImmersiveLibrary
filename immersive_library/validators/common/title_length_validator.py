@@ -20,3 +20,4 @@ class TitleLengthValidator(Validator):
             return "title too short"
         if len(content.title) > self.max_size:
             return "title too long"
+        return None

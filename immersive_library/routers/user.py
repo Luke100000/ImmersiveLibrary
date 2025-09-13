@@ -1,34 +1,32 @@
 from enum import Enum
 from typing import List, Optional
 
-from fastapi import HTTPException, Header, Query, APIRouter
+from databases.interfaces import Record
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.common import database
 from immersive_library.models import (
-    PlainSuccess,
-    UserListSuccess,
     BanEntry,
     Error,
     LiteUserSuccess,
+    PlainSuccess,
+    UserListSuccess,
 )
 from immersive_library.utils import (
-    token_to_userid,
-    is_moderator,
-    set_moderator,
-    set_banned,
-    user_exists,
     get_lite_user_class,
+    moderator_guard,
+    set_banned,
+    set_moderator,
+    user_exists,
 )
 
 router = APIRouter(tags=["Users"])
 
 
-@router.get(
-    "/v1/bans",
-    tags=["Users"],
-)
-async def get_banned() -> List[BanEntry]:
+@router.get("/v1/bans", tags=["Users"])
+async def get_banned(userid: int = Depends(moderator_guard)) -> List[BanEntry]:
+    assert userid
     content = await database.fetch_all(
         """
         SELECT oid, username
@@ -47,11 +45,7 @@ class UserOrder(str, Enum):
     LIKES_RECEIVED = "likes_received"
 
 
-@router.get(
-    "/v1/user/{project}",
-    tags=["Users"],
-    response_model=UserListSuccess,
-)
+@router.get("/v1/user/{project}", tags=["Users"], response_model=UserListSuccess)
 @cache(expire=60)
 async def get_users(
     project: str,
@@ -59,9 +53,34 @@ async def get_users(
     offset: int = 0,
     order: UserOrder = UserOrder.OID,
     descending: bool = False,
-    _userid: Optional[int] = Query(None, include_in_schema=False),
 ) -> UserListSuccess:
-    content = await database.fetch_all(
+    content = await get_users_inner(project, limit, offset, order, descending)
+    return UserListSuccess(users=[get_lite_user_class(c) for c in content])
+
+
+@router.get(
+    "/v2/user/{project}/{userid}",
+    tags=["Users"],
+    responses={404: {"model": Error}},
+    response_model=LiteUserSuccess,
+)
+@cache(expire=60)
+async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
+    content = await get_users_inner(project, 1, 0, UserOrder.OID, False, userid)
+    if not content:
+        raise HTTPException(404, "User doesn't exist")
+    return LiteUserSuccess(user=get_lite_user_class(content[0]))
+
+
+async def get_users_inner(
+    project: str,
+    limit: int,
+    offset: int,
+    order: UserOrder,
+    descending: bool,
+    userid: Optional[int] = None,
+) -> list[Record]:
+    return await database.fetch_all(
         f"""
             SELECT users.oid,
                    users.username,
@@ -93,7 +112,7 @@ async def get_users(
             ) likes_receivedgi ON likes_received.userid = users.oid
 
             WHERE users.banned = 0
-            {"" if _userid is None else f"AND users.oid = {int(_userid)}"}
+            {"" if userid is None else f"AND users.oid = {int(userid)}"}
 
             ORDER BY {order.name} {"DESC" if descending else "ASC"}
             LIMIT :limit
@@ -101,21 +120,6 @@ async def get_users(
         """,
         {"limit": limit, "offset": offset, "project": project},
     )
-    return UserListSuccess(users=[get_lite_user_class(c) for c in content])
-
-
-@router.get(
-    "/v2/user/{project}/{userid}",
-    tags=["Users"],
-    responses={404: {"model": Error}},
-    response_model=LiteUserSuccess,
-)
-@cache(expire=60)
-async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
-    users = await get_users(project, 1, 0, UserOrder.OID, False, userid)
-    if not users.users:
-        raise HTTPException(404, "User doesn't exist")
-    return LiteUserSuccess(user=users.users[0])
 
 
 @router.put(
@@ -125,19 +129,12 @@ async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
 )
 async def set_user(
     userid: int,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    executor_userid: int = Depends(moderator_guard),
     banned: Optional[bool] = None,
     moderator: Optional[bool] = None,
-    purge=False,
+    purge: bool = False,
 ) -> PlainSuccess:
-    executor_userid = await token_to_userid(database, token, authorization)
-
-    if executor_userid is None:
-        raise HTTPException(401, "Token invalid")
-
-    if not await is_moderator(database, executor_userid):
-        raise HTTPException(403, "Not a moderator")
+    assert executor_userid
 
     if not await user_exists(database, userid):
         raise HTTPException(404, "User does not exist")
@@ -151,7 +148,7 @@ async def set_user(
         await set_moderator(database, userid, moderator)
 
     # Delete the user's content
-    if purge is True:
+    if purge:
         await database.execute(
             "DELETE FROM content WHERE userid=:userid", {"userid": userid}
         )

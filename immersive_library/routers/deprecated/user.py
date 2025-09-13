@@ -1,17 +1,15 @@
-from typing import Optional
-
-from fastapi import HTTPException, Header, APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.common import database
 from immersive_library.models import (
-    UserSuccess,
     Error,
+    UserSuccess,
 )
 from immersive_library.routers.content import TrackEnum, inner_list_content_v2
 from immersive_library.utils import (
-    token_to_userid,
     get_user_class,
+    logged_in_guard,
 )
 
 router = APIRouter(tags=["Users"])
@@ -24,18 +22,10 @@ router = APIRouter(tags=["Users"])
     response_model_exclude_none=True,
     response_model=UserSuccess,
     deprecated=True,
+    include_in_schema=False,
 )
 @cache(expire=60)
-async def get_me(
-    project: str,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
-) -> UserSuccess:
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
+async def get_me(project: str, userid: int = Depends(logged_in_guard)) -> UserSuccess:
     return await get_user(project, userid)
 
 
@@ -45,6 +35,7 @@ async def get_me(
     responses={404: {"model": Error}},
     response_model_exclude_none=True,
     response_model=UserSuccess,
+    include_in_schema=False,
     deprecated=True,
 )
 @cache(expire=60)

@@ -1,18 +1,20 @@
 import base64
 import hashlib
-from typing import Optional, Any, Dict
+from http.client import HTTPException
+from typing import Any, Dict, Optional
 
 import orjson
 from cachetools import cached
 from databases import Database
 from databases.interfaces import Record
-from fastapi import Header
+from fastapi import Header, Path
 
+import immersive_library.common as common
 from immersive_library.models import (
     Content,
-    User,
     LiteContent,
     LiteUser,
+    User,
 )
 
 
@@ -257,6 +259,14 @@ async def set_tags(database: Database, contentid: int, tags: list[str]):
         )
 
 
+def safe_parse(meta: str) -> Dict[str, Any]:
+    # noinspection PyBroadException
+    try:
+        return orjson.loads(meta)
+    except Exception:
+        return {}
+
+
 def get_lite_content_class(
     record: Record, include_meta: bool, parse_meta: bool
 ) -> LiteContent:
@@ -277,14 +287,6 @@ def get_lite_content_class(
         if include_meta
         else None,
     )
-
-
-def safe_parse(meta: str) -> Dict[str, Any]:
-    # noinspection PyBroadException
-    try:
-        return orjson.loads(meta)
-    except Exception:
-        return {}
 
 
 def get_content_class(record: Record, parse_meta: bool = True) -> Content:
@@ -339,3 +341,55 @@ async def get_user_class(
         submissions=submissions,
         moderator=moderator > 0,
     )
+
+
+async def logged_in_guard(
+    token: Optional[str] = None, authorization: str = Header(None)
+):
+    """
+    Ensures the user is logged in.
+    """
+    userid = await token_to_userid(common.database, token, authorization)
+
+    if userid is None:
+        raise HTTPException(401, "Token invalid")
+
+    return userid
+
+
+async def owner_guard(
+    contentid: int = Path(...),
+    token: Optional[str] = None,
+    authorization: str = Header(None),
+):
+    """
+    Ensures the user owns the content or is a moderator.
+    """
+    userid = await token_to_userid(common.database, token, authorization)
+
+    if userid is None:
+        raise HTTPException(401, "Token invalid")
+
+    if not await owns_content(
+        common.database, contentid, userid
+    ) and not await is_moderator(common.database, userid):
+        raise HTTPException(403, "Not allowed")
+
+    return userid
+
+
+async def moderator_guard(
+    token: Optional[str] = None, authorization: str = Header(None)
+):
+    """
+    Ensures the user is a moderator.
+    """
+    userid = await token_to_userid(common.database, token, authorization)
+
+    if userid is None:
+        raise HTTPException(401, "Token invalid")
+
+    if not await is_moderator(common.database, userid):
+        raise HTTPException(403, "Not a moderator")
+
+    return userid

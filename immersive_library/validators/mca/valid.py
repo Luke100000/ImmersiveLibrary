@@ -1,10 +1,10 @@
 import io
 from typing import Optional
 
-import PIL
 import numpy as np
-from PIL import Image
+import PIL
 from databases import Database
+from PIL import Image
 
 from immersive_library.models import ContentUpload
 from immersive_library.utils import has_tag

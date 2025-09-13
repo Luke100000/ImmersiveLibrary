@@ -20,3 +20,4 @@ class MaxSizeValidator(Validator):
     ) -> Optional[str]:
         if len(content.data) > self.max_size * 1.33:
             return "data too large"
+        return None

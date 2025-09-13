@@ -2,28 +2,28 @@ import time
 from enum import Enum
 from typing import Optional, Union
 
-from fastapi import HTTPException, Header, APIRouter, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.common import database, get_project
 from immersive_library.models import (
-    PlainSuccess,
-    Error,
+    ContentIdSuccess,
     ContentListSuccess,
     ContentSuccess,
     ContentUpload,
-    ContentIdSuccess,
+    Error,
+    PlainSuccess,
 )
 from immersive_library.utils import (
-    token_to_userid,
-    owns_content,
-    is_moderator,
-    update_precomputation,
-    get_base_select,
-    get_lite_content_class,
-    get_content_class,
     exists,
+    get_base_select,
+    get_content_class,
+    get_lite_content_class,
+    logged_in_guard,
+    owner_guard,
     set_tags,
+    token_to_userid,
+    update_precomputation,
 )
 
 router = APIRouter(tags=["Content"])
@@ -225,16 +225,8 @@ async def get_content(
     responses={401: {"model": Error}, 428: {"model": Error}, 400: {"model": Error}},
 )
 async def add_content(
-    project: str,
-    content: ContentUpload,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, content: ContentUpload, userid: int = Depends(logged_in_guard)
 ) -> ContentIdSuccess:
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
     # Check for duplicates
     if await exists(
         database,
@@ -268,27 +260,13 @@ async def add_content(
     return ContentIdSuccess(contentid=contentid)
 
 
-@router.put(
-    "/v1/content/{project}/{contentid}",
-    responses={401: {"model": Error}},
-)
+@router.put("/v1/content/{project}/{contentid}", responses={401: {"model": Error}})
 async def update_content(
     project: str,
     contentid: int,
     content: ContentUpload,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    userid: int = Depends(owner_guard),
 ) -> PlainSuccess:
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
-    if not await owns_content(database, contentid, userid) and not await is_moderator(
-        database, userid
-    ):
-        raise HTTPException(401, "Not your content")
-
     # Call validators for content verification
     await get_project(project).validate("pre_upload", database, userid, content)
 
@@ -314,26 +292,12 @@ async def update_content(
     return PlainSuccess()
 
 
-@router.delete(
-    "/v1/content/{project}/{contentid}",
-    responses={401: {"model": Error}},
-)
+@router.delete("/v1/content/{project}/{contentid}", responses={401: {"model": Error}})
 async def delete_content(
-    project: str,
-    contentid: int,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, contentid: int, userid: int = Depends(owner_guard)
 ) -> PlainSuccess:
     assert project
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
-    if not await owns_content(database, contentid, userid) and not await is_moderator(
-        database, userid
-    ):
-        raise HTTPException(401, "Not your content")
+    assert userid
 
     await database.execute(
         "DELETE FROM content WHERE oid=:contentid",

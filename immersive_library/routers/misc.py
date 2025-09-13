@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from fastapi_cache.decorator import cache
 
 from immersive_library.common import database
 from immersive_library.routers.tag import list_project_tags
@@ -7,6 +8,7 @@ router = APIRouter()
 
 
 @router.get("/v1/stats/{project}")
+@cache(expire=300)
 async def get_statistics(project: str):
     content_count = await database.fetch_one("SELECT count(*) from content")
     content_count_liked = await database.fetch_one(
@@ -43,7 +45,7 @@ async def get_statistics(project: str):
     )
 
     return {
-        "oid": random_oid[0],
+        "oid": -1 if random_oid is None else random_oid[0],
         "top_tags": ", ".join(list(tags["tags"].keys())[:30]),
         "content": "{:,}".format(content_count[0]),
         "content_liked": "{:,}".format(content_count_liked[0]),

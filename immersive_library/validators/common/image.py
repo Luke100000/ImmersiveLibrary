@@ -1,7 +1,9 @@
-from PIL import Image
 import io
 from typing import Optional
+
 from databases import Database
+from PIL import Image
+
 from immersive_library.models import ContentUpload
 from immersive_library.validators.validator import Validator
 
@@ -34,7 +36,7 @@ class ImageValidator(Validator):
         try:
             image = Image.open(io.BytesIO(content.payload))
 
-            # Check image format
+            # Check the image format
             if image.format.lower() != self.file_format.lower():
                 return "invalid format"
 
@@ -50,6 +52,7 @@ class ImageValidator(Validator):
             # Strip metadata and save
             output = io.BytesIO()
             image2 = Image.new(self.image_mode, image.size)
+            # noinspection PyTypeChecker
             image2.putdata(list(image.getdata()))
             image2.save(output, format=self.file_format)
             output.seek(0)

@@ -35,7 +35,6 @@ projects["mca"] = Project()
 projects["mca"].validators = [
     TitleLengthValidator(),
     MaxSizeValidator(65536),
-    # JsonMetaValidator(MetaSchema),
     ValidClothingValidator(),
     InvalidReportValidator(),
     ReportValidator(lambda reason: reason in ["DEFAULT", "INVALID"]),

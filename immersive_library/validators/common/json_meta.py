@@ -1,7 +1,7 @@
 from typing import Optional
 
 from databases import Database
-from pydantic import ValidationError, BaseModel
+from pydantic import BaseModel, ValidationError
 
 from immersive_library.models import ContentUpload
 from immersive_library.validators.validator import Validator
@@ -10,7 +10,7 @@ from immersive_library.validators.validator import Validator
 class JsonMetaValidator(Validator):
     def __init__(self, schema: type[BaseModel]):
         """
-        :param schema: The schema to validate the JSON meta field against.
+        :param schema: The schema to validate the JSON meta-field against.
         """
         super().__init__()
 

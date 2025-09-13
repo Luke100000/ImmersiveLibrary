@@ -3,17 +3,15 @@ import json
 import os
 from typing import Annotated, Optional
 
-import orjson
-from fastapi import APIRouter, Query
-from fastapi import Form, Request, HTTPException, Header
+from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from starlette.responses import HTMLResponse
 
 from immersive_library.common import database, templates
 from immersive_library.models import (
-    IsAuthResponse,
     Error,
+    IsAuthResponse,
 )
 from immersive_library.utils import (
     login_user,
@@ -32,8 +30,8 @@ async def auth(
     request: Request,
     credential: Annotated[str, Form()],
     state: Annotated[Optional[str], Form()] = None,
-    username: Optional[str] = Query(None, deprecated=True),
-    token: Optional[str] = Query(None, deprecated=True),
+    username: Optional[str] = Query(None, deprecated=True, include_in_schema=False),
+    token: Optional[str] = Query(None, deprecated=True, include_in_schema=False),
 ) -> HTMLResponse:
     if state is not None:
         state_dict = orjson.loads(state)
@@ -61,21 +59,15 @@ async def auth(
         raise HTTPException(401, "Validation failed")
 
 
-@router.get(
-    "/v1/auth",
-    summary="Check if user is authenticated",
-)
+@router.get("/v1/auth", summary="Check if user is authenticated")
 async def is_auth(
     token: Optional[str] = None, authorization: str = Header(None)
 ) -> IsAuthResponse:
-    executor_userid = await token_to_userid(database, token, authorization)
-    return IsAuthResponse(authenticated=executor_userid is not None)
+    userid = await token_to_userid(database, token, authorization)
+    return IsAuthResponse(authenticated=userid is not None)
 
 
-@router.get(
-    "/v1/login",
-    summary="Login",
-)
+@router.get("/v1/login", summary="Login")
 async def get_login(request: Request, state: str) -> HTMLResponse:
     return templates.TemplateResponse(
         "login.jinja",

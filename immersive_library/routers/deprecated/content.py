@@ -15,6 +15,7 @@ router = APIRouter(tags=["Content"])
     "/v1/content/{project}",
     deprecated=True,
     response_model_exclude_none=True,
+    include_in_schema=False,
 )
 @cache(expire=60)
 async def list_content(

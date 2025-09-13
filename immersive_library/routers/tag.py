@@ -1,20 +1,16 @@
-from typing import Optional
-
-from fastapi import HTTPException, Header, APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.common import database
 from immersive_library.models import (
-    PlainSuccess,
     Error,
-    TagListSuccess,
+    PlainSuccess,
     TagDictSuccess,
+    TagListSuccess,
 )
 from immersive_library.utils import (
-    token_to_userid,
-    owns_content,
     has_tag,
-    is_moderator,
+    owner_guard,
     update_precomputation,
 )
 
@@ -58,22 +54,10 @@ async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def add_tag(
-    project: str,
-    contentid: int,
-    tag: str,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, contentid: int, tag: str, userid: int = Depends(owner_guard)
 ) -> PlainSuccess:
     assert project
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
-    if not await owns_content(database, contentid, userid) and not await is_moderator(
-        database, userid
-    ):
-        raise HTTPException(401, "Not your content")
+    assert userid
 
     if "," in tag:
         raise HTTPException(401, "Contains invalid characters")
@@ -96,22 +80,10 @@ async def add_tag(
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def delete_tag(
-    project: str,
-    contentid: int,
-    tag: str,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, contentid: int, tag: str, userid: int = Depends(owner_guard)
 ) -> PlainSuccess:
     assert project
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
-    if not await owns_content(database, contentid, userid) and not await is_moderator(
-        database, userid
-    ):
-        raise HTTPException(401, "Not your content")
+    assert userid
 
     if not await has_tag(database, contentid, tag):
         raise HTTPException(428, "Not tagged")

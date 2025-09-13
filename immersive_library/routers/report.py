@@ -1,17 +1,14 @@
-from typing import Optional
-
-from fastapi import APIRouter
-from fastapi import HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 
 from immersive_library.common import database, get_project
 from immersive_library.models import (
-    PlainSuccess,
     Error,
+    PlainSuccess,
 )
 from immersive_library.utils import (
-    token_to_userid,
-    update_precomputation,
     has_reported,
+    logged_in_guard,
+    update_precomputation,
 )
 
 router = APIRouter(tags=["Users"])
@@ -22,17 +19,8 @@ router = APIRouter(tags=["Users"])
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def add_report(
-    project: str,
-    contentid: int,
-    reason: str,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, contentid: int, reason: str, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
-
     await get_project(project).validate(
         "pre_report", database, userid, contentid, reason
     )
@@ -61,14 +49,9 @@ async def delete_report(
     project: str,
     contentid: int,
     reason: str,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    userid: int = Depends(logged_in_guard),
 ) -> PlainSuccess:
     assert project
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
 
     if not await has_reported(database, userid, contentid, reason):
         raise HTTPException(428, "Not liked previously")

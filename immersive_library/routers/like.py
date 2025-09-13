@@ -1,17 +1,14 @@
-from typing import Optional
-
-from fastapi import APIRouter
-from fastapi import HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 
 from immersive_library.common import database
 from immersive_library.models import (
-    PlainSuccess,
     Error,
+    PlainSuccess,
 )
 from immersive_library.utils import (
-    token_to_userid,
-    update_precomputation,
     has_liked,
+    logged_in_guard,
+    update_precomputation,
 )
 
 router = APIRouter(tags=["Likes"])
@@ -22,16 +19,9 @@ router = APIRouter(tags=["Likes"])
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def add_like(
-    project: str,
-    contentid: int,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, contentid: int, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
     assert project
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
 
     if await has_liked(database, userid, contentid):
         raise HTTPException(428, "Already liked")
@@ -51,16 +41,9 @@ async def add_like(
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def delete_like(
-    project: str,
-    contentid: int,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    project: str, contentid: int, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
     assert project
-    userid = await token_to_userid(database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
 
     if not await has_liked(database, userid, contentid):
         raise HTTPException(428, "Not liked previously")
