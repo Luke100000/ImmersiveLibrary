@@ -25,6 +25,7 @@ from immersive_library.routers import (
     tag,
     tools,
     user,
+    viewer,
 )
 from immersive_library.routers.deprecated import content as deprecated_content
 from immersive_library.routers.deprecated import user as deprecated_user
@@ -232,3 +233,4 @@ app.include_router(report.router)
 app.include_router(tag.router)
 app.include_router(tools.router)
 app.include_router(user.router)
+app.include_router(viewer.router)

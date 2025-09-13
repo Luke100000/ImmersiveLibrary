@@ -3,7 +3,8 @@
 <head>
     <title>Minecraft Skin Renderer</title>
     <script src="{{ url_for('static', path='/three.js') }}"></script>
-    <script src="{{ url_for('static', path='/model.js') }}"></script>
+    <script src="{{ url_for('static', path='/' + project + '/model.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/' + project + '/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 </head>
 
@@ -13,12 +14,12 @@
     <div class="statistics-box">
         <div class="header">Immersive Library</div>
         <div class="subtitle">Statistics</div>
-        <div class="statistic-item">{{ statistics_data.content }} Skins uploaded</div>
-        <div class="statistic-item">{{ statistics_data.content_liked }} with more than 10 likes</div>
-        <div class="statistic-item">{{ statistics_data.users }} Users registered</div>
-        <div class="statistic-item">{{ statistics_data.likes }} Likes casted</div>
-        <div class="statistic-item">{{ statistics_data.reports }} Reports sent</div>
-        <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics_data.top_tags }}</div>
+        <div class="statistic-item">{{ statistics.content }} Skins uploaded</div>
+        <div class="statistic-item">{{ statistics.content_liked }} with more than 10 likes</div>
+        <div class="statistic-item">{{ statistics.users }} Users registered</div>
+        <div class="statistic-item">{{ statistics.likes }} Likes casted</div>
+        <div class="statistic-item">{{ statistics.reports }} Reports sent</div>
+        <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics.top_tags }}</div>
     </div>
     <div class="renderers-box">
         <div class="header" id="title"></div>
@@ -50,10 +51,10 @@
     const clothingMaterial = new THREE.MeshBasicMaterial({alphaTest: 0.5, side: THREE.DoubleSide});
     const skinMaterial = new THREE.MeshBasicMaterial();
 
-    skinMaterial.map = loadTexture("{{ url_for('static', path='/skin.png') }}");
+    skinMaterial.map = loadTexture("{{ url_for('static', path=project + '/skin.png') }}");
 
     // Load texture from your endpoint
-    fetch('/v1/content/mca/{{ statistics_data.oid }}')
+    fetch('/v1/content/mca/{{ statistics.oid }}')
         .then(response => response.json())
         .then(data => {
             // Decode base64 and set it as the map for the material
@@ -71,7 +72,7 @@
     const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);
     const skinMeshes = getMeshes(skinMaterial, 0.0, ["Head", "Torso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"]);
 
-    // Add meshes to scene
+    // Add meshes to the scene
     for (const mesh of Object.values(clothingMeshes)) {
         scene.add(mesh);
     }

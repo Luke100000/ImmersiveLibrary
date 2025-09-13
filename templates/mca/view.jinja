@@ -3,7 +3,8 @@
 <head>
     <title>Minecraft Skin Renderer</title>
     <script src="{{ url_for('static', path='/three.js') }}"></script>
-    <script src="{{ url_for('static', path='/model.js') }}"></script>
+    <script src="{{ url_for('static', path='/' + project + '/model.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/' + project + '/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 </head>
 
@@ -39,7 +40,7 @@
     const clothingMaterial = new THREE.MeshBasicMaterial({alphaTest: 0.5, side: THREE.DoubleSide});
     const skinMaterial = new THREE.MeshBasicMaterial();
 
-    skinMaterial.map = loadTexture("{{ url_for('static', path='/skin.png') }}");
+    skinMaterial.map = loadTexture("{{ url_for('static', path=project + '/skin.png') }}");
 
     // Load texture from your endpoint
     fetch('/v1/content/mca/{{ contentid }}')

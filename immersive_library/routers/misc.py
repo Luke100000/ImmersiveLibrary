@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("/v1/stats/{project}")
-@cache(expire=300)
+@cache(expire=60)
 async def get_statistics(project: str):
     content_count = await database.fetch_one("SELECT count(*) from content")
     content_count_liked = await database.fetch_one(
