@@ -59,6 +59,15 @@ class User(BaseModel):
     moderator: bool
 
 
+class ProjectSummary(BaseModel):
+    name: str
+    content_count: int
+
+
+class ProjectListSuccess(BaseModel):
+    projects: List[ProjectSummary]
+
+
 class ContentSuccess(BaseModel):
     content: Content
 

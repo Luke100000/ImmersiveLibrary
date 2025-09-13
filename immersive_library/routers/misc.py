@@ -10,7 +10,9 @@ router = APIRouter()
 @router.get("/v1/stats/{project}")
 @cache(expire=60)
 async def get_statistics(project: str):
-    content_count = await database.fetch_one("SELECT count(*) from content")
+    content_count = await database.fetch_one(
+        "SELECT count(*) from content WHERE project = :project", {"project": project}
+    )
     content_count_liked = await database.fetch_one(
         """
         SELECT count(*)
@@ -27,7 +29,7 @@ async def get_statistics(project: str):
     likes_count = await database.fetch_one("SELECT count(*) FROM likes")
     reports_count = await database.fetch_one("SELECT count(*) FROM reports")
 
-    tags = dict(await list_project_tags(project, limit=100, offset=0))
+    tags = dict(await list_project_tags(project, limit=50, offset=0))
 
     random_oid = await database.fetch_one(
         """
@@ -36,7 +38,7 @@ async def get_statistics(project: str):
             SELECT content.oid
             FROM content
             INNER JOIN precomputation ON content.oid = precomputation.contentid
-            WHERE precomputation.likes > 100 AND content.project = :project
+            WHERE precomputation.likes > 10 AND content.project = :project
             ORDER BY RANDOM()
             LIMIT 1
         );

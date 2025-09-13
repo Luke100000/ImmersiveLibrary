@@ -13,6 +13,8 @@ from immersive_library.models import (
     ContentUpload,
     Error,
     PlainSuccess,
+    ProjectListSuccess,
+    ProjectSummary,
 )
 from immersive_library.utils import (
     exists,
@@ -41,6 +43,24 @@ class ContentOrder(str, Enum):
     TITLE = "title"
     REPORTS = "reports"
     RECOMMENDATIONS = "recommendations"
+
+
+@router.get(
+    "/v1/content",
+    response_model_exclude_none=True,
+    response_model=ProjectListSuccess,
+)
+@cache(expire=300)
+async def list_projects() -> ProjectListSuccess:
+    projects = await database.fetch_all(
+        "SELECT project, count(*) as content_count FROM content GROUP BY project ORDER BY project"
+    )
+    return ProjectListSuccess(
+        projects=[
+            ProjectSummary(name=p["project"], content_count=p["content_count"])
+            for p in projects
+        ]
+    )
 
 
 @router.get(

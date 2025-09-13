@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en_us">
+<head>
+    <title>Minecraft Skin Renderer</title>
+    <script src="{{ url_for('static', path='/three.js') }}"></script>
+    <script src="{{ url_for('static', path='/embed.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/default/style.css') }}">
+</head>
+
+<body>
+
+<div class="dashboard-container">
+    <div class="statistics-box">
+        <div class="title">Immersive Library</div>
+        <div class="statistic-item">{{ statistics.content }} content uploaded</div>
+        <div class="statistic-item">{{ statistics.content_liked }} with more than 10 likes</div>
+        <div class="statistic-item">{{ statistics.users }} users registered</div>
+        <div class="statistic-item">{{ statistics.likes }} likes cast</div>
+        <div class="statistic-item">{{ statistics.reports }} reports sent</div>
+        <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics.top_tags }}</div>
+    </div>
+    <div class="renderers-box" id="skin-box"></div>
+</div>
+
+<script type="module">
+    embedContent('skin-box', '{{ project }}', {{ statistics.oid }});
+</script>
+
+</body>
+</html>

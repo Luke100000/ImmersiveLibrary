@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from pydantic import BaseModel, StringConstraints
-from starlette.responses import HTMLResponse, RedirectResponse
 
 from immersive_library.api import app
 from immersive_library.common import Project, default_project, projects
@@ -45,7 +44,7 @@ projects["furniture"].validators = [
     MaxSizeValidator(262144),
 ]
 
+if __name__ == "__main__":
+    import uvicorn
 
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    return RedirectResponse(url="/mca")
+    uvicorn.run(app)

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en_us">
+<head>
+    <title>Immersive Library</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+    <script src="{{ url_for('static', path='/three.js') }}"></script>
+    <script src="{{ url_for('static', path='/embed.js') }}"></script>
+
+    <style>
+        body {
+            height: 100vh;
+        }
+
+        .browser-container {
+            max-width: 1700px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background-color: #343a40;
+            box-shadow: 1px 2px 4px rgba(0, 0, 0, .2);
+        }
+
+        .control-item {
+            min-width: 150px;
+            margin-bottom: 10px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .grid-item {
+            border-radius: 5px;
+            padding: 10px;
+            min-height: 250px;
+            background-color: #343a40;
+            box-shadow: 1px 2px 4px rgba(0, 0, 0, .2);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 10px;
+        }
+
+        .pagination button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        .current-page {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+
+<body>
+<div class="browser-container">
+    <div class="controls">
+        <div class="control-item">
+            <label for="project">Project:</label>
+            <select id="project">
+                {% for project in projects %}
+                    <option value="{{ project }}">{{ project }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="control-item">
+            <label for="search">Search:</label>
+            <input type="text" id="search" placeholder="Search by title or tags">
+        </div>
+
+        <div class="control-item">
+            <label for="sort">Sort by:</label>
+            <select id="sort">
+                <option value="date">Date</option>
+                <option value="likes">Likes</option>
+                <option value="title">Title</option>
+                <option value="reports">Reports</option>
+                <option value="recommendations">Recommendations</option>
+            </select>
+        </div>
+
+        <div class="control-item">
+            <label for="order">Order:</label>
+            <select id="order">
+                <option value="true">Descending</option>
+                <option value="false">Ascending</option>
+            </select>
+        </div>
+
+        <div class="control-item">
+            <label for="limit">Items per page:</label>
+            <select id="limit">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="content-grid" class="grid">
+        <!-- Content will be loaded here -->
+    </div>
+
+    <div class="pagination">
+        <button id="prev-page">&laquo; Previous</button>
+        <div id="current-page" class="current-page">Page 1</div>
+        <button id="next-page">Next &raquo;</button>
+    </div>
+</div>
+
+<script>
+    // Browser state
+    const state = {
+        project: document.getElementById('project').value,
+        search: '',
+        sort: 'date',
+        descending: true,
+        limit: 10,
+        offset: 0,
+        page: 1
+    };
+
+    // Load content
+    async function loadContent() {
+        const contentGrid = document.getElementById('content-grid');
+        contentGrid.innerHTML = '<p>Loading...</p>';
+
+        try {
+            // Build the URL with parameters
+            let url = `/v2/content/${state.project}?`;
+            url += `order=${state.sort}&`;
+            url += `descending=${state.descending}&`;
+            url += `limit=${state.limit}&`;
+            url += `offset=${state.offset}`;
+
+            // Add search terms as whitelist if provided
+            if (state.search.trim()) {
+                url += `&whitelist=${encodeURIComponent(state.search.trim())}`;
+            }
+
+            // Fetch content list
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.contents && data.contents.length > 0) {
+                contentGrid.innerHTML = '';
+
+                // Process each content item
+                for (const content of data.contents) {
+                    const contentItem = document.createElement('div');
+                    contentItem.className = 'grid-item';
+                    contentItem.id = `content-${content.contentid}`;
+                    contentItem.innerHTML = `<p>Loading #${content.contentid}...</p>`;
+                    contentGrid.appendChild(contentItem);
+
+                    embedContent(contentItem.id, state.project, content.contentid);
+                }
+
+                // Update page display
+                document.getElementById('current-page').textContent = `Page ${state.page}`;
+
+            } else {
+                contentGrid.innerHTML = '<p>No content found</p>';
+            }
+        } catch (error) {
+            contentGrid.innerHTML = `<p>Error: ${error.message}</p>`;
+        }
+    }
+
+    // Event listeners for all controls
+    document.getElementById('project').addEventListener('change', (e) => {
+        state.project = e.target.value;
+        state.page = 1;
+        state.offset = 0;
+        loadContent();
+    });
+
+    document.getElementById('search').addEventListener('input', debounce((e) => {
+        state.search = e.target.value;
+        state.page = 1;
+        state.offset = 0;
+        loadContent();
+    }, 500));
+
+    document.getElementById('sort').addEventListener('change', (e) => {
+        state.sort = e.target.value;
+        loadContent();
+    });
+
+    document.getElementById('order').addEventListener('change', (e) => {
+        state.descending = e.target.value === 'true';
+        loadContent();
+    });
+
+    document.getElementById('limit').addEventListener('change', (e) => {
+        state.limit = parseInt(e.target.value);
+        state.page = 1;
+        state.offset = 0;
+        loadContent();
+    });
+
+    document.getElementById('prev-page').addEventListener('click', () => {
+        if (state.page > 1) {
+            state.page--;
+            state.offset = (state.page - 1) * state.limit;
+            loadContent();
+        }
+    });
+
+    document.getElementById('next-page').addEventListener('click', () => {
+        state.page++;
+        state.offset = (state.page - 1) * state.limit;
+        loadContent();
+    });
+
+    // Debounce function to limit rate of function calls
+    function debounce(func, wait) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', loadContent);
+</script>
+</body>
+</html>
