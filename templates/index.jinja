@@ -32,6 +32,14 @@
             box-shadow: 0 8px 18px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .03);
         }
 
+        .controls .spacer {
+            flex: 1 1 auto;
+        }
+
+        .controls .right {
+            margin-left: auto;
+        }
+
         .control-item {
             min-width: 210px;
             margin-bottom: 10px;
@@ -124,11 +132,11 @@
             <label for="sort">Sort by:</label>
             <div class="select-wrap">
                 <select id="sort">
+                    <option value="recommendations">Recommendations</option>
                     <option value="date">Date</option>
                     <option value="likes">Likes</option>
                     <option value="title">Title</option>
                     <option value="reports">Reports</option>
-                    <option value="recommendations">Recommendations</option>
                 </select>
             </div>
         </div>
@@ -156,7 +164,18 @@
 
         <div class="control-item">
             <label for="search">Search:</label>
-            <input type="text" id="search" placeholder="Search by title or tags">
+            <input type="text" id="search" placeholder="Search by title, username, and tags">
+        </div>
+
+        <div class="spacer"></div>
+        <div class="control-item right">
+            <label>&nbsp;</label>
+            <button id="login-btn" class="btn">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M10 17l5-5-5-5v3H3v4h7v3z"></path>
+                    <path d="M19 3h-6v2h6v14h-6v2h6a2 2 0 002-2V5a2 2 0 00-2-2z"></path>
+                </svg>
+                <span>Login</span></button>
         </div>
     </div>
 
@@ -321,5 +340,6 @@
     // Initial load
     document.addEventListener('DOMContentLoaded', loadContent);
 </script>
+<script src="{{ url_for('static', path='/auth.js') }}"></script>
 </body>
 </html>

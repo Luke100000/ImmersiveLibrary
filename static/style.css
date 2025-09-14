@@ -97,3 +97,43 @@ label {
     transform: none;
     box-shadow: none;
 }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #3a4148;
+    background: linear-gradient(180deg, #2b3136, #242a30);
+    color: #e9ecef;
+    font-weight: 600;
+    letter-spacing: .2px;
+    cursor: pointer;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .03);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .2s ease, background .2s ease;
+    position: relative;
+    user-select: none;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 16px rgba(0, 0, 0, .4);
+    border-color: #4a525a;
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(109, 168, 255, .15);
+}
+
+.btn .icon {
+    width: 14px;
+    height: 14px;
+    opacity: .9;
+}

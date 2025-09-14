@@ -6,6 +6,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from orjson import orjson
 from starlette.responses import HTMLResponse
 
 from immersive_library.common import database, templates
