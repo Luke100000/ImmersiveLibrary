@@ -26,7 +26,8 @@
 </div>
 
 <script type="module">
-    embedContent('skin-box', '{{ project }}', {{ statistics.oid }});
+    await embedContent('skin-box', '{{ project }}', {{ statistics.oid }});
+    document.querySelectorAll('.tags-container').forEach(tag => tag.style.display = 'none');
 </script>
 
 </body>

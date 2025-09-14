@@ -236,7 +236,12 @@
                     contentItem.setAttribute('role', 'button');
                     contentItem.setAttribute('tabindex', '0');
                     contentItem.title = `Open project ${content.contentid}`;
-                    contentItem.innerHTML = `<p>Loading #${content.contentid}...</p>`;
+                    contentItem.style.position = 'relative';
+
+                    const bodyId = `content-body-${content.contentid}`;
+                    contentItem.innerHTML = `
+                        <div id="${bodyId}"><p>Loading #${content.contentid}...</p></div>
+                    `;
                     contentGrid.appendChild(contentItem);
 
                     // make the whole card clickable
@@ -251,7 +256,44 @@
                         }
                     });
 
-                    embedContent(contentItem.id, state.project, content.contentid);
+                    if (window.ImmersiveAuth && typeof window.ImmersiveAuth.getToken === 'function' && window.ImmersiveAuth.getToken()) {
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = 'Delete';
+                        delBtn.className = 'btn';
+                        delBtn.title = `Delete content #${content.contentid}`;
+                        delBtn.style.position = 'absolute';
+                        delBtn.style.top = '8px';
+                        delBtn.style.right = '8px';
+                        delBtn.style.zIndex = '2';
+                        delBtn.style.padding = '6px 10px';
+                        delBtn.style.fontSize = '12px';
+
+                        delBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            const ok = window.confirm(`Are you sure you want to delete content #${content.contentid}?`);
+                            if (!ok) return;
+                            try {
+                                const resp = await fetch(`/v1/content/${state.project}/${content.contentid}`, {method: 'DELETE'});
+                                if (resp.ok) {
+                                    // remove the card from the grid
+                                    contentItem.remove();
+                                } else if (resp.status === 401 || resp.status === 403) {
+                                    alert('Not allowed to delete this content.');
+                                } else if (resp.status === 404) {
+                                    alert('Content not found.');
+                                } else {
+                                    alert('Delete failed (' + resp.status + ').');
+                                }
+                            } catch (err) {
+                                alert('Network error while deleting.');
+                            }
+                        });
+
+                        contentItem.appendChild(delBtn);
+                    }
+
+                    embedContent(bodyId, state.project, content.contentid);
                 }
 
                 // Update page display

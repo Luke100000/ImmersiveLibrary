@@ -46,6 +46,7 @@
             if (data && data.authenticated === true) {
                 setCookie('immersive_token', trimmed, 365);
                 alert('Token saved');
+                window.location.reload();
             } else {
                 alert('Token not valid. Not saved.');
             }
