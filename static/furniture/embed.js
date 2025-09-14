@@ -226,7 +226,7 @@ function createSceneFromObject(data, containerId, width = 386, height = 386) {
         const material = new THREE.MeshStandardMaterial({
             map: texture,
             color: element.Color.value,
-            transparent: Material.value.Transparency.value !== "SOLID",
+            transparent: !!(Material.value.Transparency && Material.value.Transparency.value !== "SOLID"),
             emissive: 0xffffff,
             emissiveIntensity: element.Emission ? element.Emission.value / 16.0 : 0.0,
         });

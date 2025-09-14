@@ -10,6 +10,7 @@
     <style>
         body {
             height: 100vh;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
         }
 
         .browser-container {
@@ -21,19 +22,72 @@
         .controls {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 14px;
+            margin-bottom: 16px;
 
             padding: 20px;
-            border: 2px solid #333;
-            border-radius: 10px;
-            background-color: #343a40;
-            box-shadow: 1px 2px 4px rgba(0, 0, 0, .2);
+            border: 1px solid #2b3136;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #2b3136, #23282d);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .03);
         }
 
         .control-item {
-            min-width: 150px;
+            min-width: 210px;
             margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-item label {
+            font-size: 12px;
+            color: #aeb6bf;
+        }
+
+        .control-item select,
+        .control-item input[type="text"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 100%;
+            padding: 10px 38px 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #3a4148;
+            background: #20252a;
+            color: #e9ecef;
+            outline: none;
+            transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .02);
+        }
+
+        .control-item select:hover,
+        .control-item input[type="text"]:hover {
+            border-color: #4a525a;
+        }
+
+        .control-item select:focus,
+        .control-item input[type="text"]:focus {
+            border-color: #6da8ff;
+            box-shadow: 0 0 0 3px rgba(109, 168, 255, .15);
+            background: #1d2227;
+        }
+
+        .select-wrap {
+            position: relative;
+        }
+
+        .select-wrap::after {
+            content: '';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 7px solid #9aa4af;
+            transform: translateY(-50%);
+            pointer-events: none;
+            transition: transform .15s ease;
         }
 
         .grid {
@@ -42,29 +96,12 @@
             gap: 20px;
         }
 
-        .grid-item {
-            border-radius: 5px;
-            padding: 10px;
-            min-height: 200px;
-            background-color: #343a40;
-            box-shadow: 1px 2px 4px rgba(0, 0, 0, .2);
-        }
-
-        .pagination {
-            display: flex;
-            justify-content: center;
-            margin-top: 20px;
-            gap: 10px;
-        }
-
-        .pagination button {
-            padding: 5px 10px;
-            cursor: pointer;
-        }
-
         .current-page {
-            padding: 5px 10px;
-            border: 1px solid #ddd;
+            padding: 8px 14px;
+            border: 1px solid #3a4148;
+            border-radius: 10px;
+            background: #20252a;
+            color: #aeb6bf;
         }
     </style>
 </head>
@@ -74,44 +111,52 @@
     <div class="controls">
         <div class="control-item">
             <label for="project">Project:</label>
-            <select id="project">
-                {% for project in projects %}
-                    <option value="{{ project }}">{{ project }}</option>
-                {% endfor %}
-            </select>
+            <div class="select-wrap">
+                <select id="project">
+                    {% for project in projects %}
+                        <option value="{{ project }}">{{ project }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="control-item">
+            <label for="sort">Sort by:</label>
+            <div class="select-wrap">
+                <select id="sort">
+                    <option value="date">Date</option>
+                    <option value="likes">Likes</option>
+                    <option value="title">Title</option>
+                    <option value="reports">Reports</option>
+                    <option value="recommendations">Recommendations</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="control-item">
+            <label for="order">Order:</label>
+            <div class="select-wrap">
+                <select id="order">
+                    <option value="true">Descending</option>
+                    <option value="false">Ascending</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="control-item">
+            <label for="limit">Items per page:</label>
+            <div class="select-wrap">
+                <select id="limit">
+                    <option value="4">4</option>
+                    <option value="8">8</option>
+                    <option value="16">16</option>
+                </select>
+            </div>
         </div>
 
         <div class="control-item">
             <label for="search">Search:</label>
             <input type="text" id="search" placeholder="Search by title or tags">
-        </div>
-
-        <div class="control-item">
-            <label for="sort">Sort by:</label>
-            <select id="sort">
-                <option value="date">Date</option>
-                <option value="likes">Likes</option>
-                <option value="title">Title</option>
-                <option value="reports">Reports</option>
-                <option value="recommendations">Recommendations</option>
-            </select>
-        </div>
-
-        <div class="control-item">
-            <label for="order">Order:</label>
-            <select id="order">
-                <option value="true">Descending</option>
-                <option value="false">Ascending</option>
-            </select>
-        </div>
-
-        <div class="control-item">
-            <label for="limit">Items per page:</label>
-            <select id="limit">
-                <option value="4">4</option>
-                <option value="8">8</option>
-                <option value="16">16</option>
-            </select>
         </div>
     </div>
 
@@ -126,14 +171,15 @@
     </div>
 </div>
 
+<!--suppress ES6MissingAwait -->
 <script>
     // Browser state
     const state = {
         project: document.getElementById('project').value,
         search: '',
-        sort: 'date',
-        descending: true,
-        limit: 8,
+        sort: document.getElementById('sort').value,
+        descending: document.getElementById('order').value === 'true',
+        limit: parseInt(document.getElementById('limit').value),
         offset: 0,
         page: 1
     };
@@ -166,16 +212,32 @@
                 // Process each content item
                 for (const content of data.contents) {
                     const contentItem = document.createElement('div');
-                    contentItem.className = 'grid-item';
+                    contentItem.className = 'card-interactive';
                     contentItem.id = `content-${content.contentid}`;
+                    contentItem.setAttribute('role', 'button');
+                    contentItem.setAttribute('tabindex', '0');
+                    contentItem.title = `Open project ${content.contentid}`;
                     contentItem.innerHTML = `<p>Loading #${content.contentid}...</p>`;
                     contentGrid.appendChild(contentItem);
+
+                    // make the whole card clickable
+                    const targetUrl = `/${state.project}/${content.contentid}`;
+                    contentItem.addEventListener('click', () => {
+                        window.location.href = targetUrl;
+                    });
+                    contentItem.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            window.location.href = targetUrl;
+                        }
+                    });
 
                     embedContent(contentItem.id, state.project, content.contentid);
                 }
 
                 // Update page display
                 document.getElementById('current-page').textContent = `Page ${state.page}`;
+                document.getElementById('prev-page').disabled = state.page <= 1;
 
             } else {
                 contentGrid.innerHTML = '<p>No content found</p>';
@@ -192,13 +254,6 @@
         state.offset = 0;
         loadContent();
     });
-
-    document.getElementById('search').addEventListener('input', debounce((e) => {
-        state.search = e.target.value;
-        state.page = 1;
-        state.offset = 0;
-        loadContent();
-    }, 500));
 
     document.getElementById('sort').addEventListener('change', (e) => {
         state.sort = e.target.value;
@@ -217,8 +272,23 @@
         loadContent();
     });
 
+    document.getElementById('search').addEventListener('input', debounce((e) => {
+        state.search = e.target.value;
+        state.page = 1;
+        state.offset = 0;
+        loadContent();
+    }, 500));
+
     document.getElementById('prev-page').addEventListener('click', () => {
         if (state.page > 1) {
+            state.page--;
+            state.offset = (state.page - 1) * state.limit;
+            loadContent();
+        }
+    });
+    document.getElementById('prev-page').addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && state.page > 1) {
+            e.preventDefault();
             state.page--;
             state.offset = (state.page - 1) * state.limit;
             loadContent();
@@ -230,8 +300,16 @@
         state.offset = (state.page - 1) * state.limit;
         loadContent();
     });
+    document.getElementById('next-page').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            state.page++;
+            state.offset = (state.page - 1) * state.limit;
+            loadContent();
+        }
+    });
 
-    // Debounce function to limit rate of function calls
+    // Debounce function to limit the rate of function calls
     function debounce(func, wait) {
         let timeout;
         return function (...args) {
