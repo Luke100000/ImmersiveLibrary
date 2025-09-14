@@ -8,15 +8,15 @@ body {
 
 .dashboard-container {
     display: flex;
-    width: 700px;
+    width: 800px;
 }
 
 .statistics-box {
-    width: 600px;
+    width: 500px;
 }
 
 .renderers-box {
-    width: 200px;
+    width: 300px;
 }
 
 .skin-box {

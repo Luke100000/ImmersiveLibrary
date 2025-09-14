@@ -4,6 +4,7 @@
     <title>Immersive Library</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
     <script src="{{ url_for('static', path='/three.js') }}"></script>
+    <script src="{{ url_for('static', path='/pnbt.js') }}"></script>
     <script src="{{ url_for('static', path='/embed.js') }}"></script>
 
     <style>
@@ -37,14 +38,14 @@
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(386px, 1fr));
             gap: 20px;
         }
 
         .grid-item {
             border-radius: 5px;
             padding: 10px;
-            min-height: 250px;
+            min-height: 200px;
             background-color: #343a40;
             box-shadow: 1px 2px 4px rgba(0, 0, 0, .2);
         }
@@ -107,10 +108,9 @@
         <div class="control-item">
             <label for="limit">Items per page:</label>
             <select id="limit">
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
+                <option value="4">4</option>
+                <option value="8">8</option>
+                <option value="16">16</option>
             </select>
         </div>
     </div>
@@ -133,7 +133,7 @@
         search: '',
         sort: 'date',
         descending: true,
-        limit: 10,
+        limit: 8,
         offset: 0,
         page: 1
     };
