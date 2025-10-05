@@ -11,10 +11,14 @@ A generic user asset library, accessible via REST API, authenticated via Google 
 
 ## Server
 
-The server is implemented in python using FastAPI. Launch using e.g. uvicorn:
+The server is implemented in python using FastAPI.
 
 ```sh
 uvicorn --reload main:app
+```
+
+```sh
+docker compose up
 ```
 
 ## Client

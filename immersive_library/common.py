@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from typing import List, Optional
 
@@ -20,7 +21,9 @@ class Connection(sqlite3.Connection):
         self.execute("pragma busy_timeout = 5000")
 
 
-database = Database("sqlite:///database.db", factory=Connection)
+database = Database(
+    os.getenv("DATABASE_URL", "sqlite:///data/database.db"), factory=Connection
+)
 
 templates = Jinja2Templates(directory="templates")
 

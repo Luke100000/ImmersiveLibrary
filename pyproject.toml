@@ -1,30 +1,31 @@
-[tool.poetry]
+[project]
 name = "immersive-library"
 version = "0.1.0"
-description = ""
-authors = ["Luke100000 <jonas.peche@aon.at>"]
+description = "A generic user asset library"
 readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.21.0",
+    "cachetools-async>=0.0.5",
+    "databases>=0.9.0",
+    "fastapi[standard]>=0.118.0",
+    "fastapi-cache2>=0.2.2",
+    "google-api-python-client>=2.184.0",
+    "google-auth>=2.41.1",
+    "jinja2>=3.1.6",
+    "numpy>=2.0.2",
+    "orjson>=3.11.3",
+    "pillow>=11.3.0",
+    "prometheus-fastapi-instrumentator>=7.1.0",
+    "pydantic>=2.11.10",
+    "python-dotenv>=1.1.1",
+    "python-multipart>=0.0.20",
+    "redis>=6.4.0",
+    "requests>=2.32.5",
+    "starlette>=0.48.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-requests = "^2.32.3"
-python-dotenv = "^1.0.1"
-fastapi = ">0.115"
-starlette = ">0.47"
-pydantic = "^2.9.2"
-google-auth = "^2.35.0"
-databases = "^0.9.0"
-google-api-python-client = "^2.149.0"
-orjson = "^3.10.10"
-prometheus-fastapi-instrumentator = "^7.0.0"
-pillow = "^11.0.0"
-aiosqlite = "^0.20.0"
-python-multipart = "0.0.19"
-numpy = "<2"
-jinja2 = "^3.1.4"
-uvicorn = "^0.32.0"
-fastapi-cache2 = {extras = ["redis"], version = "^0.2.2"}
-cachetools-async = "^0.0.4"
-
-[tool.ruff.lint]
-ignore = ["E402"]
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+]

@@ -44,7 +44,4 @@ projects["furniture"].validators = [
     MaxSizeValidator(262144),
 ]
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app)
+assert app

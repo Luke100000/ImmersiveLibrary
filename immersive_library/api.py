@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Any
@@ -88,7 +89,12 @@ async def lifespan(_app: FastAPI):
 
     instrumentator.expose(_app)
 
-    redis = aioredis.from_url("redis://localhost")
+    redis = aioredis.from_url(
+        "redis://"
+        + os.getenv("REDIS_HOST", "localhost")
+        + ":"
+        + os.getenv("REDIS_PORT", "6379")
+    )
     FastAPICache.init(
         RedisBackend(redis), prefix="immersive-library", coder=FastAPIJsonCoder
     )

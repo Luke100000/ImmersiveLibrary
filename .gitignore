@@ -3,4 +3,7 @@
 .env
 
 database.db*
-prometheus/
+prometheus
+
+redis_data
+data
