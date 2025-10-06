@@ -38,7 +38,7 @@ COPY --from=builder --chown=app:app /app /app
 
 # Environment
 ENV PATH="/app/.venv/bin:$PATH"
-ENV FASTAPI_WORKERS=1
+ENV FASTAPI_WORKERS=2
 ENV REDIS_HOST="redis"
 ENV DATABASE_URL="sqlite:////data/database.db"
 WORKDIR /app

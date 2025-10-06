@@ -87,8 +87,6 @@ async def lifespan(_app: FastAPI):
     await database.connect()
     await setup()
 
-    instrumentator.expose(_app)
-
     redis = aioredis.from_url(
         "redis://"
         + os.getenv("REDIS_HOST", "localhost")
@@ -134,6 +132,8 @@ app.openapi = custom_openapi
 
 # Prometheus integration
 instrumentator = Instrumentator().instrument(app)
+
+instrumentator.expose(app)
 
 
 @app.exception_handler(HTTPException)
