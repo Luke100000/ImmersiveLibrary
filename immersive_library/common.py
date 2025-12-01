@@ -13,10 +13,10 @@ class Connection(sqlite3.Connection):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.execute("pragma journal_mode = WAL")
-        self.execute("pragma synchronous = NORMAL")
+        self.execute("pragma journal_mode = DELETE")
+        self.execute("pragma synchronous = FULL")
         self.execute("pragma journal_size_limit = 67108864")
-        self.execute("pragma mmap_size = 134217728")
+        self.execute("pragma mmap_size = 0")
         self.execute("pragma cache_size = 2000")
         self.execute("pragma busy_timeout = 5000")
 
