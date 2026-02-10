@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .page-wrap {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+
+        .contact-card {
+            width: min(720px, 100%);
+            border-radius: 18px;
+            padding: 28px 32px;
+            background: linear-gradient(180deg, rgba(26, 35, 50, 0.85), rgba(20, 28, 40, 0.95));
+            border: 1px solid rgba(42, 63, 90, 0.8);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(93, 152, 207, 0.08);
+        }
+
+        .contact-card h1 {
+            margin: 0 0 16px;
+            font-size: 28px;
+            color: var(--text-primary);
+        }
+
+        .contact-card p {
+            margin: 10px 0;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .contact-card strong {
+            color: var(--text-primary);
+        }
+
+        .contact-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .contact-link:hover {
+            color: var(--accent-blue-hover);
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+    <div class="contact-card">
+        <h1>Contact</h1>
+        <p>For inquiries, complaints, or concerns regarding our services, please feel free to reach out to us:</p>
+        <p>E-Mail: <a class="contact-link" href="mailto:conczin@gmail.com">conczin@gmail.com</a></p>
+    </div>
+</div>
+</body>
+
+
+</html>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en_us">
 <head>
-    <title>Minecraft Skin Renderer</title>
+    <title>Details</title>
     <script src="/static/three.js"></script>
     <script src="/static/pnbt.js"></script>
     <script src="/static/embed.js"></script>
@@ -12,11 +12,18 @@
 
 <body>
 
-<div class="card view-box" id="view-box"></div>
+<div class="content-wrapper">
+    <div class="card view-box" id="view-box"></div>
+</div>
 
 <script type="module">
     embedContent('view-box', '{{ project }}', {{ contentid }});
 </script>
 
+<footer>
+    <a href="/privacy">Privacy Notice</a> •
+    <a href="/tos">Terms of Service</a> •
+    <a href="/contact">Contact</a>
+</footer>
 </body>
 </html>

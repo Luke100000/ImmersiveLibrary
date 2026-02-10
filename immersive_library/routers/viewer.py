@@ -40,6 +40,21 @@ async def favicon():
     return FileResponse("static/favicon.ico")
 
 
+@router.get("/privacy", response_class=HTMLResponse)
+async def get_privacy(request: Request):
+    return templates.TemplateResponse("privacy.jinja", {"request": request})
+
+
+@router.get("/tos", response_class=HTMLResponse)
+async def get_tos(request: Request):
+    return templates.TemplateResponse("tos.jinja", {"request": request})
+
+
+@router.get("/contact", response_class=HTMLResponse)
+async def get_contact(request: Request):
+    return templates.TemplateResponse("contact.jinja", {"request": request})
+
+
 @router.get("/{project}", response_class=HTMLResponse)
 async def get_project_front(request: Request, project: str):
     if project not in projects:

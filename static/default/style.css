@@ -1,9 +1,7 @@
-body {
+.content-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100vh;
-    margin: 0;
 }
 
 .dashboard-container {
@@ -30,5 +28,5 @@ body {
 .statistic-item {
     font-size: 24px;
     margin: 10px;
-    color: rgba(170, 170, 170, 255);
+    color: #b8c9db;
 }

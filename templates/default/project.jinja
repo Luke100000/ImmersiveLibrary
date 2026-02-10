@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en_us">
 <head>
-    <title>Minecraft Skin Renderer</title>
+    <title>Project</title>
     <script src="/static/three.js"></script>
     <script src="/static/pnbt.js"></script>
     <script src="/static/embed.js"></script>
@@ -12,23 +12,30 @@
 
 <body>
 
-<div class="dashboard-container">
-    <div class="card statistics-box">
-        <div class="title">Immersive Library</div>
-        <div class="statistic-item">{{ statistics.content }} content uploaded</div>
-        <div class="statistic-item">{{ statistics.content_liked }} with more than 10 likes</div>
-        <div class="statistic-item">{{ statistics.users }} users registered</div>
-        <div class="statistic-item">{{ statistics.likes }} likes cast</div>
-        <div class="statistic-item">{{ statistics.reports }} reports sent</div>
-        <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics.top_tags }}</div>
+<div class="content-wrapper">
+    <div class="dashboard-container">
+        <div class="card statistics-box">
+            <div class="title">Immersive Library</div>
+            <div class="statistic-item">{{ statistics.content }} content uploaded</div>
+            <div class="statistic-item">{{ statistics.content_liked }} with more than 10 likes</div>
+            <div class="statistic-item">{{ statistics.users }} users registered</div>
+            <div class="statistic-item">{{ statistics.likes }} likes cast</div>
+            <div class="statistic-item">{{ statistics.reports }} reports sent</div>
+            <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics.top_tags }}</div>
+        </div>
+        <div class="card renderers-box" id="skin-box"></div>
     </div>
-    <div class="card renderers-box" id="skin-box"></div>
+
+    <script type="module">
+        await embedContent('skin-box', '{{ project }}', {{ statistics.oid }});
+        document.querySelectorAll('.tags-container').forEach(tag => tag.style.display = 'none');
+    </script>
+
 </div>
-
-<script type="module">
-    await embedContent('skin-box', '{{ project }}', {{ statistics.oid }});
-    document.querySelectorAll('.tags-container').forEach(tag => tag.style.display = 'none');
-</script>
-
+<footer>
+    <a href="/privacy">Privacy Notice</a> •
+    <a href="/tos">Terms of Service</a> •
+    <a href="/contact">Contact</a>
+</footer>
 </body>
 </html>

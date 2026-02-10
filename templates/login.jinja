@@ -1,28 +1,27 @@
 <html lang="en">
 <head>
     <title>Login</title>
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
+        body {
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
         .container {
             display: flex;
             flex-flow: wrap;
             justify-content: center;
             align-items: center;
             text-align: center;
-            min-height: 95vh;
+            flex: 1;
+            width: 100%;
         }
 
         .container hr {
             width: 100%;
-        }
-
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: radial-gradient(ellipse at bottom, #0d1d31 0%, #0c0d13 100%);
-            overflow: hidden;
         }
 
         .chunk {
@@ -36,7 +35,7 @@
         }
     </style>
 </head>
-<body class="background">
+<body>
 <div class="container">
     <div class="chunk">
         <h1>Authenticate</h1>
@@ -61,7 +60,16 @@
              data-shape="rectangular"
              data-logo_alignment="left">
         </div>
+
+        <div style="margin-top: 20px; font-size: 12px; color: #666;">
+            <p>By logging in, you agree to our <a href="/privacy" style="color: #0066cc; text-decoration: none;">Privacy Notice</a> and <a href="/tos" style="color: #0066cc; text-decoration: none;">Terms of Service</a></p>
+        </div>
     </div>
 </div>
+<footer>
+    <a href="/privacy">Privacy Notice</a> •
+    <a href="/tos">Terms of Service</a> •
+    <a href="/contact">Contact</a>
+</footer>
 </body>
 </html>
