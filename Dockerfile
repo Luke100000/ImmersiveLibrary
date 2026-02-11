@@ -26,6 +26,10 @@ COPY templates/ /app/templates/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --all-groups --no-group dev
 
+# Install Playwright Chromium for headless rendering
+RUN --mount=type=cache,target=/root/.cache/ms-playwright \
+    /app/.venv/bin/playwright install --with-deps chromium
+
 # Final stage
 FROM debian:bookworm-slim
 

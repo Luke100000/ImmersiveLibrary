@@ -168,7 +168,7 @@ function debugImage(atlasSize, atlas) {
     ctx.putImageData(imageData, 0, 0);
 }
 
-function createSceneFromObject(data, containerId, width = 386, height = 386) {
+function createSceneFromObject(data, containerId, width, height, animate) {
     const {SizeX, SizeY, SizeZ, Elements} = data.parsed.value;
     let elements = Elements.value.value;
 
@@ -268,7 +268,7 @@ function createSceneFromObject(data, containerId, width = 386, height = 386) {
     });
 
     // Position the camera
-    const distance = 4.5;
+    const distance = 2.5;
     camera.position.z = centerX * distance;
     camera.position.y = 0.5 * distance;
     camera.lookAt(0, 0, 0);
@@ -281,15 +281,23 @@ function createSceneFromObject(data, containerId, width = 386, height = 386) {
     scene.add(directionalLight);
 
     // Animation loop
-    group.rotation.y = Math.PI * 0.75;
+    let start;
 
-    function animate() {
-        requestAnimationFrame(animate);
-        group.rotation.y += 0.005;
+    function update(timestamp) {
+        if (start === undefined) {
+            start = timestamp;
+        }
+        const time = timestamp - start;
+
+        if (animate) {
+            requestAnimationFrame(update);
+        }
+
+        group.rotation.y = Math.PI * 0.75 + time * 0.001;
         renderer.render(scene, camera);
     }
 
-    animate();
+    update();
 
     // noinspection PointlessBooleanExpressionJS
     if (false) {
@@ -299,14 +307,14 @@ function createSceneFromObject(data, containerId, width = 386, height = 386) {
 }
 
 // noinspection JSUnusedGlobalSymbols
-export async function embed(containerId, data) {
+export async function embed(containerId, data, width = 386, height = 386, animate= true) {
     const nbt = require('prismarine-nbt')
     const {Buffer} = require('buffer')
 
     const nbtBuffer = Buffer.from(atob(data.content.data), 'binary');
     nbt.parse(nbtBuffer).then(
         (parsedData) => {
-            createSceneFromObject(parsedData, containerId);
+            createSceneFromObject(parsedData, containerId, width, height, animate);
         }
     );
 }

@@ -1,6 +1,6 @@
 from functools import cache
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.requests import Request
 from jinja2 import TemplateNotFound
 from starlette.responses import FileResponse, HTMLResponse
@@ -78,4 +78,27 @@ async def get_content_front(request: Request, project: str, contentid: int):
     return templates.TemplateResponse(
         get_template(project, "view"),
         {"request": request, "project": project, "contentid": contentid},
+    )
+
+
+@router.get("/render/{project}/{contentid}", response_class=HTMLResponse)
+async def get_render_view(
+    request: Request,
+    project: str,
+    contentid: int,
+    width: int = Query(512, ge=64, le=2048),
+    height: int = Query(512, ge=64, le=2048),
+):
+    if project not in projects:
+        return HTMLResponse("Project not found", status_code=404)
+
+    return templates.TemplateResponse(
+        get_template(project, "render"),
+        {
+            "request": request,
+            "project": project,
+            "contentid": contentid,
+            "width": width,
+            "height": height,
+        },
     )

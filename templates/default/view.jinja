@@ -5,9 +5,25 @@
     <script src="/static/three.js"></script>
     <script src="/static/pnbt.js"></script>
     <script src="/static/embed.js"></script>
+
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/default/style.css">
+
     <script src="/static/auth.js"></script>
+
+    {% set page_title = project ~ " #" ~ contentid %}
+    {% set page_url = request.url %}
+    {% set thumb_url = request.url_for('static', path='mca/skin.png') %}
+
+    <meta property="og:title" content="{{ page_title }}">
+    <meta property="og:description" content="View immersive content details.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ page_url }}">
+    <meta property="og:image" content="{{ thumb_url }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ page_title }}">
+    <meta name="twitter:description" content="View immersive content details.">
+    <meta name="twitter:image" content="{{ thumb_url }}">
 </head>
 
 <body>

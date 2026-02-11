@@ -2,10 +2,11 @@ import time
 from enum import Enum
 from typing import Optional, Union
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi_cache.decorator import cache
+from starlette.responses import Response
 
-from immersive_library.common import database, get_project
+from immersive_library.common import database, get_project, projects
 from immersive_library.models import (
     ContentIdSuccess,
     ContentListSuccess,
@@ -16,6 +17,7 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
+from immersive_library.rendering import render_headless_png
 from immersive_library.utils import (
     exists,
     get_base_select,
@@ -325,3 +327,27 @@ async def delete_content(
     )
 
     return PlainSuccess()
+
+
+@router.get("/v1/render/{project}/{contentid}", response_class=Response)
+async def render_content_png(
+    request: Request,
+    project: str,
+    contentid: int,
+    width: int = Query(512, ge=64, le=2048),
+    height: int = Query(512, ge=64, le=2048),
+) -> Response:
+    if project not in projects:
+        raise HTTPException(404, "Project not found")
+
+    render_url = request.url_for(
+        "get_render_view", project=project, contentid=contentid
+    )
+    render_url = str(render_url.include_query_params(width=width, height=height))
+
+    try:
+        png_bytes = await render_headless_png(render_url, width=width, height=height)
+    except Exception as exc:
+        raise HTTPException(500, f"Render failed: {exc}") from exc
+
+    return Response(content=png_bytes, media_type="image/png")

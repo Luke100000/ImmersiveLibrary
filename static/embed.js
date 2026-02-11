@@ -1,6 +1,6 @@
 // noinspection JSUnusedGlobalSymbols
 async function embedContent(containerId, project, contentId) {
-    const res = await fetch(`/v1/content/mca/${contentId}`);
+    const res = await fetch(`/v1/content/${project}/${contentId}`);
     const data = await res.json();
 
     // General layout

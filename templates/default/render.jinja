@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en_us">
+<head>
+    <meta charset="utf-8">
+    <title>Render</title>
+
+    <script src="/static/three.js"></script>
+    <script src="/static/pnbt.js"></script>
+    <script src="/static/embed.js"></script>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(ellipse at bottom, #0d1d31 0%, #0c0d13 100%);
+        }
+
+        #render-container {
+            width: {{ width }}px;
+            height: {{ height }}px;
+            overflow: hidden;
+            background: radial-gradient(ellipse at bottom, #0d1d31 0%, #0c0d13 100%);
+        }
+    </style>
+</head>
+<body>
+<div id="render-container"></div>
+<script type="module">
+    const project = "{{ project }}";
+    const contentId = {{ contentid }};
+    const container = document.getElementById("render-container");
+
+    async function render() {
+        const res = await fetch(`/v1/content/${project}/${contentId}`);
+        const data = await res.json();
+
+        const module = await import(`/static/${project}/embed.js`);
+        await module.embed("render-container", data, {{ width }}, {{ height }});
+
+        function markReady() {
+            if (container.querySelector("canvas, img, svg")) {
+                container.renderReady = "1";
+                return;
+            }
+            requestAnimationFrame(markReady);
+        }
+
+        markReady();
+    }
+
+    render().catch((error) => {
+        container.renderReady = "error";
+        container.textContent = "Render error.";
+        console.error(error);
+    });
+</script>
+</body>
+</html>
+
