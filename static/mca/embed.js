@@ -180,15 +180,6 @@ function loadTexture(url) {
     return map;
 }
 
-function setupScene(containerId, width, height) {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({alpha: true});
-    renderer.setSize(width, height);
-    document.getElementById(containerId).appendChild(renderer.domElement);
-    return {scene, camera, renderer};
-}
-
 function createMaterials(skinUrl) {
     const clothingMaterial = new THREE.MeshBasicMaterial({alphaTest: 0.5, side: THREE.DoubleSide});
     const skinMaterial = new THREE.MeshBasicMaterial({map: loadTexture(skinUrl)});
@@ -200,19 +191,21 @@ function addMeshes(scene, clothingMeshes, skinMeshes) {
     Object.values(skinMeshes).forEach(mesh => scene.add(mesh));
 }
 
-function animateMeshes(renderer, scene, camera, clothingMeshes, skinMeshes, animate) {
-    let start;
+// noinspection JSUnusedGlobalSymbols
+export async function embed(element, content, options = {}) {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, options.width / options.height, 0.1, 1000);
+    const {clothingMaterial, skinMaterial} = createMaterials("/static/mca/skin.png");
 
-    function update(timestamp) {
-        if (start === undefined) {
-            start = timestamp;
-        }
-        const time = timestamp - start;
+    clothingMaterial.map = loadTexture('data:image/png;base64,' + content.data);
+    clothingMaterial.needsUpdate = true;
 
-        if (animate) {
-            requestAnimationFrame(update);
-        }
+    const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);
+    const skinMeshes = getMeshes(skinMaterial, 0.0, ["Head", "Torso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"]);
 
+    addMeshes(scene, clothingMeshes, skinMeshes);
+
+    const update = function update(time) {
         const distance = 35;
         camera.rotation.y = 0.25;
         camera.position.x = Math.sin(camera.rotation.y) * distance;
@@ -239,24 +232,7 @@ function animateMeshes(renderer, scene, camera, clothingMeshes, skinMeshes, anim
         rotate("Right Arm", Math.cos(-time * 0.0013) * 0.1, -0.01, -0.1);
         rotate("Left Leg", -0.025, 0.01, 0);
         rotate("Right Leg", 0.025, -0.01, 0);
+    };
 
-        renderer.render(scene, camera);
-    }
-
-    update();
-}
-
-// noinspection JSUnusedGlobalSymbols
-export async function embed(containerId, content, width = 250, height = 400, animate = true) {
-    const {scene, camera, renderer} = setupScene(containerId, width, height);
-    const {clothingMaterial, skinMaterial} = createMaterials("/static/mca/skin.png");
-
-    clothingMaterial.map = loadTexture('data:image/png;base64,' + content.data);
-    clothingMaterial.needsUpdate = true;
-
-    const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);
-    const skinMeshes = getMeshes(skinMaterial, 0.0, ["Head", "Torso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"]);
-
-    addMeshes(scene, clothingMeshes, skinMeshes);
-    animateMeshes(renderer, scene, camera, clothingMeshes, skinMeshes, animate);
+    return {scene, camera, update};
 }

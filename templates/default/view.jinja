@@ -28,14 +28,15 @@
 </head>
 
 <body>
-
 <div class="content-wrapper">
-    <div class="card view-box" id="view-box"></div>
+    <div class="card view-box" id="view-box">
+        <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
+        <div id="view-body"></div>
+    </div>
 </div>
 
-
 <script type="module">
-    embedContent('view-box', '{{ project }}', {{ content.model_dump() | tojson }});
+    embedContent('view-body', '{{ project }}', {{ content.model_dump() | tojson }});
 </script>
 
 <footer>

@@ -8,6 +8,8 @@
     <script src="/static/pnbt.js"></script>
     <script src="/static/embed.js"></script>
 
+    <link rel="stylesheet" href="/static/style.css">
+
     <style>
         html, body {
             margin: 0;
@@ -16,6 +18,7 @@
         }
 
         #render-container {
+            position: relative;
             width: {{ width }}px;
             height: {{ height }}px;
             overflow: hidden;
@@ -24,14 +27,20 @@
     </style>
 </head>
 <body>
-<div id="render-container"></div>
+<div id="render-container">
+    <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
+    <div id="render-body"></div>
+</div>
 <script type="module">
     const project = "{{ project }}";
     const container = document.getElementById("render-container");
 
     async function render() {
-        const module = await import(`/static/${project}/embed.js`);
-        await module.embed("render-container", {{ content.model_dump() | tojson }}, {{ width }}, {{ height }});
+        await embedContentPreview('render-body', '{{ project }}', {{ content.model_dump() | tojson }}, {
+            width: {{ width }},
+            height: {{ height }},
+            animate: false
+        });
 
         function markReady() {
             if (container.querySelector("canvas, img, svg")) {
@@ -52,4 +61,3 @@
 </script>
 </body>
 </html>
-

@@ -11,7 +11,6 @@
 </head>
 
 <body>
-
 <div class="content-wrapper">
     <div class="dashboard-container">
         <div class="card statistics-box">
@@ -23,12 +22,14 @@
             <div class="statistic-item">{{ statistics.reports }} reports sent</div>
             <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics.top_tags }}</div>
         </div>
-        <div class="card renderers-box" id="skin-box"></div>
+        <div class="card renderers-box" id="skin-box">
+            <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
+            <div id="skin-body"></div>
+        </div>
     </div>
 
     <script type="module">
-        await embedContent('skin-box', '{{ project }}', {{ statistics.oid }});
-        document.querySelectorAll('.tags-container').forEach(tag => tag.style.display = 'none');
+        await embedContent('skin-body', '{{ project }}', {{ statistics.oid }});
     </script>
 
 </div>

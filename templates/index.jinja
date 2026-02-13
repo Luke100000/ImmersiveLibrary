@@ -31,7 +31,9 @@
 </head>
 
 <body>
-<div class="browser-wrapper">
+<canvas id="multiview-canvas" class="multiview-canvas"></canvas>
+
+<div class="content-wrapper">
     <div class="browser-container">
         <div class="controls">
             <div class="control-item">
@@ -72,7 +74,6 @@
                 <label for="limit">Items per page:</label>
                 <div class="select-wrap">
                     <select id="limit">
-                        <option value="4">4</option>
                         <option value="8">8</option>
                         <option value="16">16</option>
                         <option value="32">32</option>
@@ -211,7 +212,9 @@
                             contentItem.appendChild(delBtn);
                         }
 
-                        embedContent(bodyId, state.project, content.contentid);
+                        embedContent(bodyId, state.project, content.contentid, {
+                            height: 400,
+                        });
                     }
 
                     // Update page display

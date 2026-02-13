@@ -36,7 +36,6 @@ label {
     color: var(--text-secondary);
 }
 
-.browser-wrapper,
 .content-wrapper {
     flex: 1;
     display: flex;
@@ -48,6 +47,47 @@ label {
     justify-content: center;
     align-items: center;
     width: 100%;
+}
+
+.embed-root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    gap: 8px;
+}
+
+.embed-root .embed-content-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.embed-root .content {
+    margin: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.embed-root .tags-container {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-top: auto;
+    padding: 6px 0 0;
+    max-height: 45px !important;
+    overflow: auto;
+    scrollbar-width: none;
+}
+
+.multiview-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
 }
 
 .browser-container {
@@ -171,15 +211,7 @@ label {
     min-height: 220px;
     background: linear-gradient(180deg, rgba(26, 35, 50, 0.8), rgba(20, 28, 40, 0.9));
     border: 1px solid var(--border-light);
-    backdrop-filter: blur(10px);
     position: relative;
-}
-
-.card-interactive > div {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
 }
 
 .tags-container {
@@ -188,8 +220,8 @@ label {
     flex-wrap: wrap;
     gap: 4px;
     max-height: 45px;
-    overflow: hidden;
-    transition: max-height 0.15s ease;
+    overflow: auto;
+    transition: none;
     position: absolute;
     left: 12px;
     right: 12px;
@@ -203,13 +235,6 @@ label {
 .tags-container::-webkit-scrollbar {
     width: 0;
     height: 0;
-}
-
-.card:hover .tags-container,
-.card-interactive:hover .tags-container {
-    max-height: 200px;
-    overflow: auto;
-    background: rgba(0, 0, 0, 0.45);
 }
 
 .card {
@@ -275,6 +300,7 @@ label {
     box-shadow: 0 6px 12px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(93, 152, 207, .08);
     transition: transform .12s ease, box-shadow .12s ease, border-color .2s ease, background .2s ease;
     position: relative;
+    z-index: 4;
     user-select: none;
 }
 
