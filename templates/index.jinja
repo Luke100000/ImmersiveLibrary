@@ -11,10 +11,10 @@
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 20px;
+            gap: 10px;
         }
 
-        @media (min-width: 1660px) {
+        @media (min-width: 1680px) {
             .grid {
                 grid-template-columns: repeat(4, minmax(0, 1fr));
             }
@@ -212,9 +212,7 @@
                             contentItem.appendChild(delBtn);
                         }
 
-                        embedContent(bodyId, state.project, content.contentid, {
-                            height: 400,
-                        });
+                        embedContent(bodyId, state.project, content.contentid);
                     }
 
                     // Update page display

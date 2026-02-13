@@ -68,12 +68,16 @@ function createMultiViewRenderer(canvas, animate) {
     const views = new Set();
 
     function updateSize() {
-        const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
+        const isFullPage = canvas.parentElement === document.body || canvas.parentElement === document.documentElement;
+        const width = isFullPage ? document.documentElement.clientWidth : canvas.clientWidth;
+        const height = isFullPage ? document.documentElement.scrollHeight : canvas.clientHeight;
         const size = renderer.getSize(new THREE.Vector2());
         if (size.width !== width || size.height !== height) {
+            if (isFullPage) {
+                canvas.style.width = `${width}px`;
+                canvas.style.height = `${height}px`;
+            }
             renderer.setSize(width, height, false);
-            console.log("Updated renderer size to", width, height);
         }
     }
 

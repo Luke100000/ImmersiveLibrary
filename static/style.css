@@ -92,6 +92,7 @@ label {
 
 .browser-container {
     max-width: 1700px;
+    width: 85%;
     margin: 0 auto;
     padding: 20px;
 }
@@ -230,6 +231,7 @@ label {
     padding: 6px;
     border-radius: 8px;
     scrollbar-width: none;
+    z-index: 2;
 }
 
 .tags-container::-webkit-scrollbar {
