@@ -169,7 +169,7 @@ function debugImage(atlasSize, atlas) {
 }
 
 function createSceneFromObject(data, containerId, width, height, animate) {
-    const {SizeX, SizeY, SizeZ, Elements} = data.parsed.value;
+    const {Elements} = data.parsed.value;
     let elements = Elements.value.value;
 
     // Collect all textures from elements
@@ -195,16 +195,10 @@ function createSceneFromObject(data, containerId, width, height, animate) {
     renderer.setSize(width, height);
     document.getElementById(containerId).appendChild(renderer.domElement);
 
-    // Calculate the center of the bounding box
-    const centerX = (SizeX ? SizeX.value : 1) / 2;
-    const centerY = (SizeY ? SizeY.value : 1) / 2;
-    const centerZ = (SizeZ ? SizeZ.value : 1) / 2;
-
     // Create a group to hold all elements
     const group = new THREE.Group();
-    scene.add(group);
-
-    // Create a cube for each element
+    let minX = 0, minY = 0, minZ = 0;
+    let maxX = 1, maxY = 1, maxZ = 1;
     elements.forEach((element, idx) => {
         const {From, To, Material, Type} = element;
         if (Type.value !== "element") return;
@@ -218,9 +212,16 @@ function createSceneFromObject(data, containerId, width, height, animate) {
         const depth = Math.abs(to[2] - from[2]);
 
         // Calculate position
-        const x = (from[0] + to[0]) / 32 - centerX + ((idx * 23) % 7) * 0.0001;
-        const y = (from[1] + to[1]) / 32 - centerY + ((idx * 23) % 13) * 0.0001;
-        const z = (from[2] + to[2]) / 32 - centerZ + ((idx * 23) % 17) * 0.0001;
+        const x = (from[0] + to[0]) / 32 + ((idx * 23) % 7) * 0.0001;
+        const y = (from[1] + to[1]) / 32 + ((idx * 23) % 13) * 0.0001;
+        const z = (from[2] + to[2]) / 32 + ((idx * 23) % 17) * 0.0001;
+
+        minX = Math.min(minX, x - width / 32);
+        minY = Math.min(minY, y - height / 32);
+        minZ = Math.min(minZ, z - depth / 32);
+        maxX = Math.max(maxX, x + width / 32);
+        maxY = Math.max(maxY, y + height / 32);
+        maxZ = Math.max(maxZ, z + depth / 32);
 
         // Create material
         const material = new THREE.MeshStandardMaterial({
@@ -267,10 +268,24 @@ function createSceneFromObject(data, containerId, width, height, animate) {
         group.add(cube);
     });
 
+    let centerX = (minX + maxX) / 2;
+    let centerY = (minY + maxY) / 2;
+    let centerZ = (minZ + maxZ) / 2;
+    group.position.set(-centerX, -centerY, -centerZ);
+
+    console.log(minX, maxX, minY, maxY, minZ, maxZ);
+
+    const pivot = new THREE.Object3D();
+    pivot.position.set(0, 0, 0);
+    pivot.add(group);
+    scene.add(pivot);
+
     // Position the camera
     const distance = 2.5;
-    camera.position.z = centerX * distance;
-    camera.position.y = 0.5 * distance;
+    let sizeX = Math.max(Math.abs(maxX - centerX), Math.abs(minX - centerX));
+    let sizeZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(minZ - centerZ));
+    camera.position.z = Math.sqrt(sizeX ** 2 + sizeZ ** 2) * distance;
+    camera.position.y = camera.position.z * 0.25 * distance;
     camera.lookAt(0, 0, 0);
 
     // Add lights
@@ -293,7 +308,7 @@ function createSceneFromObject(data, containerId, width, height, animate) {
             requestAnimationFrame(update);
         }
 
-        group.rotation.y = Math.PI * 0.75 + time * 0.001;
+        pivot.rotation.y = Math.PI * 0.75 + time * 0.001;
         renderer.render(scene, camera);
     }
 
@@ -307,14 +322,20 @@ function createSceneFromObject(data, containerId, width, height, animate) {
 }
 
 // noinspection JSUnusedGlobalSymbols
-export async function embed(containerId, data, width = 386, height = 386, animate= true) {
+export async function embed(containerId, content, width = 386, height = 386, animate = true) {
     const nbt = require('prismarine-nbt')
     const {Buffer} = require('buffer')
 
-    const nbtBuffer = Buffer.from(atob(data.content.data), 'binary');
+    const nbtBuffer = Buffer.from(atob(content.data), 'binary');
     nbt.parse(nbtBuffer).then(
         (parsedData) => {
-            createSceneFromObject(parsedData, containerId, width, height, animate);
+            try {
+                createSceneFromObject(parsedData, containerId, width, height, animate);
+            } catch (e) {
+                console.error("Error creating scene:", e);
+                const container = document.getElementById(containerId);
+                container.innerHTML = `<div class="error">Failed to render model: ${e.message}</div>`;
+            }
         }
     );
 }

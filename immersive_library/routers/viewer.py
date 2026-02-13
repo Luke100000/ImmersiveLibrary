@@ -7,6 +7,7 @@ from starlette.responses import FileResponse, HTMLResponse
 
 from immersive_library.common import database, projects, templates
 from immersive_library.routers.misc import get_statistics
+from immersive_library.utils import fetch_content
 
 router = APIRouter(tags=["Viewer"])
 
@@ -75,9 +76,11 @@ async def get_content_front(request: Request, project: str, contentid: int):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
+    content = await fetch_content(contentid)
+
     return templates.TemplateResponse(
         get_template(project, "view"),
-        {"request": request, "project": project, "contentid": contentid},
+        {"request": request, "project": project, "content": content},
     )
 
 
@@ -92,12 +95,14 @@ async def get_render_view(
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
+    content = await fetch_content(contentid)
+
     return templates.TemplateResponse(
         get_template(project, "render"),
         {
             "request": request,
             "project": project,
-            "contentid": contentid,
+            "content": content,
             "width": width,
             "height": height,
         },

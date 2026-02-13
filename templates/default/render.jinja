@@ -27,15 +27,11 @@
 <div id="render-container"></div>
 <script type="module">
     const project = "{{ project }}";
-    const contentId = {{ contentid }};
     const container = document.getElementById("render-container");
 
     async function render() {
-        const res = await fetch(`/v1/content/${project}/${contentId}`);
-        const data = await res.json();
-
         const module = await import(`/static/${project}/embed.js`);
-        await module.embed("render-container", data, {{ width }}, {{ height }});
+        await module.embed("render-container", {{ content.model_dump() | tojson }}, {{ width }}, {{ height }});
 
         function markReady() {
             if (container.querySelector("canvas, img, svg")) {

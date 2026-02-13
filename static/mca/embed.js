@@ -247,11 +247,11 @@ function animateMeshes(renderer, scene, camera, clothingMeshes, skinMeshes, anim
 }
 
 // noinspection JSUnusedGlobalSymbols
-export async function embed(containerId, data, width = 250, height = 400, animate = true) {
+export async function embed(containerId, content, width = 250, height = 400, animate = true) {
     const {scene, camera, renderer} = setupScene(containerId, width, height);
     const {clothingMaterial, skinMaterial} = createMaterials("/static/mca/skin.png");
 
-    clothingMaterial.map = loadTexture('data:image/png;base64,' + data.content.data);
+    clothingMaterial.map = loadTexture('data:image/png;base64,' + content.data);
     clothingMaterial.needsUpdate = true;
 
     const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);

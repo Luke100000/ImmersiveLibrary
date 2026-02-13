@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, ViewportSize
 
 
 async def render_headless_png(
@@ -20,7 +20,7 @@ async def render_headless_png(
         )
 
         page = await browser.new_page(
-            viewport={"width": width, "height": height},
+            viewport=ViewportSize(width=width, height=height),
             device_scale_factor=1,
         )
         try:

@@ -166,12 +166,13 @@ label {
     display: flex;
     flex-direction: column;
     border-radius: 12px;
-    padding: 12px;
+    padding: 12px 12px 30px;
     margin: 4px;
     min-height: 220px;
     background: linear-gradient(180deg, rgba(26, 35, 50, 0.8), rgba(20, 28, 40, 0.9));
     border: 1px solid var(--border-light);
     backdrop-filter: blur(10px);
+    position: relative;
 }
 
 .card-interactive > div {
@@ -186,6 +187,29 @@ label {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    max-height: 45px;
+    overflow: hidden;
+    transition: max-height 0.15s ease;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    background: transparent;
+    padding: 6px;
+    border-radius: 8px;
+    scrollbar-width: none;
+}
+
+.tags-container::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.card:hover .tags-container,
+.card-interactive:hover .tags-container {
+    max-height: 200px;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.45);
 }
 
 .card {

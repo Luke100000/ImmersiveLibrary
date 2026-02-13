@@ -332,7 +332,7 @@ async def get_user_class(
     """
     Populates a user object
     """
-    likes_received = sum([c.likes for c in submissions])
+    likes_received = sum([int(c.likes) for c in submissions])
     return User(
         userid=userid,
         username=username,
@@ -341,6 +341,18 @@ async def get_user_class(
         submissions=submissions,
         moderator=moderator > 0,
     )
+
+
+async def fetch_content(contentid: int, parse_meta: bool = True) -> Content:
+    content = await common.database.fetch_one(
+        get_base_select(True, True) + "WHERE c.oid = :contentid",
+        {"contentid": contentid},
+    )
+
+    if content is None:
+        raise HTTPException(404, "Content not found")
+
+    return get_content_class(content, parse_meta)
 
 
 async def logged_in_guard(

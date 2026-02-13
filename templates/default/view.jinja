@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en_us">
 <head>
-    <title>Details</title>
+    <title>{{ content.title }}</title>
     <script src="/static/three.js"></script>
     <script src="/static/pnbt.js"></script>
     <script src="/static/embed.js"></script>
@@ -11,18 +11,19 @@
 
     <script src="/static/auth.js"></script>
 
-    {% set page_title = project ~ " #" ~ contentid %}
+    {% set page_title = content.title %}
     {% set page_url = request.url %}
-    {% set thumb_url = request.url_for('static', path='mca/skin.png') %}
+    {% set thumb_url = request.url_for('render_content_png', project=project, contentid=content.contentid) %}
+    {% set page_description = content.title ~ " by " ~ content.username %}
 
     <meta property="og:title" content="{{ page_title }}">
-    <meta property="og:description" content="View immersive content details.">
+    <meta property="og:description" content="{{ page_description }}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ page_url }}">
     <meta property="og:image" content="{{ thumb_url }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ page_title }}">
-    <meta name="twitter:description" content="View immersive content details.">
+    <meta name="twitter:description" content="{{ page_description }}">
     <meta name="twitter:image" content="{{ thumb_url }}">
 </head>
 
@@ -32,8 +33,9 @@
     <div class="card view-box" id="view-box"></div>
 </div>
 
+
 <script type="module">
-    embedContent('view-box', '{{ project }}', {{ contentid }});
+    embedContent('view-box', '{{ project }}', {{ content.model_dump() | tojson }});
 </script>
 
 <footer>

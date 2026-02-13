@@ -1,5 +1,6 @@
 import time
 from enum import Enum
+from pathlib import Path
 from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -20,8 +21,8 @@ from immersive_library.models import (
 from immersive_library.rendering import render_headless_png
 from immersive_library.utils import (
     exists,
+    fetch_content,
     get_base_select,
-    get_content_class,
     get_lite_content_class,
     logged_in_guard,
     owner_guard,
@@ -47,6 +48,23 @@ class ContentOrder(str, Enum):
     RECOMMENDATIONS = "recommendations"
 
 
+class RenderPreset(str, Enum):
+    EMBED = "embed"
+    ICON = "icon"
+    THUMBNAIL = "thumbnail"
+    SQUARE = "square"
+
+
+RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
+    RenderPreset.EMBED: (1200, 630),
+    RenderPreset.ICON: (256, 256),
+    RenderPreset.THUMBNAIL: (512, 512),
+    RenderPreset.SQUARE: (1024, 1024),
+}
+
+CACHE_DIR = Path("data/cache")
+
+
 @router.get(
     "/v1/content",
     response_model_exclude_none=True,
@@ -54,13 +72,13 @@ class ContentOrder(str, Enum):
 )
 @cache(expire=300)
 async def list_projects() -> ProjectListSuccess:
-    projects = await database.fetch_all(
+    all_projects = await database.fetch_all(
         "SELECT project, count(*) as content_count FROM content GROUP BY project ORDER BY project"
     )
     return ProjectListSuccess(
         projects=[
             ProjectSummary(name=p["project"], content_count=p["content_count"])
-            for p in projects
+            for p in all_projects
         ]
     )
 
@@ -231,15 +249,9 @@ async def get_content(
     assert project
     assert version is not None
 
-    content = await database.fetch_one(
-        get_base_select(True, True) + "WHERE c.oid = :contentid",
-        {"contentid": contentid},
-    )
+    content = await fetch_content(contentid, parse_meta)
 
-    if content is None:
-        raise HTTPException(404, "Content not found")
-
-    return ContentSuccess(content=get_content_class(content, parse_meta))
+    return ContentSuccess(content=content)
 
 
 @router.post(
@@ -334,11 +346,31 @@ async def render_content_png(
     request: Request,
     project: str,
     contentid: int,
-    width: int = Query(512, ge=64, le=2048),
-    height: int = Query(512, ge=64, le=2048),
+    preset: RenderPreset = Query(RenderPreset.EMBED),
 ) -> Response:
     if project not in projects:
         raise HTTPException(404, "Project not found")
+
+    record = await database.fetch_one(
+        "SELECT version FROM content WHERE oid=:contentid AND project=:project",
+        {"contentid": contentid, "project": project},
+    )
+    if record is None:
+        raise HTTPException(404, "Content not found")
+
+    width, height = RENDER_PRESET_SIZES[preset]
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_name = f"{contentid}_{record['version']}_{width}x{height}.png"
+    cache_path = CACHE_DIR / cache_name
+    cache_headers = {
+        "Cache-Control": "public, max-age=86400, s-maxage=86400, immutable",
+    }
+    if cache_path.exists():
+        return Response(
+            content=cache_path.read_bytes(),
+            media_type="image/png",
+            headers=cache_headers,
+        )
 
     render_url = request.url_for(
         "get_render_view", project=project, contentid=contentid
@@ -350,4 +382,7 @@ async def render_content_png(
     except Exception as exc:
         raise HTTPException(500, f"Render failed: {exc}") from exc
 
-    return Response(content=png_bytes, media_type="image/png")
+    tmp_path = cache_path.with_suffix(".tmp")
+    tmp_path.write_bytes(png_bytes)
+    tmp_path.replace(cache_path)
+    return Response(content=png_bytes, media_type="image/png", headers=cache_headers)
