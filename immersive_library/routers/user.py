@@ -109,7 +109,7 @@ async def get_users_inner(
                 LEFT JOIN precomputation ON precomputation.contentid = c2.oid
                 WHERE c2.project = :project
                 GROUP BY c2.userid
-            ) likes_receivedgi ON likes_received.userid = users.oid
+            ) likes_received ON likes_received.userid = users.oid
 
             WHERE users.banned = 0
             {"" if userid is None else f"AND users.oid = {int(userid)}"}
