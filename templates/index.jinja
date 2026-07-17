@@ -111,33 +111,73 @@
 
     <!--suppress ES6MissingAwait -->
     <script>
-        // Browser state
-        const state = {
-            project: document.getElementById('project').value,
-            search: '',
-            sort: document.getElementById('sort').value,
-            descending: document.getElementById('order').value === 'true',
-            limit: parseInt(document.getElementById('limit').value),
-            offset: 0,
-            page: 1
-        };
+        const projectSelect = document.getElementById('project');
+        const sortSelect = document.getElementById('sort');
+        const orderSelect = document.getElementById('order');
+        const limitSelect = document.getElementById('limit');
+        const searchInput = document.getElementById('search');
+        const previousPageButton = document.getElementById('prev-page');
+        const nextPageButton = document.getElementById('next-page');
+
+        function selectUrlValue(select, parameter) {
+            const value = new URLSearchParams(window.location.search).get(parameter);
+            if (value && [...select.options].some((option) => option.value === value)) {
+                select.value = value;
+            }
+            return select.value;
+        }
+
+        function pageFromUrl() {
+            const page = Number.parseInt(new URLSearchParams(window.location.search).get('page'), 10);
+            return Number.isSafeInteger(page) && page > 0 ? page : 1;
+        }
+
+        function searchFromUrl() {
+            return new URLSearchParams(window.location.search).get('search') || '';
+        }
+
+        function navigate(parameters) {
+            const url = new URL(window.location.href);
+            for (const [name, value] of Object.entries(parameters)) {
+                if (value === '') {
+                    url.searchParams.delete(name);
+                } else {
+                    url.searchParams.set(name, value);
+                }
+            }
+            window.location.assign(url);
+        }
+
+        selectUrlValue(projectSelect, 'project');
+        selectUrlValue(sortSelect, 'sort');
+        selectUrlValue(orderSelect, 'descending');
+        selectUrlValue(limitSelect, 'limit');
+        searchInput.value = searchFromUrl();
 
         // Load content
         async function loadContent() {
             const contentGrid = document.getElementById('content-grid');
+            const project = selectUrlValue(projectSelect, 'project');
+            const sort = selectUrlValue(sortSelect, 'sort');
+            const descending = selectUrlValue(orderSelect, 'descending');
+            const limit = Number.parseInt(selectUrlValue(limitSelect, 'limit'), 10);
+            const page = pageFromUrl();
+            const search = searchFromUrl().trim();
+
+            document.getElementById('current-page').textContent = `Page ${page}`;
+            previousPageButton.disabled = page === 1;
             contentGrid.innerHTML = '<p>Loading...</p>';
 
             try {
-                // Build the URL with parameters
-                let url = `/v2/content/${state.project}?`;
-                url += `order=${state.sort}&`;
-                url += `descending=${state.descending}&`;
-                url += `limit=${state.limit}&`;
-                url += `offset=${state.offset}`;
+                const url = new URL(`/v2/content/${encodeURIComponent(project)}`, window.location.origin);
+                url.searchParams.set('order', sort);
+                url.searchParams.set('descending', descending);
+                url.searchParams.set('limit', limit);
+                url.searchParams.set('offset', (page - 1) * limit);
 
                 // Add search terms as whitelist if provided
-                if (state.search.trim()) {
-                    url += `&whitelist=${encodeURIComponent(state.search.trim())}`;
+                if (search) {
+                    url.searchParams.set('whitelist', search);
                 }
 
                 // Fetch content list
@@ -164,7 +204,7 @@
                         contentGrid.appendChild(contentItem);
 
                         // make the whole card clickable
-                        const targetUrl = `/${state.project}/${content.contentid}`;
+                        const targetUrl = `/${encodeURIComponent(project)}/${content.contentid}`;
                         contentItem.addEventListener('click', () => {
                             window.location.href = targetUrl;
                         });
@@ -193,7 +233,7 @@
                                 const ok = window.confirm(`Are you sure you want to delete content #${content.contentid}?`);
                                 if (!ok) return;
                                 try {
-                                    const resp = await fetch(`/v1/content/${state.project}/${content.contentid}`, {method: 'DELETE'});
+                                    const resp = await fetch(`/v1/content/${encodeURIComponent(project)}/${content.contentid}`, {method: 'DELETE'});
                                     if (resp.ok) {
                                         // remove the card from the grid
                                         contentItem.remove();
@@ -212,12 +252,8 @@
                             contentItem.appendChild(delBtn);
                         }
 
-                        embedContent(bodyId, state.project, content.contentid);
+                        embedContent(bodyId, project, content.contentid);
                     }
-
-                    // Update page display
-                    document.getElementById('current-page').textContent = `Page ${state.page}`;
-                    document.getElementById('prev-page').disabled = state.page <= 1;
 
                 } else {
                     contentGrid.innerHTML = '<p>No content found</p>';
@@ -229,64 +265,34 @@
 
         // Event listeners for all controls
         document.getElementById('project').addEventListener('change', (e) => {
-            state.project = e.target.value;
-            state.page = 1;
-            state.offset = 0;
-            loadContent();
+            navigate({project: e.target.value, page: 1});
         });
 
         document.getElementById('sort').addEventListener('change', (e) => {
-            state.sort = e.target.value;
-            loadContent();
+            navigate({sort: e.target.value});
         });
 
         document.getElementById('order').addEventListener('change', (e) => {
-            state.descending = e.target.value === 'true';
-            loadContent();
+            navigate({descending: e.target.value});
         });
 
         document.getElementById('limit').addEventListener('change', (e) => {
-            state.limit = parseInt(e.target.value);
-            state.page = 1;
-            state.offset = 0;
-            loadContent();
+            navigate({limit: e.target.value, page: 1});
         });
 
         document.getElementById('search').addEventListener('input', debounce((e) => {
-            state.search = e.target.value;
-            state.page = 1;
-            state.offset = 0;
-            loadContent();
+            navigate({search: e.target.value.trim(), page: 1});
         }, 500));
 
-        document.getElementById('prev-page').addEventListener('click', () => {
-            if (state.page > 1) {
-                state.page--;
-                state.offset = (state.page - 1) * state.limit;
-                loadContent();
-            }
-        });
-        document.getElementById('prev-page').addEventListener('keydown', (e) => {
-            if ((e.key === 'Enter' || e.key === ' ') && state.page > 1) {
-                e.preventDefault();
-                state.page--;
-                state.offset = (state.page - 1) * state.limit;
-                loadContent();
+        previousPageButton.addEventListener('click', () => {
+            const page = pageFromUrl();
+            if (page > 1) {
+                navigate({page: page - 1});
             }
         });
 
-        document.getElementById('next-page').addEventListener('click', () => {
-            state.page++;
-            state.offset = (state.page - 1) * state.limit;
-            loadContent();
-        });
-        document.getElementById('next-page').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                state.page++;
-                state.offset = (state.page - 1) * state.limit;
-                loadContent();
-            }
+        nextPageButton.addEventListener('click', () => {
+            navigate({page: pageFromUrl() + 1});
         });
 
         // Debounce function to limit the rate of function calls
