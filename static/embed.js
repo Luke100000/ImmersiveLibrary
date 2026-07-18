@@ -1,20 +1,35 @@
 // noinspection JSUnusedGlobalSymbols
-async function embedContent(containerId, project, content, options = {}) {
+function getContainerElement(container) {
+    return typeof container === 'string' ? document.getElementById(container) : container;
+}
+
+async function embedContent(container, project, content, options = {}) {
     if (typeof content === 'number') {
         const res = await fetch(`/v1/content/${project}/${content}`);
         content = (await res.json()).content;
     }
 
     // General layout
-    const parentDiv = document.getElementById(containerId);
-    parentDiv.innerHTML = `
-        <div class="title" id="${containerId}-title">${content.title}</div>
-        <div class="author" id="${containerId}-author"></div>
-        <div class="content" id="${containerId}-content"></div>
-        <div class="tags-container" id="${containerId}-tags"></div>
-    `;
+    const parentDiv = getContainerElement(container);
+    if (!parentDiv) {
+        throw new Error('Embed container not found');
+    }
 
-    const author = document.getElementById(`${containerId}-author`);
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = content.title;
+
+    const author = document.createElement('div');
+    author.className = 'author';
+
+    const contentElement = document.createElement('div');
+    contentElement.className = 'content';
+
+    const tagsContainer = document.createElement('div');
+    tagsContainer.className = 'tags-container';
+
+    parentDiv.replaceChildren(title, author, contentElement, tagsContainer);
+
     if (options.searchLinks) {
         author.appendChild(createSearchLink(project, `@${content.username}`, content.username));
     } else {
@@ -22,8 +37,7 @@ async function embedContent(containerId, project, content, options = {}) {
     }
 
     // Tags
-    const tagsContainer = document.getElementById(`${containerId}-tags`);
-    if (tagsContainer && content.tags && content.tags.length > 0) {
+    if (content.tags && content.tags.length > 0) {
         content.tags.forEach(tag => {
             const tagElement = options.searchLinks
                 ? createSearchLink(project, `#${tag}`, tag)
@@ -34,7 +48,7 @@ async function embedContent(containerId, project, content, options = {}) {
         });
     }
 
-    await embedContentPreview(`${containerId}-content`, project, content, options)
+    await embedContentPreview(contentElement, project, content, options)
 }
 
 function createSearchLink(project, search, label) {
@@ -49,8 +63,11 @@ function createSearchLink(project, search, label) {
     return link;
 }
 
-async function embedContentPreview(containerId, project, content, options = {}) {
-    const contentElement = document.getElementById(containerId);
+async function embedContentPreview(container, project, content, options = {}) {
+    const contentElement = getContainerElement(container);
+    if (!contentElement) {
+        throw new Error('Embed preview container not found');
+    }
     const rect = contentElement.getBoundingClientRect();
     const resolvedWidth = options.width || Math.max(1, Math.floor(rect.width || contentElement.clientWidth)) || 1;
     const measuredHeight = rect.height || contentElement.clientHeight;

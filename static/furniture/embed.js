@@ -293,7 +293,10 @@ export async function embed(element, content, options = {}) {
                 return createSceneFromObject(parsedData, element, options);
             } catch (e) {
                 console.error("Error creating scene:", e);
-                element.innerHTML = `<div class="error">Failed to render model: ${e.message}</div>`;
+                const error = document.createElement('div');
+                error.className = 'error';
+                error.textContent = `Failed to render model: ${e.message}`;
+                element.replaceChildren(error);
                 return null;
             }
         }

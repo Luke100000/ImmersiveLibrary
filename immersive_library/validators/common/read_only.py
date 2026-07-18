@@ -11,6 +11,6 @@ class ReadOnlyValidator(Validator):
     async def pre_upload(
         self, database: Database, userid: int, content: ContentUpload
     ) -> Optional[str]:
-        if is_moderator(database, userid):
+        if await is_moderator(database, userid):
             return None
         return "Project is read only"

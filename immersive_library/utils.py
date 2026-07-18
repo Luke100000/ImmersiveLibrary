@@ -1,13 +1,12 @@
 import base64
 import hashlib
-from http.client import HTTPException
 from typing import Any, Dict, Optional
 
 import orjson
 from cachetools import cached
 from databases import Database
 from databases.interfaces import Record
-from fastapi import Header, Path
+from fastapi import Header, HTTPException, Path
 
 import immersive_library.common as common
 from immersive_library.models import (

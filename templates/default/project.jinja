@@ -29,7 +29,7 @@
     </div>
 
     <script type="module">
-        await embedContent('skin-body', '{{ project }}', {{ statistics.oid }});
+        await embedContent('skin-body', {{ project | tojson }}, {{ statistics.oid }});
     </script>
 
 </div>

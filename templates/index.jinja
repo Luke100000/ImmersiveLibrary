@@ -195,6 +195,12 @@
 
         let contentLoadVersion = 0;
 
+        function setContentGridMessage(contentGrid, message) {
+            const paragraph = document.createElement('p');
+            paragraph.textContent = message;
+            contentGrid.replaceChildren(paragraph);
+        }
+
         // Load content
         async function loadContent() {
             const loadVersion = ++contentLoadVersion;
@@ -209,7 +215,7 @@
 
             document.getElementById('current-page').textContent = `Page ${page}`;
             previousPageButton.disabled = page === 1;
-            contentGrid.innerHTML = '<p>Loading...</p>';
+            setContentGridMessage(contentGrid, 'Loading...');
 
             try {
                 const url = new URL(`/v2/content/${encodeURIComponent(project)}`, window.location.origin);
@@ -230,22 +236,22 @@
                 if (loadVersion !== contentLoadVersion) return;
 
                 if (data.contents && data.contents.length > 0) {
-                    contentGrid.innerHTML = '';
+                    contentGrid.replaceChildren();
 
                     // Process each content item
                     for (const content of data.contents) {
                         const contentItem = document.createElement('div');
                         contentItem.className = 'card-interactive';
-                        contentItem.id = `content-${content.contentid}`;
                         contentItem.setAttribute('role', 'button');
                         contentItem.setAttribute('tabindex', '0');
                         contentItem.title = `Open project ${content.contentid}`;
                         contentItem.style.position = 'relative';
 
-                        const bodyId = `content-body-${content.contentid}`;
-                        contentItem.innerHTML = `
-                            <div id="${bodyId}"><p>Loading #${content.contentid}...</p></div>
-                        `;
+                        const contentBody = document.createElement('div');
+                        const loading = document.createElement('p');
+                        loading.textContent = `Loading #${content.contentid}...`;
+                        contentBody.appendChild(loading);
+                        contentItem.appendChild(contentBody);
                         contentGrid.appendChild(contentItem);
 
                         // make the whole card clickable
@@ -297,15 +303,15 @@
                             contentItem.appendChild(delBtn);
                         }
 
-                        embedContent(bodyId, project, content.contentid);
+                        embedContent(contentBody, project, content.contentid);
                     }
 
                 } else {
-                    contentGrid.innerHTML = '<p>No content found</p>';
+                    setContentGridMessage(contentGrid, 'No content found');
                 }
             } catch (error) {
                 if (loadVersion === contentLoadVersion) {
-                    contentGrid.innerHTML = `<p>Error: ${error.message}</p>`;
+                    setContentGridMessage(contentGrid, `Error: ${error.message}`);
                 }
             }
         }

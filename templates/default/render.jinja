@@ -32,11 +32,11 @@
     <div id="render-body"></div>
 </div>
 <script type="module">
-    const project = "{{ project }}";
+    const project = {{ project | tojson }};
     const container = document.getElementById("render-container");
 
     async function render() {
-        await embedContentPreview('render-body', '{{ project }}', {{ content.model_dump() | tojson }}, {
+        await embedContentPreview('render-body', project, {{ content.model_dump() | tojson }}, {
             width: {{ width }},
             height: {{ height }},
             animate: false
