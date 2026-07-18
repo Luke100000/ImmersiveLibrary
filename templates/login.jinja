@@ -2,6 +2,7 @@
 <head>
     <title>Login</title>
     <link rel="stylesheet" href="/static/style.css">
+    <meta name="referrer" content="no-referrer-when-downgrade">
     <style>
         body {
             justify-content: center;
@@ -46,7 +47,7 @@
 
             <div id="g_id_onload"
                  data-client_id="{{ client_id }}"
-                 data-login_uri="https://mca.conczin.net/v1/auth"
+                 data-login_uri="{{ login_uri }}"
                  data-ux_mode="redirect"
                  data-auto_prompt="false"
                  data-state='{{ state | tojson }}'>
@@ -60,11 +61,12 @@
                  data-shape="rectangular"
                  data-logo_alignment="left">
             </div>
+            <p style="margin-top: 20px; font-size: 12px; color: #666;">Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of Service</a> before continuing.</p>
             <script src="https://accounts.google.com/gsi/client" async defer></script>
         {% else %}
             <h1>Cookies and sign-in</h1>
             <p>We use a necessary cookie to keep you signed in and Google Sign-In to authenticate you.</p>
-            <p>Read our <a href="/privacy">Privacy Notice</a> before continuing.</p>
+            <p>Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of Service</a> before continuing.</p>
             <div class="consent-dialog__actions">
                 <button id="reject-cookies" type="button" class="btn">Leave</button>
                 <button id="accept-cookies" type="button" class="btn">Accept and continue</button>

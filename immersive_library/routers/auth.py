@@ -87,6 +87,7 @@ async def get_login(request: Request, state: str) -> HTMLResponse:
             "request": request,
             "state": json.loads(base64.b64decode(state)),
             "client_id": os.getenv("CLIENT_ID"),
+            "login_uri": str(request.url_for("auth")),
             "has_cookie_consent": request.cookies.get("immersive_cookie_consent")
             == "yes",
         },
