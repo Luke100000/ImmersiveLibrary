@@ -151,7 +151,7 @@
             return new URLSearchParams(window.location.search).get('search') || '';
         }
 
-        function navigate(parameters) {
+        function urlWith(parameters) {
             const url = new URL(window.location.href);
             for (const [name, value] of Object.entries(parameters)) {
                 if (value === '') {
@@ -160,6 +160,11 @@
                     url.searchParams.set(name, value);
                 }
             }
+            return url;
+        }
+
+        function navigate(parameters) {
+            const url = urlWith(parameters);
             window.location.assign(url);
         }
 
@@ -188,8 +193,11 @@
             return true;
         }
 
+        let contentLoadVersion = 0;
+
         // Load content
         async function loadContent() {
+            const loadVersion = ++contentLoadVersion;
             const contentGrid = document.getElementById('content-grid');
             const project = selectUrlValue(projectSelect, 'project');
             const track = selectUrlValue(trackSelect, 'track');
@@ -219,6 +227,7 @@
                 // Fetch content list
                 const response = await fetch(url);
                 const data = await response.json();
+                if (loadVersion !== contentLoadVersion) return;
 
                 if (data.contents && data.contents.length > 0) {
                     contentGrid.innerHTML = '';
@@ -295,7 +304,9 @@
                     contentGrid.innerHTML = '<p>No content found</p>';
                 }
             } catch (error) {
-                contentGrid.innerHTML = `<p>Error: ${error.message}</p>`;
+                if (loadVersion === contentLoadVersion) {
+                    contentGrid.innerHTML = `<p>Error: ${error.message}</p>`;
+                }
             }
         }
 
@@ -320,8 +331,9 @@
             navigate({limit: e.target.value, page: 1});
         });
 
-        document.getElementById('search').addEventListener('input', debounce((e) => {
-            navigate({search: e.target.value.trim(), page: 1});
+        searchInput.addEventListener('input', debounce((e) => {
+            window.history.replaceState(null, '', urlWith({search: e.target.value.trim(), page: 1}));
+            loadContent();
         }, 500));
 
         previousPageButton.addEventListener('click', () => {
