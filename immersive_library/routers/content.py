@@ -97,7 +97,11 @@ async def list_content_v2(
     ),
     whitelist: Optional[str] = Query(
         None,
-        description="Only include content that matches every comma separated term in either the username, title, or tags.",
+        description=(
+            "Only include content that matches every comma-separated term. Prefix a "
+            "term with @ for an exact username, # for an exact tag, or ~ for a "
+            "partial title; unprefixed terms partially match username, title, or tags."
+        ),
     ),
     blacklist: Optional[str] = Query(
         None,
@@ -197,13 +201,32 @@ async def inner_list_content_v2(
     if filter_reported:
         prompt += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
 
-    # Only if all terms matches either a tag or the title, allow this content
+    # Only allow content that matches every whitelist term.
     if whitelist:
         for index, term in enumerate(
-            list(v.strip() for v in whitelist.split(",") if v.strip)
+            v.strip() for v in whitelist.split(",") if v.strip()
         ):
-            prompt += f"\n AND (username LIKE :whitelist_term_{index} OR title LIKE :whitelist_term_{index} OR tags LIKE :whitelist_term_{index})"
-            values[f"whitelist_term_{index}"] = f"%{term}%"
+            parameter = f"whitelist_term_{index}"
+            search_term = term[1:].strip()
+
+            if term.startswith("@"):
+                prompt += f"\n AND username = :{parameter}"
+                values[parameter] = search_term
+            elif term.startswith("#"):
+                prompt += f"""
+                 AND EXISTS (
+                    SELECT 1 FROM tags AS whitelist_tags_{index}
+                    WHERE whitelist_tags_{index}.contentid = c.oid
+                    AND whitelist_tags_{index}.tag = :{parameter}
+                 )
+                """
+                values[parameter] = search_term
+            elif term.startswith("~"):
+                prompt += f"\n AND title LIKE :{parameter}"
+                values[parameter] = f"%{search_term}%"
+            else:
+                prompt += f"\n AND (username LIKE :{parameter} OR title LIKE :{parameter} OR tags LIKE :{parameter})"
+                values[parameter] = f"%{term}%"
 
     # Only if no term matches a tag
     if blacklist:
