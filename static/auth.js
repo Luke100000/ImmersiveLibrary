@@ -1,4 +1,7 @@
 (function () {
+    const TOKEN_COOKIE = 'immersive_token';
+    const USERNAME_COOKIE = 'immersive_username';
+
     function setCookie(name, value, days) {
         let expires = "";
         if (days) {
@@ -6,16 +9,17 @@
             date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
             expires = "; expires=" + date.toUTCString();
         }
-        document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/";
+        document.cookie = name + "=" + encodeURIComponent(value) + expires
+            + "; path=/; SameSite=Lax" + (window.location.protocol === 'https:' ? '; Secure' : '');
     }
 
     function getCookie(name) {
         const nameEQ = name + "=";
-        const ca = document.cookie.split(';');
-        for (let i = 0; i < ca.length; i++) {
-            let c = ca[i];
-            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-            if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+        for (let cookie of document.cookie.split(';')) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(nameEQ)) {
+                return decodeURIComponent(cookie.substring(nameEQ.length));
+            }
         }
         return null;
     }
@@ -24,94 +28,99 @@
         setCookie(name, "", -1);
     }
 
-    async function loginPrompt() {
-        const token = window.prompt("copy your immersive token here");
-        if (!token || !token.trim().length) {
+    function encodeBase64(value) {
+        const bytes = new TextEncoder().encode(value);
+        return btoa(String.fromCharCode(...bytes));
+    }
+
+    function createToken() {
+        const bytes = crypto.getRandomValues(new Uint8Array(32));
+        return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function hashToken(token) {
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+        return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function login() {
+        if (!window.isSecureContext || !crypto.subtle) {
+            alert('Google sign-in requires a secure connection.');
             return;
         }
-        const trimmed = token.trim();
-        try {
-            const resp = await fetch('/v1/auth', {
-                method: 'GET',
-                headers: {
-                    'Authorization': 'Bearer ' + trimmed,
-                    'Accept': 'application/json'
-                }
-            });
-            if (!resp.ok) {
-                alert('Authentication check failed (' + resp.status + ').');
+
+        let username = getCookie(USERNAME_COOKIE);
+        if (!username) {
+            username = window.prompt('Choose a display name');
+            if (!username || !username.trim()) {
                 return;
             }
-            const data = await resp.json();
-            if (data && data.authenticated === true) {
-                setCookie('immersive_token', trimmed, 365);
-                alert('Token saved');
-                window.location.reload();
-            } else {
-                alert('Token not valid. Not saved.');
-            }
-        } catch (e) {
-            alert('Network error while checking token.');
+            username = username.trim();
+            setCookie(USERNAME_COOKIE, username, 365);
         }
+
+        let token = getCookie(TOKEN_COOKIE);
+        if (!token) {
+            token = createToken();
+            setCookie(TOKEN_COOKIE, token, 365);
+        }
+
+        const state = {
+            username: encodeBase64(username),
+            token: encodeBase64(await hashToken(token)),
+            return_to: window.location.pathname + window.location.search + window.location.hash,
+        };
+        window.location.assign('/v1/login?state=' + encodeURIComponent(encodeBase64(JSON.stringify(state))));
     }
 
     function logout() {
-        eraseCookie('immersive_token');
-        alert('Token cleared');
+        eraseCookie(TOKEN_COOKIE);
+        alert('Signed out');
     }
 
-    // Wrap fetch to add Authorization header if token present, without overriding explicit header
-    const origFetch = window.fetch;
+    const originalFetch = window.fetch;
     window.fetch = function (input, init) {
         init = init || {};
-        const headers = new Headers(init.headers || {});
-        // only set if not already set
-        if (!headers.has('Authorization')) {
-            const t = getCookie('immersive_token');
-            if (t) {
-                headers.set('Authorization', 'Bearer ' + t);
+        const headers = new Headers(
+            init.headers || (input instanceof Request ? input.headers : undefined)
+        );
+        const url = new URL(input instanceof Request ? input.url : input, window.location.href);
+        if (url.origin === window.location.origin && !headers.has('Authorization')) {
+            const token = getCookie(TOKEN_COOKIE);
+            if (token) {
+                headers.set('Authorization', 'Bearer ' + token);
             }
         }
         init.headers = headers;
-        return origFetch(input, init);
+        return originalFetch(input, init);
     };
 
-    // Expose small API and ensure button hookup if present
-    window.ImmersiveAuth = {loginPrompt, logout, getToken: () => getCookie('immersive_token')};
+    window.ImmersiveAuth = {login, logout, getToken: () => getCookie(TOKEN_COOKIE)};
 
-    // Auto-attach to a button with id login-btn if present
     document.addEventListener('DOMContentLoaded', function () {
-        const btn = document.getElementById('login-btn');
+        const button = document.getElementById('login-btn');
+        if (!button) {
+            return;
+        }
 
-        function updateBtn() {
-            if (!btn) return;
-            const has = !!getCookie('immersive_token');
-            const span = btn.querySelector('span');
-            if (span) {
-                span.textContent = has ? 'Log out' : 'Login';
+        function updateButton() {
+            const hasToken = !!getCookie(TOKEN_COOKIE);
+            const label = button.querySelector('span');
+            if (label) {
+                label.textContent = hasToken ? 'Log out' : 'Login';
             }
-            btn.classList.toggle('secondary', has);
-            btn.title = has ? 'Token set' : 'Set immersive token';
+            button.classList.toggle('secondary', hasToken);
+            button.title = hasToken ? 'Sign out' : 'Sign in with Google';
         }
 
-        if (btn) {
-            btn.addEventListener('click', function () {
-                const has = !!getCookie('immersive_token');
-                if (has) {
-                    logout();
-                } else {
-                    loginPrompt();
-                }
-                updateBtn();
-            });
-            updateBtn();
-        }
-        const logoutButton = document.getElementById('logout-btn');
-        if (logoutButton) {
-            logoutButton.addEventListener('click', function () {
+        button.addEventListener('click', function () {
+            if (getCookie(TOKEN_COOKIE)) {
                 logout();
-                updateBtn();
-            });
-        }
+                updateButton();
+            } else {
+                login();
+            }
+        });
+        updateButton();
     });
 })();

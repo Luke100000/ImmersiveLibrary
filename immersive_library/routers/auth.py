@@ -7,7 +7,7 @@ from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from orjson import orjson
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from immersive_library.common import database, templates
 from immersive_library.models import (
@@ -33,11 +33,19 @@ async def auth(
     state: Annotated[Optional[str], Form()] = None,
     username: Optional[str] = Query(None, deprecated=True, include_in_schema=False),
     token: Optional[str] = Query(None, deprecated=True, include_in_schema=False),
-) -> HTMLResponse:
+) -> Response:
+    return_to = None
     if state is not None:
         state_dict = orjson.loads(state)
         token = base64.b64decode(state_dict.get("token")).decode("utf-8")
         username = base64.b64decode(state_dict.get("username")).decode("utf-8")
+        requested_return_to = state_dict.get("return_to")
+        if (
+            isinstance(requested_return_to, str)
+            and requested_return_to.startswith("/")
+            and not requested_return_to.startswith(("//", "/\\"))
+        ):
+            return_to = requested_return_to
 
     if token is None or username is None:
         raise HTTPException(400, "Token or username missing")
@@ -54,6 +62,9 @@ async def auth(
 
         # Update session for user
         await login_user(database, userid, username, token)
+
+        if return_to is not None:
+            return RedirectResponse(return_to, status_code=303)
 
         return templates.TemplateResponse("success.jinja", {"request": request})
     except ValueError:
@@ -72,5 +83,9 @@ async def is_auth(
 async def get_login(request: Request, state: str) -> HTMLResponse:
     return templates.TemplateResponse(
         "login.jinja",
-        {"request": request, "state": json.loads(base64.b64decode(state))},
+        {
+            "request": request,
+            "state": json.loads(base64.b64decode(state)),
+            "client_id": os.getenv("CLIENT_ID"),
+        },
     )
