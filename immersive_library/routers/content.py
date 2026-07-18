@@ -100,12 +100,17 @@ async def list_content_v2(
         description=(
             "Only include content that matches every comma-separated term. Prefix a "
             "term with @ for an exact username, # for an exact tag, or ~ for a "
-            "partial title; unprefixed terms partially match username, title, or tags."
+            "partial title; unprefixed terms partially match username, title, or "
+            "tags. Prefix any term with - to exclude it."
         ),
     ),
     blacklist: Optional[str] = Query(
         None,
-        description="Exclude content that matches any comma separated term in the tags.",
+        deprecated=True,
+        description=(
+            "Deprecated: use -#tag in whitelist instead. "
+            "Each blacklist term is treated as -#tag."
+        ),
     ),
     filter_banned: bool = Query(True, description="Exclude content from banned users."),
     filter_reported: bool = Query(
@@ -201,40 +206,43 @@ async def inner_list_content_v2(
     if filter_reported:
         prompt += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
 
-    # Only allow content that matches every whitelist term.
-    if whitelist:
-        for index, term in enumerate(
-            v.strip() for v in whitelist.split(",") if v.strip()
-        ):
-            parameter = f"whitelist_term_{index}"
-            search_term = term[1:].strip()
+    whitelist_terms = (
+        [v.strip() for v in whitelist.split(",") if v.strip()] if whitelist else []
+    )
 
-            if term.startswith("@"):
-                prompt += f"\n AND username = :{parameter}"
-                values[parameter] = search_term
-            elif term.startswith("#"):
-                prompt += f"""
-                 AND EXISTS (
+    # Treat the deprecated blacklist as exact excluded-tag whitelist terms.
+    if blacklist:
+        whitelist_terms.extend(
+            f"-#{term.strip()}" for term in blacklist.split(",") if term.strip()
+        )
+
+    # Only allow content that matches every whitelist term.
+    for index, term in enumerate(whitelist_terms):
+        parameter = f"whitelist_term_{index}"
+        negated = term.startswith("-")
+        search_term = term[1:].strip() if negated else term
+
+        if search_term.startswith("@"):
+            condition = f"username = :{parameter}"
+            values[parameter] = search_term[1:].strip()
+        elif search_term.startswith("#"):
+            condition = f"""EXISTS (
                     SELECT 1 FROM tags AS whitelist_tags_{index}
                     WHERE whitelist_tags_{index}.contentid = c.oid
                     AND whitelist_tags_{index}.tag = :{parameter}
-                 )
-                """
-                values[parameter] = search_term
-            elif term.startswith("~"):
-                prompt += f"\n AND title LIKE :{parameter}"
-                values[parameter] = f"%{search_term}%"
-            else:
-                prompt += f"\n AND (username LIKE :{parameter} OR title LIKE :{parameter} OR tags LIKE :{parameter})"
-                values[parameter] = f"%{term}%"
+                )"""
+            values[parameter] = search_term[1:].strip()
+        elif search_term.startswith("~"):
+            condition = f"title LIKE :{parameter}"
+            values[parameter] = f"%{search_term[1:].strip()}%"
+        else:
+            condition = (
+                f"(username LIKE :{parameter} OR title LIKE :{parameter} "
+                f"OR tags LIKE :{parameter})"
+            )
+            values[parameter] = f"%{search_term}%"
 
-    # Only if no term matches a tag
-    if blacklist:
-        for index, term in enumerate(
-            list(v.strip() for v in blacklist.split(",") if v.strip)
-        ):
-            prompt += f"\n AND NOT tags LIKE :blacklist_term_{index}"
-            values[f"blacklist_term_{index}"] = f"%{term}%"
+        prompt += f"\n AND {'NOT ' if negated else ''}{condition}"
 
     # Order by
     if order == ContentOrder.RECOMMENDATIONS:
