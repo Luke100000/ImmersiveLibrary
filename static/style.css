@@ -329,6 +329,33 @@ label {
     opacity: .9;
 }
 
+.consent-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .65);
+}
+
+.consent-dialog__content {
+    max-width: 480px;
+    padding: 24px;
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    background: var(--primary-bg);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+}
+
+.consent-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
 /* ========== Footer ========== */
 footer {
     background: rgba(0, 0, 0, 0.3);

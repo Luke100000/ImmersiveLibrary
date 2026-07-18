@@ -1,6 +1,7 @@
 (function () {
     const TOKEN_COOKIE = 'immersive_token';
     const USERNAME_COOKIE = 'immersive_username';
+    const CONSENT_COOKIE = 'immersive_cookie_consent';
 
     function setCookie(name, value, days) {
         let expires = "";
@@ -28,6 +29,36 @@
         setCookie(name, "", -1);
     }
 
+    function requestCookieConsent() {
+        return new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.className = 'consent-dialog';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
+            dialog.innerHTML = `
+                <div class="consent-dialog__content">
+                    <h2>Cookies and sign-in</h2>
+                    <p>We use a necessary cookie to keep you signed in and Google Sign-In to authenticate you.</p>
+                    <p>Read our <a href="/privacy">Privacy Notice</a> before continuing.</p>
+                    <div class="consent-dialog__actions">
+                        <button type="button" class="btn" data-consent="no">Leave</button>
+                        <button type="button" class="btn" data-consent="yes">Accept and continue</button>
+                    </div>
+                </div>
+            `;
+            dialog.querySelector('[data-consent="yes"]').addEventListener('click', () => {
+                setCookie(CONSENT_COOKIE, 'yes', 365);
+                dialog.remove();
+                resolve(true);
+            });
+            dialog.querySelector('[data-consent="no"]').addEventListener('click', () => {
+                dialog.remove();
+                resolve(false);
+            });
+            document.body.appendChild(dialog);
+        });
+    }
+
     function encodeBase64(value) {
         const bytes = new TextEncoder().encode(value);
         return btoa(String.fromCharCode(...bytes));
@@ -47,6 +78,13 @@
         if (!window.isSecureContext || !crypto.subtle) {
             alert('Google sign-in requires a secure connection.');
             return;
+        }
+
+        if (getCookie(CONSENT_COOKIE) !== 'yes') {
+            if (!await requestCookieConsent()) {
+                window.location.replace('/');
+                return;
+            }
         }
 
         let username = getCookie(USERNAME_COOKIE);
