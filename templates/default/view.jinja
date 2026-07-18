@@ -36,7 +36,7 @@
 </div>
 
 <script type="module">
-    embedContent('view-body', '{{ project }}', {{ content.model_dump() | tojson }});
+    embedContent('view-body', {{ project | tojson }}, {{ content.model_dump() | tojson }}, {searchLinks: true});
 </script>
 
 <footer>

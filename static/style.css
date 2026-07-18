@@ -194,6 +194,16 @@ label {
     color: var(--text-muted);
 }
 
+.search-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.search-link:hover {
+    color: var(--accent-blue-hover);
+    text-decoration: underline;
+}
+
 .tag {
     font-size: 13px;
     color: var(--text-secondary);

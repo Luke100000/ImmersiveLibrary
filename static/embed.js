@@ -9,23 +9,44 @@ async function embedContent(containerId, project, content, options = {}) {
     const parentDiv = document.getElementById(containerId);
     parentDiv.innerHTML = `
         <div class="title" id="${containerId}-title">${content.title}</div>
-        <div class="author" id="${containerId}-author">${content.username}</div>
+        <div class="author" id="${containerId}-author"></div>
         <div class="content" id="${containerId}-content"></div>
         <div class="tags-container" id="${containerId}-tags"></div>
     `;
+
+    const author = document.getElementById(`${containerId}-author`);
+    if (options.searchLinks) {
+        author.appendChild(createSearchLink(project, `@${content.username}`, content.username));
+    } else {
+        author.textContent = content.username;
+    }
 
     // Tags
     const tagsContainer = document.getElementById(`${containerId}-tags`);
     if (tagsContainer && content.tags && content.tags.length > 0) {
         content.tags.forEach(tag => {
-            const tagSpan = document.createElement('span');
-            tagSpan.textContent = tag;
-            tagSpan.className = 'tag';
-            tagsContainer.appendChild(tagSpan);
+            const tagElement = options.searchLinks
+                ? createSearchLink(project, `#${tag}`, tag)
+                : document.createElement('span');
+            tagElement.textContent = tag;
+            tagElement.className = options.searchLinks ? 'tag search-link' : 'tag';
+            tagsContainer.appendChild(tagElement);
         });
     }
 
     await embedContentPreview(`${containerId}-content`, project, content, options)
+}
+
+function createSearchLink(project, search, label) {
+    const url = new URL('/', window.location.origin);
+    url.searchParams.set('project', project);
+    url.searchParams.set('search', search);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.className = 'search-link';
+    link.textContent = label;
+    return link;
 }
 
 async function embedContentPreview(containerId, project, content, options = {}) {
