@@ -47,6 +47,17 @@
                 </div>
             </div>
 
+            <div id="track-control" class="control-item" hidden>
+                <label for="track">Track:</label>
+                <div class="select-wrap">
+                    <select id="track">
+                        <option value="all">All content</option>
+                        <option value="submissions">My submissions</option>
+                        <option value="likes">My likes</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="control-item">
                 <label for="sort">Sort by:</label>
                 <div class="select-wrap">
@@ -109,9 +120,13 @@
         </div>
     </div>
 
+    <script src="/static/auth.js"></script>
+
     <!--suppress ES6MissingAwait -->
     <script>
         const projectSelect = document.getElementById('project');
+        const trackControl = document.getElementById('track-control');
+        const trackSelect = document.getElementById('track');
         const sortSelect = document.getElementById('sort');
         const orderSelect = document.getElementById('order');
         const limitSelect = document.getElementById('limit');
@@ -149,15 +164,35 @@
         }
 
         selectUrlValue(projectSelect, 'project');
+        selectUrlValue(trackSelect, 'track');
         selectUrlValue(sortSelect, 'sort');
         selectUrlValue(orderSelect, 'descending');
         selectUrlValue(limitSelect, 'limit');
         searchInput.value = searchFromUrl();
 
+        async function configureTracks() {
+            let authenticated = false;
+            try {
+                const response = await fetch('/v1/auth');
+                authenticated = response.ok && (await response.json()).authenticated === true;
+            } catch (_) {
+                authenticated = false;
+            }
+
+            trackControl.hidden = !authenticated;
+
+            if (!authenticated && trackSelect.value !== 'all') {
+                navigate({track: 'all', page: 1});
+                return false;
+            }
+            return true;
+        }
+
         // Load content
         async function loadContent() {
             const contentGrid = document.getElementById('content-grid');
             const project = selectUrlValue(projectSelect, 'project');
+            const track = selectUrlValue(trackSelect, 'track');
             const sort = selectUrlValue(sortSelect, 'sort');
             const descending = selectUrlValue(orderSelect, 'descending');
             const limit = Number.parseInt(selectUrlValue(limitSelect, 'limit'), 10);
@@ -170,6 +205,7 @@
 
             try {
                 const url = new URL(`/v2/content/${encodeURIComponent(project)}`, window.location.origin);
+                url.searchParams.set('track', track);
                 url.searchParams.set('order', sort);
                 url.searchParams.set('descending', descending);
                 url.searchParams.set('limit', limit);
@@ -268,6 +304,10 @@
             navigate({project: e.target.value, page: 1});
         });
 
+        trackSelect.addEventListener('change', (e) => {
+            navigate({track: e.target.value, page: 1});
+        });
+
         document.getElementById('sort').addEventListener('change', (e) => {
             navigate({sort: e.target.value});
         });
@@ -304,10 +344,13 @@
             };
         }
 
-        // Initial load
-        document.addEventListener('DOMContentLoaded', loadContent);
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (await configureTracks()) {
+                loadContent();
+            }
+        });
+
     </script>
-    <script src="/static/auth.js"></script>
 </div>
 
 <footer>
