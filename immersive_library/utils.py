@@ -17,6 +17,8 @@ from immersive_library.models import (
     User,
 )
 
+MAX_USER_TOKENS = 10
+
 
 async def update_precomputation(database: Database, contentid: Optional[int] = None):
     """
@@ -99,7 +101,7 @@ async def token_to_userid(
     if len(token) == 0:
         return None
     userid = await database.fetch_one(
-        "SELECT oid FROM users WHERE token=:token", {"token": token}
+        "SELECT userid FROM user_tokens WHERE token=:token", {"token": token}
     )
     return None if userid is None else userid[0]
 
@@ -113,17 +115,6 @@ async def exists(database: Database, query: str, params: dict[str, Any]):
     return await get_count(database, query, params) > 0
 
 
-async def account_exists(database: Database, google_userid: str) -> bool:
-    """
-    Checks if the account with the given google userid exists
-    """
-    return await exists(
-        database,
-        "SELECT count(*) FROM users WHERE google_userid=:google_userid",
-        {"google_userid": google_userid},
-    )
-
-
 async def user_exists(database: Database, userid: int) -> bool:
     """
     Checks if the user with the given userid exists
@@ -135,23 +126,49 @@ async def user_exists(database: Database, userid: int) -> bool:
 
 async def login_user(database: Database, google_userid, username, token):
     """
-    Logs in the user, creating an account of necessary and updating username and token
+    Logs in the user, creating an account if necessary and updating username and token
     """
-    # Invalidate the same tokens, the token has to be unique
-    await database.execute(
-        "UPDATE users SET token='' WHERE token=:token",
-        {"token": token},
-    )
-
-    if await account_exists(database, google_userid):
+    async with database.transaction():
+        # Create user
         await database.execute(
-            "UPDATE users SET username=:username, token=:token WHERE google_userid=:google_userid",
-            {"username": username, "token": token, "google_userid": google_userid},
+            """
+            INSERT INTO users (google_userid, username, moderator, banned)
+            VALUES (:google_userid, :username, FALSE, FALSE)
+            ON CONFLICT (google_userid) DO UPDATE SET username=:username
+            """,
+            {"google_userid": google_userid, "username": username},
         )
-    else:
+        user = await database.fetch_one(
+            "SELECT oid FROM users WHERE google_userid=:google_userid",
+            {"google_userid": google_userid},
+        )
+        userid = user["oid"]
+
+        # Invalidate token
         await database.execute(
-            "INSERT INTO users (google_userid, token, username, moderator, banned) VALUES (:google_userid, :token, :username, FALSE, FALSE)",
-            {"google_userid": google_userid, "token": token, "username": username},
+            "DELETE FROM user_tokens WHERE token=:token",
+            {"token": token},
+        )
+
+        # Insert new token
+        await database.execute(
+            "INSERT INTO user_tokens (token, userid) VALUES (:token, :userid)",
+            {"token": token, "userid": userid},
+        )
+
+        # Drop old tokens
+        await database.execute(
+            """
+            DELETE FROM user_tokens
+            WHERE userid=:userid AND oid NOT IN (
+                SELECT oid
+                FROM user_tokens
+                WHERE userid=:userid
+                ORDER BY oid DESC
+                LIMIT :max_tokens
+            )
+            """,
+            {"userid": userid, "max_tokens": MAX_USER_TOKENS},
         )
 
 

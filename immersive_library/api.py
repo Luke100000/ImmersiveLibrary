@@ -146,24 +146,55 @@ async def validation_exception_handler(request: Request, exc: HTTPException):
 
 
 # Create tables
+async def setup_users():
+    async with database.connection() as connection:
+        await connection.execute("BEGIN IMMEDIATE")
+        try:
+            await connection.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    oid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    google_userid CHAR,
+                    username CHAR,
+                    moderator INTEGER,
+                    banned INTEGER
+                )
+            """)
+            await connection.execute("""
+                CREATE TABLE IF NOT EXISTS user_tokens (
+                    oid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    token CHAR NOT NULL UNIQUE,
+                    userid INTEGER NOT NULL
+                )
+            """)
+
+            # Migrate old databases
+            # TODO: Remove after a while
+            columns = await connection.fetch_all("PRAGMA table_info(users)")
+            if any(column["name"] == "token" for column in columns):
+                await connection.execute("""
+                    INSERT OR IGNORE INTO user_tokens (token, userid)
+                    SELECT token, oid
+                    FROM users
+                    WHERE token IS NOT NULL AND token != ''
+                """)
+                await connection.execute("DROP INDEX IF EXISTS users_token")
+                await connection.execute("ALTER TABLE users DROP COLUMN token")
+
+            await connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
+            )
+            await connection.execute(
+                "CREATE INDEX IF NOT EXISTS user_tokens_userid on user_tokens (userid)"
+            )
+        except BaseException:
+            await connection.execute("ROLLBACK")
+            raise
+        else:
+            await connection.execute("COMMIT")
+
+
 async def setup():
-    # Users
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            oid INTEGER PRIMARY KEY AUTOINCREMENT,
-            google_userid CHAR,
-            token CHAR,
-            username CHAR,
-            moderator INTEGER,
-            banned INTEGER
-        )
-    """)
-    await database.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
-    )
-    await database.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS users_token on users (token)"
-    )
+    await setup_users()
 
     # Content
     await database.execute("""

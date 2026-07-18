@@ -1,6 +1,8 @@
 .idea
 .venv
 .env
+__pycache__/
+*.py[cod]
 
 database.db*
 prometheus
@@ -9,3 +11,5 @@ redis_data
 data
 
 node_modules
+
+.*

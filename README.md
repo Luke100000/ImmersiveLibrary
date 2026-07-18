@@ -32,6 +32,7 @@ The state var needs to be a JSON object with the following keys:
 * `username` A username as shown to other users, base64 encoded.
 * `token` A freely chosen token to authenticate with, sha256 hashed, base64 encoded.
     * Use the original token as a Bearer token for all other requests.
+    * There can only be 10 logins, after which the oldest token gets pruned.
 
 ## API
 
