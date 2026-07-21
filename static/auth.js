@@ -1,5 +1,5 @@
 (function () {
-    const TOKEN_COOKIE = 'immersive_token';
+    const LEGACY_TOKEN_COOKIE = 'immersive_token';
     const USERNAME_COOKIE = 'immersive_username';
     const CONSENT_COOKIE = 'immersive_cookie_consent';
 
@@ -28,6 +28,9 @@
     function eraseCookie(name) {
         setCookie(name, "", -1);
     }
+
+    // Remove credentials created by the retired v1 browser authentication flow.
+    eraseCookie(LEGACY_TOKEN_COOKIE);
 
     function requestCookieConsent() {
         return new Promise((resolve) => {
@@ -59,21 +62,6 @@
         });
     }
 
-    function encodeBase64(value) {
-        const bytes = new TextEncoder().encode(value);
-        return btoa(String.fromCharCode(...bytes));
-    }
-
-    function createToken() {
-        const bytes = crypto.getRandomValues(new Uint8Array(32));
-        return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-    }
-
-    async function hashToken(token) {
-        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
-        return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-    }
-
     async function login() {
         if (!window.isSecureContext || !crypto.subtle) {
             alert('Google sign-in requires a secure connection.');
@@ -97,43 +85,33 @@
             setCookie(USERNAME_COOKIE, username, 365);
         }
 
-        let token = getCookie(TOKEN_COOKIE);
-        if (!token) {
-            token = createToken();
-            setCookie(TOKEN_COOKIE, token, 365);
+        const response = await fetch('/v2/auth/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                username,
+                return_to: window.location.pathname + window.location.search + window.location.hash,
+            }),
+        });
+        if (!response.ok) {
+            alert('Unable to start sign-in.');
+            return;
         }
-
-        const state = {
-            username: encodeBase64(username),
-            token: encodeBase64(await hashToken(token)),
-            return_to: window.location.pathname + window.location.search + window.location.hash,
-        };
-        window.location.assign('/v1/login?state=' + encodeURIComponent(encodeBase64(JSON.stringify(state))));
+        const auth = await response.json();
+        window.location.assign(auth.login_url);
     }
 
-    function logout() {
-        eraseCookie(TOKEN_COOKIE);
+    async function logout() {
+        const response = await fetch('/v2/auth/token', {method: 'DELETE'});
+        if (!response.ok) {
+            alert('Unable to sign out. Please try again.');
+            return false;
+        }
         alert('Signed out');
+        return true;
     }
 
-    const originalFetch = window.fetch;
-    window.fetch = function (input, init) {
-        init = init || {};
-        const headers = new Headers(
-            init.headers || (input instanceof Request ? input.headers : undefined)
-        );
-        const url = new URL(input instanceof Request ? input.url : input, window.location.href);
-        if (url.origin === window.location.origin && !headers.has('Authorization')) {
-            const token = getCookie(TOKEN_COOKIE);
-            if (token) {
-                headers.set('Authorization', 'Bearer ' + token);
-            }
-        }
-        init.headers = headers;
-        return originalFetch(input, init);
-    };
-
-    window.ImmersiveAuth = {login, logout, getToken: () => getCookie(TOKEN_COOKIE)};
+    window.ImmersiveAuth = {login, logout};
 
     document.addEventListener('DOMContentLoaded', function () {
         const button = document.getElementById('login-btn');
@@ -141,22 +119,29 @@
             return;
         }
 
-        function updateButton() {
-            const hasToken = !!getCookie(TOKEN_COOKIE);
+        async function updateButton() {
+            let authenticated = false;
+            try {
+                const response = await fetch('/v1/auth');
+                authenticated = response.ok && (await response.json()).authenticated === true;
+            } catch (_) {
+                authenticated = false;
+            }
             const label = button.querySelector('span');
             if (label) {
-                label.textContent = hasToken ? 'Log out' : 'Login';
+                label.textContent = authenticated ? 'Log out' : 'Login';
             }
-            button.classList.toggle('secondary', hasToken);
-            button.title = hasToken ? 'Sign out' : 'Sign in with Google';
+            button.classList.toggle('secondary', authenticated);
+            button.title = authenticated ? 'Sign out' : 'Sign in with Google';
+            button.dataset.authenticated = authenticated ? 'true' : 'false';
         }
 
-        button.addEventListener('click', function () {
-            if (getCookie(TOKEN_COOKIE)) {
-                logout();
-                updateButton();
+        button.addEventListener('click', async function () {
+            if (button.dataset.authenticated === 'true') {
+                await logout();
+                await updateButton();
             } else {
-                login();
+                await login();
             }
         });
         updateButton();

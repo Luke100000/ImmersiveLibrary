@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Any
@@ -30,7 +31,7 @@ from immersive_library.routers import (
 )
 from immersive_library.routers.deprecated import content as deprecated_content
 from immersive_library.routers.deprecated import user as deprecated_user
-from immersive_library.utils import update_precomputation
+from immersive_library.utils import enforce_rate_limit, update_precomputation
 
 description = """
 A simple and generic user asset library.
@@ -62,6 +63,60 @@ tags_metadata = [
         "description": "Administrative tools",
     },
 ]
+
+
+class RequestTooLarge(Exception):
+    pass
+
+
+class RequestSizeLimitMiddleware:
+    def __init__(self, app, max_bytes: int):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        content_length = headers.get(b"content-length")
+        if content_length is not None:
+            try:
+                declared_length = int(content_length)
+            except ValueError:
+                await JSONResponse({"message": "Invalid Content-Length"}, status_code=400)(
+                    scope, receive, send
+                )
+                return
+            if declared_length < 0:
+                await JSONResponse({"message": "Invalid Content-Length"}, status_code=400)(
+                    scope, receive, send
+                )
+                return
+            if declared_length > self.max_bytes:
+                await JSONResponse({"message": "Request body too large"}, status_code=413)(
+                    scope, receive, send
+                )
+                return
+
+        received = 0
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_bytes:
+                    raise RequestTooLarge
+            return message
+
+        try:
+            await self.app(scope, limited_receive, send)
+        except RequestTooLarge:
+            await JSONResponse({"message": "Request body too large"}, status_code=413)(
+                scope, receive, send
+            )
 
 
 class FastAPIJsonCoder(Coder):
@@ -104,7 +159,26 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_bytes=int(os.getenv("MAX_REQUEST_BYTES", str(2 * 1024 * 1024))),
+)
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    if request.method in {"POST", "PUT", "DELETE"}:
+        try:
+            await enforce_rate_limit(request, "write", 300, 60)
+        except HTTPException as exc:
+            return JSONResponse({"message": exc.detail}, status_code=exc.status_code)
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -163,7 +237,34 @@ async def setup_users():
                 CREATE TABLE IF NOT EXISTS user_tokens (
                     oid INTEGER PRIMARY KEY AUTOINCREMENT,
                     token CHAR NOT NULL UNIQUE,
-                    userid INTEGER NOT NULL
+                    userid INTEGER NOT NULL,
+                    created_at INTEGER,
+                    expires_at INTEGER
+                )
+            """)
+            token_columns = await connection.fetch_all("PRAGMA table_info(user_tokens)")
+            token_column_names = {column["name"] for column in token_columns}
+            if "created_at" not in token_column_names:
+                await connection.execute("ALTER TABLE user_tokens ADD COLUMN created_at INTEGER")
+            if "expires_at" not in token_column_names:
+                await connection.execute("ALTER TABLE user_tokens ADD COLUMN expires_at INTEGER")
+            now = int(time.time())
+            legacy_ttl = int(
+                os.getenv("LEGACY_TOKEN_GRACE_SECONDS", str(90 * 24 * 60 * 60))
+            )
+            await connection.execute(
+                "UPDATE user_tokens SET created_at=COALESCE(created_at, :now), expires_at=COALESCE(expires_at, :expires_at)",
+                {"now": now, "expires_at": now + legacy_ttl},
+            )
+            await connection.execute("""
+                CREATE TABLE IF NOT EXISTS auth_requests (
+                    request_id TEXT PRIMARY KEY,
+                    token_hash TEXT,
+                    username TEXT NOT NULL,
+                    return_to TEXT,
+                    verification_code TEXT NOT NULL,
+                    browser_nonce_hash TEXT,
+                    expires_at INTEGER NOT NULL
                 )
             """)
 
@@ -171,12 +272,16 @@ async def setup_users():
             # TODO: Remove after a while
             columns = await connection.fetch_all("PRAGMA table_info(users)")
             if any(column["name"] == "token" for column in columns):
-                await connection.execute("""
-                    INSERT OR IGNORE INTO user_tokens (token, userid)
-                    SELECT token, oid
+                await connection.execute(
+                    """
+                    INSERT OR IGNORE INTO user_tokens
+                        (token, userid, created_at, expires_at)
+                    SELECT token, oid, :now, :expires_at
                     FROM users
                     WHERE token IS NOT NULL AND token != ''
-                """)
+                    """,
+                    {"now": now, "expires_at": now + legacy_ttl},
+                )
                 await connection.execute("DROP INDEX IF EXISTS users_token")
                 await connection.execute("ALTER TABLE users DROP COLUMN token")
 
@@ -185,6 +290,12 @@ async def setup_users():
             )
             await connection.execute(
                 "CREATE INDEX IF NOT EXISTS user_tokens_userid on user_tokens (userid)"
+            )
+            await connection.execute(
+                "CREATE INDEX IF NOT EXISTS user_tokens_expires_at on user_tokens (expires_at)"
+            )
+            await connection.execute(
+                "CREATE INDEX IF NOT EXISTS auth_requests_expires_at on auth_requests (expires_at)"
             )
         except BaseException:
             await connection.execute("ROLLBACK")
@@ -226,6 +337,16 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
     )
+    await database.execute("DELETE FROM reports WHERE contentid NOT IN (SELECT oid FROM content)")
+    await database.execute("""
+        DELETE FROM reports
+        WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM reports GROUP BY userid, contentid, reason
+        )
+    """)
+    await database.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS reports_user_content_reason on reports (userid, contentid, reason)"
+    )
 
     # Likes
     await database.execute(
@@ -235,6 +356,16 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
     )
+    await database.execute("DELETE FROM likes WHERE contentid NOT IN (SELECT oid FROM content)")
+    await database.execute("""
+        DELETE FROM likes
+        WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM likes GROUP BY userid, contentid
+        )
+    """)
+    await database.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS likes_userid_contentid on likes (userid, contentid)"
+    )
 
     # Tags
     await database.execute(
@@ -242,6 +373,16 @@ async def setup():
     )
     await database.execute(
         "CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)"
+    )
+    await database.execute("DELETE FROM tags WHERE contentid NOT IN (SELECT oid FROM content)")
+    await database.execute("""
+        DELETE FROM tags
+        WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM tags GROUP BY contentid, tag
+        )
+    """)
+    await database.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS tags_contentid_tag on tags (contentid, tag)"
     )
 
     # Precomputation

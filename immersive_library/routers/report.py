@@ -6,6 +6,7 @@ from immersive_library.models import (
     PlainSuccess,
 )
 from immersive_library.utils import (
+    content_exists,
     has_reported,
     logged_in_guard,
     update_precomputation,
@@ -21,6 +22,8 @@ router = APIRouter(tags=["Users"])
 async def add_report(
     project: str, contentid: int, reason: str, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
+    if not await content_exists(database, project, contentid):
+        raise HTTPException(404, "Content not found")
     await get_project(project).validate(
         "pre_report", database, userid, contentid, reason
     )
@@ -29,7 +32,7 @@ async def add_report(
         raise HTTPException(428, "Already reported")
 
     await database.execute(
-        "INSERT INTO reports (userid, contentid, reason) VALUES(:userid, :contentid, :reason)",
+        "INSERT OR IGNORE INTO reports (userid, contentid, reason) VALUES(:userid, :contentid, :reason)",
         {"userid": userid, "contentid": contentid, "reason": reason},
     )
 
@@ -51,7 +54,8 @@ async def delete_report(
     reason: str,
     userid: int = Depends(logged_in_guard),
 ) -> PlainSuccess:
-    assert project
+    if not await content_exists(database, project, contentid):
+        raise HTTPException(404, "Content not found")
 
     if not await has_reported(database, userid, contentid, reason):
         raise HTTPException(428, "Not liked previously")

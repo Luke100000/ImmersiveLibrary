@@ -1,5 +1,6 @@
 import asyncio
 import os
+from urllib.parse import urlparse
 
 from playwright.async_api import ViewportSize, async_playwright
 
@@ -28,6 +29,21 @@ async def render_headless_png(
                 viewport=ViewportSize(width=width, height=height),
                 device_scale_factor=1,
             )
+            allowed = urlparse(url)
+
+            async def restrict_network(route):
+                target = urlparse(route.request.url)
+                same_origin = (
+                    target.scheme == allowed.scheme
+                    and target.hostname == allowed.hostname
+                    and target.port == allowed.port
+                )
+                if same_origin or target.scheme in {"data", "blob"}:
+                    await route.continue_()
+                else:
+                    await route.abort()
+
+            await page.route("**/*", restrict_network)
             try:
                 await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
                 await page.wait_for_function(

@@ -1,9 +1,11 @@
+import os
 import time
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Union
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request
 from fastapi_cache.decorator import cache
 from starlette.responses import Response
 
@@ -20,10 +22,13 @@ from immersive_library.models import (
 )
 from immersive_library.rendering import render_headless_png
 from immersive_library.utils import (
+    SESSION_COOKIE,
+    enforce_rate_limit,
     exists,
     fetch_content,
     get_base_select,
     get_lite_content_class,
+    is_moderator,
     logged_in_guard,
     owner_guard,
     set_tags,
@@ -88,11 +93,10 @@ async def list_projects() -> ProjectListSuccess:
     response_model_exclude_none=True,
     response_model=ContentListSuccess,
 )
-@cache(expire=60)
 async def list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
-    userid: Optional[None] = Query(
+    userid: Optional[int] = Query(
         None, description="Only include a given users submissions."
     ),
     whitelist: Optional[str] = Query(
@@ -131,9 +135,10 @@ async def list_content_v2(
         False,
         description="Parse the meta field and return it as a dict rather than a JSON encoded string.",
     ),
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None, alias=SESSION_COOKIE),
 ) -> ContentListSuccess:
+    viewer_userid = await token_to_userid(database, authorization, session_token)
     return await inner_list_content_v2(
         project,
         track,
@@ -148,8 +153,78 @@ async def list_content_v2(
         descending,
         include_meta,
         parse_meta,
-        token,
-        authorization,
+        viewer_userid,
+        False,
+    )
+
+
+@router.get(
+    "/v3/content/{project}",
+    response_model_exclude_none=True,
+    response_model=ContentListSuccess,
+)
+async def list_content_v3(
+    project: str,
+    track: TrackEnum = TrackEnum.ALL,
+    userid: Optional[int] = Query(
+        None, description="Only include a given users submissions."
+    ),
+    whitelist: Optional[str] = Query(
+        None,
+        description=(
+            "Only include content that matches every comma-separated term. Prefix a "
+            "term with @ for an exact username, # for an exact tag, or ~ for a "
+            "partial title; unprefixed terms partially match username, title, or "
+            "tags. Prefix any term with - to exclude it."
+        ),
+    ),
+    blacklist: Optional[str] = Query(
+        None,
+        deprecated=True,
+        description=(
+            "Deprecated: use -#tag in whitelist instead. "
+            "Each blacklist term is treated as -#tag."
+        ),
+    ),
+    filter_banned: bool = Query(True, description="Exclude content from banned users."),
+    filter_reported: bool = Query(
+        True, description="Exclude content which has been reported by several users."
+    ),
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching content from."
+    ),
+    limit: int = Query(
+        10, ge=1, le=500, description="The maximum amount of content to fetch."
+    ),
+    order: ContentOrder = ContentOrder.DATE,
+    descending: bool = False,
+    include_meta: bool = Query(
+        False, description="Include the meta field in the response."
+    ),
+    parse_meta: bool = Query(
+        False,
+        description="Parse the meta field and return it as a dict rather than a JSON encoded string.",
+    ),
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None, alias=SESSION_COOKIE),
+) -> ContentListSuccess:
+    viewer_userid = await token_to_userid(database, authorization, session_token)
+    return await inner_list_content_v2(
+        project,
+        track,
+        userid,
+        whitelist,
+        blacklist,
+        filter_banned,
+        filter_reported,
+        offset,
+        limit,
+        order,
+        descending,
+        include_meta,
+        parse_meta,
+        viewer_userid,
+        True,
     )
 
 
@@ -167,36 +242,47 @@ async def inner_list_content_v2(
     descending: bool = False,
     include_meta: bool = False,
     parse_meta: bool = False,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    viewer_userid: Optional[int] = None,
+    include_liked: bool = False,
 ) -> ContentListSuccess:
-    # Use me user if none is provided
-    userid = userid or await token_to_userid(database, token, authorization)
+    target_userid = userid if userid is not None else viewer_userid
+    viewer_is_moderator = (
+        viewer_userid is not None and await is_moderator(database, viewer_userid)
+    )
+    if not viewer_is_moderator:
+        filter_banned = True
+        filter_reported = True
 
-    prompt = get_base_select(False, include_meta)
-    values: dict[str, Union[str, int]] = {"project": project}
+    prompt = get_base_select(False, include_meta, include_liked)
+    values: dict[str, Union[str, int]] = {
+        "project": project,
+        "viewer_userid": -1 if viewer_userid is None else viewer_userid,
+    }
 
     # Filter for a specific track
     if track == TrackEnum.ALL:
         prompt += "\n WHERE c.project = :project"
     elif track == TrackEnum.LIKES:
+        if target_userid is None:
+            raise HTTPException(401, "Authentication required")
         prompt += "\n INNER JOIN likes on likes.contentid=c.oid"
-        prompt += "\n WHERE c.project=:project AND likes.userid=:userid"
-        values["userid"] = userid
+        prompt += "\n WHERE c.project=:project AND likes.userid=:target_userid"
+        values["target_userid"] = target_userid
     elif track == TrackEnum.SUBMISSIONS:
-        prompt += "\n WHERE c.project=:project AND c.userid=:userid"
-        values["userid"] = userid
+        if target_userid is None:
+            raise HTTPException(401, "Authentication required")
+        prompt += "\n WHERE c.project=:project AND c.userid=:target_userid"
+        values["target_userid"] = target_userid
     else:
         raise HTTPException(400, "Invalid track")
 
-    # Hide personally banned content
-    if token is not None and userid is not None:
+    # Hide content personally reported by the authenticated viewer.
+    if viewer_userid is not None:
         prompt += """
          AND NOT EXISTS (SELECT *
                     FROM reports
-                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :userid)
+                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :viewer_userid)
         """
-        values["userid"] = userid
 
     # Remove content from banned users
     if filter_banned:
@@ -250,7 +336,9 @@ async def inner_list_content_v2(
             "\n ORDER BY (likes + :like_norm) * ABS(((:seed + c.oid) * 1103515245 + 12345) - 2147483648 * CAST(((:seed + c.oid) * 1103515245 + 12345) / 2147483648 AS INTEGER)) / 2147483647.0 "
             + ("DESC" if descending else "ASC")
         )
-        values["seed"] = (0 if userid is None else userid) + int(time.time() / 86400)
+        values["seed"] = (
+            0 if viewer_userid is None else viewer_userid
+        ) + int(time.time() / 86400)
         values["like_norm"] = 100
     else:
         prompt += (
@@ -267,21 +355,27 @@ async def inner_list_content_v2(
     content = await database.fetch_all(prompt, values)
 
     # Convert to content accessors, which are more lightweight than the actual content instances
-    contents = [get_lite_content_class(c, include_meta, parse_meta) for c in content]
+    contents = [
+        get_lite_content_class(c, include_meta, parse_meta, include_liked)
+        for c in content
+    ]
 
     return ContentListSuccess(contents=contents)
 
 
 @router.get("/v1/content/{project}/{contentid}", response_model=ContentSuccess)
-@cache(expire=60)
 async def get_content(
-    project: str, contentid: int, parse_meta: bool = False, version: int = 0
+    project: str,
+    contentid: int,
+    parse_meta: bool = False,
+    version: int = 0,
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None, alias=SESSION_COOKIE),
 ) -> ContentSuccess:
-    assert project
     assert version is not None
-
-    content = await fetch_content(contentid, parse_meta)
-
+    viewer_userid = await token_to_userid(database, authorization, session_token)
+    include_hidden = viewer_userid is not None and await is_moderator(database, viewer_userid)
+    content = await fetch_content(contentid, parse_meta, project, include_hidden)
     return ContentSuccess(content=content)
 
 
@@ -364,10 +458,16 @@ async def delete_content(
     assert project
     assert userid
 
-    await database.execute(
-        "DELETE FROM content WHERE oid=:contentid",
-        {"contentid": contentid},
-    )
+    async with database.transaction():
+        for table in ("likes", "reports", "tags", "precomputation"):
+            await database.execute(
+                f"DELETE FROM {table} WHERE contentid=:contentid",
+                {"contentid": contentid},
+            )
+        await database.execute(
+            "DELETE FROM content WHERE oid=:contentid AND project=:project",
+            {"contentid": contentid, "project": project},
+        )
 
     return PlainSuccess()
 
@@ -382,8 +482,17 @@ async def render_content_png(
     if project not in projects:
         raise HTTPException(404, "Project not found")
 
+    await enforce_rate_limit(request, "render", 30, 60)
     record = await database.fetch_one(
-        "SELECT version FROM content WHERE oid=:contentid AND project=:project",
+        """
+        SELECT c.version
+        FROM content c
+        INNER JOIN users ON users.oid = c.userid
+        INNER JOIN precomputation ON precomputation.contentid = c.oid
+        WHERE c.oid=:contentid AND c.project=:project
+          AND NOT users.banned
+          AND 1.0 + precomputation.likes / 10.0 - precomputation.reports >= 0.0
+        """,
         {"contentid": contentid, "project": project},
     )
     if record is None:
@@ -403,15 +512,16 @@ async def render_content_png(
             headers=cache_headers,
         )
 
-    render_url = request.url_for(
-        "get_render_view", project=project, contentid=contentid
+    render_base_url = os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    render_url = (
+        f"{render_base_url}/render/{quote(project, safe='')}/{contentid}"
+        f"?width={width}&height={height}"
     )
-    render_url = str(render_url.include_query_params(width=width, height=height))
 
     try:
         png_bytes = await render_headless_png(render_url, width=width, height=height)
     except Exception as exc:
-        raise HTTPException(500, f"Render failed: {exc}") from exc
+        raise HTTPException(500, "Render failed") from exc
 
     tmp_path = cache_path.with_suffix(".tmp")
     tmp_path.write_bytes(png_bytes)

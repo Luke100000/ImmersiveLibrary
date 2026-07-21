@@ -76,7 +76,7 @@ async def get_content_front(request: Request, project: str, contentid: int):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    content = await fetch_content(contentid)
+    content = await fetch_content(contentid, project=project)
 
     return templates.TemplateResponse(
         get_template(project, "view"),
@@ -95,7 +95,7 @@ async def get_render_view(
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    content = await fetch_content(contentid)
+    content = await fetch_content(contentid, project=project)
 
     return templates.TemplateResponse(
         get_template(project, "render"),
