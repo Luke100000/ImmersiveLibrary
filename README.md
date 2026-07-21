@@ -26,7 +26,7 @@ docker compose up
 Authentication starts with `POST /v2/auth/start`.
 
 * Browser clients omit `token_hash`. The server creates an HttpOnly session cookie after Google Sign-In.
-* Native clients generate a private access token, send only its SHA-256 hash as `token_hash`, and show the returned verification code to the user. The login page requires that code before Google Sign-In can bind the token to the account.
+* Native clients generate a private access token, send only its SHA-256 hash as `token_hash`, and open the returned login URL. The server automatically claims the included verification code, while the login page displays it as visual confirmation.
 * Native clients use the original private token in the `Authorization: Bearer <token>` header.
 * `DELETE /v2/auth/token` revokes the current browser session or bearer token.
 * New access tokens expire. The default lifetime is 30 days and can be configured with `AUTH_TOKEN_TTL_SECONDS`.

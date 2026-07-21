@@ -13,12 +13,7 @@ from google.oauth2 import id_token
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from immersive_library.common import database, templates
-from immersive_library.models import (
-    AuthStartRequest,
-    AuthStartSuccess,
-    Error,
-    IsAuthResponse,
-)
+from immersive_library.models import AuthStartRequest, AuthStartSuccess, IsAuthResponse
 from immersive_library.utils import (
     SESSION_COOKIE,
     enforce_rate_limit,
@@ -92,14 +87,13 @@ def _decode_state(state: str) -> tuple[str, str]:
         raise HTTPException(400, "Invalid authentication state") from exc
 
 
-def _decode_legacy_state(state: str) -> tuple[str, str, Optional[str]]:
+def _decode_legacy_state(state: str) -> tuple[str, str]:
     try:
-        # Older MCA clients append standard Base64 directly to the query string.
+        # MCA 1.20.1/1.21.1 append standard Base64 directly to the query string.
         # Some URL decoders translate '+' into spaces, so normalize it back first.
         payload = orjson.loads(base64.b64decode(state.replace(" ", "+")))
         token_hash = base64.b64decode(payload["token"]).decode("utf-8").lower()
         username = base64.b64decode(payload["username"]).decode("utf-8")
-        requested_return_to = payload.get("return_to")
     except Exception as exc:
         raise HTTPException(400, "Invalid legacy authentication state") from exc
 
@@ -108,14 +102,7 @@ def _decode_legacy_state(state: str) -> tuple[str, str, Optional[str]]:
     if not username:
         raise HTTPException(400, "Username missing")
 
-    return_to = None
-    if (
-        isinstance(requested_return_to, str)
-        and requested_return_to.startswith("/")
-        and not requested_return_to.startswith(("//", "/\\"))
-    ):
-        return_to = requested_return_to
-    return token_hash, username, return_to
+    return token_hash, username
 
 
 async def _pending_request(request_id: str):
@@ -239,7 +226,7 @@ async def start_auth(
 
     # Browser-originated requests have no client token hash. This HttpOnly cookie
     # lets the same browser continue without manually entering the device code.
-    if auth_request.token_hash is None:
+    if token_hash is None:
         response.set_cookie(
             AUTH_REQUEST_COOKIE,
             request_id,
@@ -253,7 +240,7 @@ async def start_auth(
     return AuthStartSuccess(
         login_url=(
             "/v2/login"
-            if auth_request.token_hash is None
+            if token_hash is None
             else f"/v2/login?code={code}"
         ),
         verification_code=code,
@@ -303,27 +290,6 @@ async def get_login_v2(
         ):
             raise HTTPException(401, "Authentication browser does not match")
     return await _render_google_login(request, pending, browser_cookie)
-
-
-@router.post("/v2/login/verify", response_class=HTMLResponse)
-async def verify_login_v2(
-    request: Request,
-    request_id: Annotated[str, Form()],
-    code: Annotated[str, Form()],
-) -> Response:
-    await enforce_rate_limit(request, "auth-verify", 30, 600)
-    pending = await _pending_request(request_id)
-    if not secrets.compare_digest(code.strip().upper(), pending["verification_code"]):
-        return templates.TemplateResponse(
-            "verify_login.jinja",
-            {
-                "request": request,
-                "request_id": request_id,
-                "error": "Verification code is incorrect.",
-            },
-            status_code=400,
-        )
-    return await _render_google_login(request, pending)
 
 
 @router.post("/v2/auth/complete", name="complete_auth_v2")
@@ -410,13 +376,7 @@ async def logout(
     return {}
 
 
-# TODO: Remove once no supported clients or external integrations reference POST /v1/auth.
-@router.post("/v1/auth", include_in_schema=False)
-async def legacy_auth_disabled() -> Response:
-    raise HTTPException(410, "Legacy authentication has been disabled; use /v2/auth/start")
-
-
-# TODO: Remove once supported MCA releases no longer use /v1/login.
+# TODO: Remove when MCA 1.20.1 and 1.21.1 legacy login support is dropped.
 @router.get(
     "/v1/login",
     response_class=HTMLResponse,
@@ -426,9 +386,9 @@ async def legacy_auth_disabled() -> Response:
 async def get_login_v1(request: Request, state: str) -> Response:
     """Bridge older MCA clients onto the hardened v2 completion flow."""
     await enforce_rate_limit(request, "auth-legacy-login", 20, 600)
-    token_hash, username, return_to = _decode_legacy_state(state)
+    token_hash, username = _decode_legacy_state(state)
 
-    request_id, _ = await _create_auth_request(token_hash, username, return_to)
+    request_id, _ = await _create_auth_request(token_hash, username, None)
     pending = await _pending_request(request_id)
     return await _render_google_login(
         request, pending, show_verification_code=False
