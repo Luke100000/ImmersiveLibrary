@@ -249,6 +249,7 @@ async def setup_users():
             if "expires_at" not in token_column_names:
                 await connection.execute("ALTER TABLE user_tokens ADD COLUMN expires_at INTEGER")
             now = int(time.time())
+            # TODO: Remove after the legacy-token migration/grace window is no longer needed.
             legacy_ttl = int(
                 os.getenv("LEGACY_TOKEN_GRACE_SECONDS", str(90 * 24 * 60 * 60))
             )
@@ -268,8 +269,7 @@ async def setup_users():
                 )
             """)
 
-            # Migrate old databases
-            # TODO: Remove after a while
+            # TODO: Remove once all production databases have migrated away from users.token.
             columns = await connection.fetch_all("PRAGMA table_info(users)")
             if any(column["name"] == "token" for column in columns):
                 await connection.execute(
@@ -302,6 +302,26 @@ async def setup_users():
             raise
         else:
             await connection.execute("COMMIT")
+
+
+# TODO: Remove this helper and its calls once all deployed databases have completed this cleanup migration.
+async def _cleanup_relation_table(
+    table: str, group_by: str, unique_index: str
+) -> None:
+    await database.execute(
+        f"DELETE FROM {table} WHERE contentid NOT IN (SELECT oid FROM content)"
+    )
+    await database.execute(
+        f"""
+        DELETE FROM {table}
+        WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM {table} GROUP BY {group_by}
+        )
+        """
+    )
+    await database.execute(
+        f"CREATE UNIQUE INDEX IF NOT EXISTS {unique_index} on {table} ({group_by})"
+    )
 
 
 async def setup():
@@ -337,15 +357,8 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
     )
-    await database.execute("DELETE FROM reports WHERE contentid NOT IN (SELECT oid FROM content)")
-    await database.execute("""
-        DELETE FROM reports
-        WHERE rowid NOT IN (
-            SELECT MIN(rowid) FROM reports GROUP BY userid, contentid, reason
-        )
-    """)
-    await database.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS reports_user_content_reason on reports (userid, contentid, reason)"
+    await _cleanup_relation_table(
+        "reports", "userid, contentid, reason", "reports_user_content_reason"
     )
 
     # Likes
@@ -356,15 +369,8 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
     )
-    await database.execute("DELETE FROM likes WHERE contentid NOT IN (SELECT oid FROM content)")
-    await database.execute("""
-        DELETE FROM likes
-        WHERE rowid NOT IN (
-            SELECT MIN(rowid) FROM likes GROUP BY userid, contentid
-        )
-    """)
-    await database.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS likes_userid_contentid on likes (userid, contentid)"
+    await _cleanup_relation_table(
+        "likes", "userid, contentid", "likes_userid_contentid"
     )
 
     # Tags
@@ -374,15 +380,8 @@ async def setup():
     await database.execute(
         "CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)"
     )
-    await database.execute("DELETE FROM tags WHERE contentid NOT IN (SELECT oid FROM content)")
-    await database.execute("""
-        DELETE FROM tags
-        WHERE rowid NOT IN (
-            SELECT MIN(rowid) FROM tags GROUP BY contentid, tag
-        )
-    """)
-    await database.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS tags_contentid_tag on tags (contentid, tag)"
+    await _cleanup_relation_table(
+        "tags", "contentid, tag", "tags_contentid_tag"
     )
 
     # Precomputation

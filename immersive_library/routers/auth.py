@@ -13,7 +13,12 @@ from google.oauth2 import id_token
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from immersive_library.common import database, templates
-from immersive_library.models import AuthStartRequest, AuthStartSuccess, Error, IsAuthResponse
+from immersive_library.models import (
+    AuthStartRequest,
+    AuthStartSuccess,
+    Error,
+    IsAuthResponse,
+)
 from immersive_library.utils import (
     SESSION_COOKIE,
     enforce_rate_limit,
@@ -44,6 +49,35 @@ def _secure_cookies(request: Request) -> bool:
 def _verification_code() -> str:
     raw = "".join(secrets.choice(CODE_ALPHABET) for _ in range(8))
     return raw[:4] + "-" + raw[4:]
+
+
+async def _create_auth_request(
+    token_hash: Optional[str], username: str, return_to: Optional[str]
+) -> tuple[str, str]:
+    now = int(time.time())
+    await database.execute(
+        "DELETE FROM auth_requests WHERE expires_at <= :now", {"now": now}
+    )
+
+    request_id = secrets.token_urlsafe(32)
+    verification_code = _verification_code()
+    await database.execute(
+        """
+        INSERT INTO auth_requests
+            (request_id, token_hash, username, return_to, verification_code, browser_nonce_hash, expires_at)
+        VALUES
+            (:request_id, :token_hash, :username, :return_to, :verification_code, NULL, :expires_at)
+        """,
+        {
+            "request_id": request_id,
+            "token_hash": token_hash,
+            "username": username,
+            "return_to": return_to,
+            "verification_code": verification_code,
+            "expires_at": now + AUTH_REQUEST_TTL_SECONDS,
+        },
+    )
+    return request_id, verification_code
 
 
 def _state_payload(request_id: str, browser_nonce: str) -> dict[str, str]:
@@ -180,13 +214,14 @@ async def _render_google_login(
             "has_cookie_consent": request.cookies.get("immersive_cookie_consent") == "yes",
         },
     )
+    secure_cookies = _secure_cookies(request)
     response.set_cookie(
         AUTH_BROWSER_COOKIE,
         browser_nonce,
         max_age=AUTH_REQUEST_TTL_SECONDS,
         httponly=True,
-        secure=_secure_cookies(request),
-        samesite="none" if _secure_cookies(request) else "lax",
+        secure=secure_cookies,
+        samesite="none" if secure_cookies else "lax",
         path="/",
     )
     return response
@@ -197,26 +232,9 @@ async def start_auth(
     request: Request, response: Response, auth_request: AuthStartRequest
 ) -> AuthStartSuccess:
     await enforce_rate_limit(request, "auth-start", 20, 600)
-    now = int(time.time())
-    await database.execute("DELETE FROM auth_requests WHERE expires_at <= :now", {"now": now})
-
-    request_id = secrets.token_urlsafe(32)
-    code = _verification_code()
-    await database.execute(
-        """
-        INSERT INTO auth_requests
-            (request_id, token_hash, username, return_to, verification_code, browser_nonce_hash, expires_at)
-        VALUES
-            (:request_id, :token_hash, :username, :return_to, :verification_code, NULL, :expires_at)
-        """,
-        {
-            "request_id": request_id,
-            "token_hash": auth_request.token_hash.lower() if auth_request.token_hash else None,
-            "username": auth_request.username,
-            "return_to": auth_request.return_to,
-            "verification_code": code,
-            "expires_at": now + AUTH_REQUEST_TTL_SECONDS,
-        },
+    token_hash = auth_request.token_hash.lower() if auth_request.token_hash else None
+    request_id, code = await _create_auth_request(
+        token_hash, auth_request.username, auth_request.return_to
     )
 
     # Browser-originated requests have no client token hash. This HttpOnly cookie
@@ -254,12 +272,13 @@ async def get_login_v2(
         await enforce_rate_limit(request, "auth-code", 30, 600)
         pending, browser_nonce = await _claim_pending_request_by_code(code, browser_cookie)
         response = RedirectResponse("/v2/login", status_code=303)
+        secure_cookies = _secure_cookies(request)
         response.set_cookie(
             AUTH_REQUEST_COOKIE,
             pending["request_id"],
             max_age=AUTH_REQUEST_TTL_SECONDS,
             httponly=True,
-            secure=_secure_cookies(request),
+            secure=secure_cookies,
             samesite="lax",
             path="/",
         )
@@ -268,8 +287,8 @@ async def get_login_v2(
             browser_nonce,
             max_age=AUTH_REQUEST_TTL_SECONDS,
             httponly=True,
-            secure=_secure_cookies(request),
-            samesite="none" if _secure_cookies(request) else "lax",
+            secure=secure_cookies,
+            samesite="none" if secure_cookies else "lax",
             path="/",
         )
         return response
@@ -297,7 +316,11 @@ async def verify_login_v2(
     if not secrets.compare_digest(code.strip().upper(), pending["verification_code"]):
         return templates.TemplateResponse(
             "verify_login.jinja",
-            {"request": request, "request_id": request_id, "error": "Verification code is incorrect."},
+            {
+                "request": request,
+                "request_id": request_id,
+                "error": "Verification code is incorrect.",
+            },
             status_code=400,
         )
     return await _render_google_login(request, pending)
@@ -317,7 +340,8 @@ async def complete_auth_v2(
         pending["browser_nonce_hash"] or "", sha256(browser_nonce)
     ):
         raise HTTPException(401, "Authentication state does not match")
-    if _secure_cookies(request) and not secrets.compare_digest(
+    secure_cookies = _secure_cookies(request)
+    if secure_cookies and not secrets.compare_digest(
         browser_cookie or "", browser_nonce
     ):
         raise HTTPException(401, "Authentication browser does not match")
@@ -357,7 +381,7 @@ async def complete_auth_v2(
             raw_session_token,
             max_age=int(os.getenv("AUTH_TOKEN_TTL_SECONDS", str(30 * 24 * 60 * 60))),
             httponly=True,
-            secure=_secure_cookies(request),
+            secure=secure_cookies,
             samesite="lax",
             path="/",
         )
@@ -386,39 +410,25 @@ async def logout(
     return {}
 
 
+# TODO: Remove once no supported clients or external integrations reference POST /v1/auth.
 @router.post("/v1/auth", include_in_schema=False)
 async def legacy_auth_disabled() -> Response:
     raise HTTPException(410, "Legacy authentication has been disabled; use /v2/auth/start")
 
 
+# TODO: Remove once supported MCA releases no longer use /v1/login.
 @router.get(
-    "/v1/login", response_class=HTMLResponse, deprecated=True, summary="Login (legacy compatibility)"
+    "/v1/login",
+    response_class=HTMLResponse,
+    deprecated=True,
+    summary="Login (legacy compatibility)",
 )
 async def get_login_v1(request: Request, state: str) -> Response:
     """Bridge older MCA clients onto the hardened v2 completion flow."""
     await enforce_rate_limit(request, "auth-legacy-login", 20, 600)
     token_hash, username, return_to = _decode_legacy_state(state)
 
-    now = int(time.time())
-    await database.execute("DELETE FROM auth_requests WHERE expires_at <= :now", {"now": now})
-    request_id = secrets.token_urlsafe(32)
-    await database.execute(
-        """
-        INSERT INTO auth_requests
-            (request_id, token_hash, username, return_to, verification_code, browser_nonce_hash, expires_at)
-        VALUES
-            (:request_id, :token_hash, :username, :return_to, :verification_code, NULL, :expires_at)
-        """,
-        {
-            "request_id": request_id,
-            "token_hash": token_hash,
-            "username": username,
-            "return_to": return_to,
-            "verification_code": _verification_code(),
-            "expires_at": now + AUTH_REQUEST_TTL_SECONDS,
-        },
-    )
-
+    request_id, _ = await _create_auth_request(token_hash, username, return_to)
     pending = await _pending_request(request_id)
     return await _render_google_login(
         request, pending, show_verification_code=False
