@@ -1,6 +1,5 @@
 import asyncio
 import os
-import time
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Any
@@ -237,26 +236,9 @@ async def setup_users():
                 CREATE TABLE IF NOT EXISTS user_tokens (
                     oid INTEGER PRIMARY KEY AUTOINCREMENT,
                     token CHAR NOT NULL UNIQUE,
-                    userid INTEGER NOT NULL,
-                    created_at INTEGER,
-                    expires_at INTEGER
+                    userid INTEGER NOT NULL
                 )
             """)
-            token_columns = await connection.fetch_all("PRAGMA table_info(user_tokens)")
-            token_column_names = {column["name"] for column in token_columns}
-            if "created_at" not in token_column_names:
-                await connection.execute("ALTER TABLE user_tokens ADD COLUMN created_at INTEGER")
-            if "expires_at" not in token_column_names:
-                await connection.execute("ALTER TABLE user_tokens ADD COLUMN expires_at INTEGER")
-            now = int(time.time())
-            # TODO: Remove after the legacy-token migration/grace window is no longer needed.
-            legacy_ttl = int(
-                os.getenv("LEGACY_TOKEN_GRACE_SECONDS", str(90 * 24 * 60 * 60))
-            )
-            await connection.execute(
-                "UPDATE user_tokens SET created_at=COALESCE(created_at, :now), expires_at=COALESCE(expires_at, :expires_at)",
-                {"now": now, "expires_at": now + legacy_ttl},
-            )
             await connection.execute("""
                 CREATE TABLE IF NOT EXISTS auth_requests (
                     request_id TEXT PRIMARY KEY,
@@ -274,13 +256,11 @@ async def setup_users():
             if any(column["name"] == "token" for column in columns):
                 await connection.execute(
                     """
-                    INSERT OR IGNORE INTO user_tokens
-                        (token, userid, created_at, expires_at)
-                    SELECT token, oid, :now, :expires_at
+                    INSERT OR IGNORE INTO user_tokens (token, userid)
+                    SELECT token, oid
                     FROM users
                     WHERE token IS NOT NULL AND token != ''
                     """,
-                    {"now": now, "expires_at": now + legacy_ttl},
                 )
                 await connection.execute("DROP INDEX IF EXISTS users_token")
                 await connection.execute("ALTER TABLE users DROP COLUMN token")
@@ -290,9 +270,6 @@ async def setup_users():
             )
             await connection.execute(
                 "CREATE INDEX IF NOT EXISTS user_tokens_userid on user_tokens (userid)"
-            )
-            await connection.execute(
-                "CREATE INDEX IF NOT EXISTS user_tokens_expires_at on user_tokens (expires_at)"
             )
             await connection.execute(
                 "CREATE INDEX IF NOT EXISTS auth_requests_expires_at on auth_requests (expires_at)"

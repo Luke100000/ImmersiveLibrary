@@ -20,7 +20,6 @@ from immersive_library.models import (
 )
 
 MAX_USER_TOKENS = 10
-TOKEN_TTL_SECONDS = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", str(30 * 24 * 60 * 60)))
 SESSION_COOKIE = "immersive_session"
 PROTECTED_TAGS = frozenset({"invalid"})
 
@@ -153,10 +152,9 @@ async def token_to_userid(
         FROM user_tokens
         INNER JOIN users ON users.oid = user_tokens.userid
         WHERE user_tokens.token=:token
-          AND user_tokens.expires_at > :now
           AND users.banned = 0
         """,
-        {"token": token_hash, "now": int(time.time())},
+        {"token": token_hash},
     )
     return None if userid is None else userid[0]
 
@@ -192,8 +190,7 @@ async def user_exists(database: Database, userid: int) -> bool:
 
 
 async def login_user(database: Database, google_userid, username, token_hash):
-    """Create/update a user and register one expiring hashed access token."""
-    now = int(time.time())
+    """Create/update a user and register one hashed access token."""
     async with database.transaction():
         await database.execute(
             """
@@ -217,15 +214,10 @@ async def login_user(database: Database, google_userid, username, token_hash):
         )
 
         await database.execute(
-            """
-            INSERT INTO user_tokens (token, userid, created_at, expires_at)
-            VALUES (:token, :userid, :created_at, :expires_at)
-            """,
+            "INSERT INTO user_tokens (token, userid) VALUES (:token, :userid)",
             {
                 "token": token_hash,
                 "userid": userid,
-                "created_at": now,
-                "expires_at": now + TOKEN_TTL_SECONDS,
             },
         )
 
