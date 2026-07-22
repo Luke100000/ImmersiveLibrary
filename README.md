@@ -23,16 +23,18 @@ docker compose up
 
 ## Client
 
-For some endpoints a user-chosen access token is required.
+Authentication starts with `POST /v2/auth/start`.
 
-Call `/v1/login` to let the server handle the Google Sign-In.
+* Browser clients omit `token_hash`. The server creates an HttpOnly session cookie after Google Sign-In.
+* Native clients generate a private access token, send only its SHA-256 hash as `token_hash`, and open the returned login URL. The server automatically claims the included verification code, while the login page displays it as visual confirmation.
+* Native clients use the original private token in the `Authorization: Bearer <token>` header.
+* `DELETE /v2/auth/token` revokes the current browser session or bearer token.
+* New access tokens expire. The default lifetime is 30 days and can be configured with `AUTH_TOKEN_TTL_SECONDS`.
+* Tokens created before this migration receive a 90-day grace period by default; configure it with `LEGACY_TOKEN_GRACE_SECONDS`.
 
-The state var needs to be a JSON object with the following keys:
+`/v2/content/{project}` remains the legacy paginated response and omits `is_liked`. Updated clients use `/v3/content/{project}`, which includes requester-specific `is_liked`.
 
-* `username` A username as shown to other users, base64 encoded.
-* `token` A freely chosen token to authenticate with, sha256 hashed, base64 encoded.
-    * Use the original token as a Bearer token for all other requests.
-    * There can only be 10 logins, after which the oldest token gets pruned.
+Security-related environment variables include `AUTH_TOKEN_TTL_SECONDS`, `LEGACY_TOKEN_GRACE_SECONDS`, `AUTH_REQUEST_TTL_SECONDS`, `MAX_REQUEST_BYTES`, `RENDER_BASE_URL`, `RENDER_CONCURRENCY_LIMIT`, `COOKIE_SECURE`, and `PUBLIC_BASE_URL`.
 
 ## API
 

@@ -15,6 +15,7 @@ from immersive_library.models import (
 )
 from immersive_library.utils import (
     get_lite_user_class,
+    logged_in_guard,
     moderator_guard,
     set_banned,
     set_moderator,
@@ -58,6 +59,25 @@ async def get_users(
     return UserListSuccess(users=[get_lite_user_class(c) for c in content])
 
 
+async def _get_user_v2(project: str, userid: int) -> LiteUserSuccess:
+    content = await get_users_inner(project, 1, 0, UserOrder.OID, False, userid)
+    if not content:
+        raise HTTPException(404, "User doesn't exist")
+    return LiteUserSuccess(user=get_lite_user_class(content[0]))
+
+
+@router.get(
+    "/v2/user/{project}/me",
+    tags=["Users"],
+    responses={401: {"model": Error}, 404: {"model": Error}},
+    response_model=LiteUserSuccess,
+)
+async def get_me_v2(
+    project: str, userid: int = Depends(logged_in_guard)
+) -> LiteUserSuccess:
+    return await _get_user_v2(project, userid)
+
+
 @router.get(
     "/v2/user/{project}/{userid}",
     tags=["Users"],
@@ -66,10 +86,7 @@ async def get_users(
 )
 @cache(expire=60)
 async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
-    content = await get_users_inner(project, 1, 0, UserOrder.OID, False, userid)
-    if not content:
-        raise HTTPException(404, "User doesn't exist")
-    return LiteUserSuccess(user=get_lite_user_class(content[0]))
+    return await _get_user_v2(project, userid)
 
 
 async def get_users_inner(
@@ -98,7 +115,7 @@ async def get_users_inner(
             ) submitted_content ON submitted_content.userid = users.oid
 
             LEFT JOIN (
-                SELECT likes.userid, COUNT(likes.oid) as count
+                SELECT likes.userid, COUNT(*) as count
                 FROM likes
                 GROUP BY likes.userid
             ) likes_given ON likes_given.userid = users.oid
@@ -147,13 +164,23 @@ async def set_user(
     if moderator is not None:
         await set_moderator(database, userid, moderator)
 
-    # Delete the user's content
+    # Delete the user's content and all rows that point at it.
     if purge:
-        await database.execute(
-            "DELETE FROM content WHERE userid=:userid", {"userid": userid}
-        )
-        await database.execute(
-            "DELETE FROM likes WHERE userid=:userid", {"userid": userid}
-        )
+        async with database.transaction():
+            for table in ("likes", "reports", "tags", "precomputation"):
+                await database.execute(
+                    f"DELETE FROM {table} WHERE contentid IN "
+                    "(SELECT oid FROM content WHERE userid=:userid)",
+                    {"userid": userid},
+                )
+            await database.execute(
+                "DELETE FROM content WHERE userid=:userid", {"userid": userid}
+            )
+            await database.execute(
+                "DELETE FROM likes WHERE userid=:userid", {"userid": userid}
+            )
+            await database.execute(
+                "DELETE FROM reports WHERE userid=:userid", {"userid": userid}
+            )
 
     return PlainSuccess()

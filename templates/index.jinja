@@ -175,8 +175,10 @@
         selectUrlValue(limitSelect, 'limit');
         searchInput.value = searchFromUrl();
 
+        let authenticated = false;
+
         async function configureTracks() {
-            let authenticated = false;
+            authenticated = false;
             try {
                 const response = await fetch('/v1/auth');
                 authenticated = response.ok && (await response.json()).authenticated === true;
@@ -266,7 +268,7 @@
                             }
                         });
 
-                        if (window.ImmersiveAuth && typeof window.ImmersiveAuth.getToken === 'function' && window.ImmersiveAuth.getToken()) {
+                        if (authenticated) {
                             const delBtn = document.createElement('button');
                             delBtn.textContent = 'Delete';
                             delBtn.className = 'btn';

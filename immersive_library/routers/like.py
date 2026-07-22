@@ -6,6 +6,7 @@ from immersive_library.models import (
     PlainSuccess,
 )
 from immersive_library.utils import (
+    content_exists,
     has_liked,
     logged_in_guard,
     update_precomputation,
@@ -21,13 +22,14 @@ router = APIRouter(tags=["Likes"])
 async def add_like(
     project: str, contentid: int, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
-    assert project
+    if not await content_exists(database, project, contentid):
+        raise HTTPException(404, "Content not found")
 
     if await has_liked(database, userid, contentid):
         raise HTTPException(428, "Already liked")
 
     await database.execute(
-        "INSERT INTO likes (userid, contentid) VALUES(:userid, :contentid)",
+        "INSERT OR IGNORE INTO likes (userid, contentid) VALUES(:userid, :contentid)",
         {"userid": userid, "contentid": contentid},
     )
 
@@ -43,7 +45,8 @@ async def add_like(
 async def delete_like(
     project: str, contentid: int, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
-    assert project
+    if not await content_exists(database, project, contentid):
+        raise HTTPException(404, "Content not found")
 
     if not await has_liked(database, userid, contentid):
         raise HTTPException(428, "Not liked previously")

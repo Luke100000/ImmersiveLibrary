@@ -9,7 +9,9 @@ from immersive_library.models import (
     TagListSuccess,
 )
 from immersive_library.utils import (
+    PROTECTED_TAGS,
     has_tag,
+    is_moderator,
     owner_guard,
     update_precomputation,
 )
@@ -42,9 +44,14 @@ async def list_project_tags(
 @router.get("/v1/tag/{project}/{contentid}", response_model=TagListSuccess)
 @cache(expire=60)
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
-    assert project
     tags = await database.fetch_all(
-        "SELECT tag FROM tags WHERE contentid=:contentid", {"contentid": contentid}
+        """
+        SELECT tags.tag
+        FROM tags
+        INNER JOIN content ON content.oid = tags.contentid
+        WHERE tags.contentid=:contentid AND content.project=:project
+        """,
+        {"contentid": contentid, "project": project},
     )
     return TagListSuccess(tags=[t[0] for t in tags])
 
@@ -56,17 +63,16 @@ async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
 async def add_tag(
     project: str, contentid: int, tag: str, userid: int = Depends(owner_guard)
 ) -> PlainSuccess:
-    assert project
-    assert userid
-
-    if "," in tag:
-        raise HTTPException(401, "Contains invalid characters")
+    if not 1 <= len(tag) <= 64 or "," in tag:
+        raise HTTPException(400, "Invalid tag")
+    if tag in PROTECTED_TAGS and not await is_moderator(database, userid):
+        raise HTTPException(403, "Protected tag")
 
     if await has_tag(database, contentid, tag):
         raise HTTPException(428, "Already tagged")
 
     await database.execute(
-        "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
+        "INSERT OR IGNORE INTO tags (contentid, tag) VALUES(:contentid, :tag)",
         {"contentid": contentid, "tag": tag},
     )
 
@@ -82,8 +88,8 @@ async def add_tag(
 async def delete_tag(
     project: str, contentid: int, tag: str, userid: int = Depends(owner_guard)
 ) -> PlainSuccess:
-    assert project
-    assert userid
+    if tag in PROTECTED_TAGS and not await is_moderator(database, userid):
+        raise HTTPException(403, "Protected tag")
 
     if not await has_tag(database, contentid, tag):
         raise HTTPException(428, "Not tagged")

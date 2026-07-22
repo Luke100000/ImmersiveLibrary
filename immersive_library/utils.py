@@ -1,12 +1,15 @@
+import asyncio
 import base64
 import hashlib
+import os
+import time
 from typing import Any, Dict, Optional
 
 import orjson
 from cachetools import cached
 from databases import Database
 from databases.interfaces import Record
-from fastapi import Header, HTTPException, Path
+from fastapi import Cookie, Header, HTTPException, Path, Request
 
 import immersive_library.common as common
 from immersive_library.models import (
@@ -17,6 +20,30 @@ from immersive_library.models import (
 )
 
 MAX_USER_TOKENS = 10
+SESSION_COOKIE = "immersive_session"
+PROTECTED_TAGS = frozenset({"invalid"})
+
+_rate_limit_lock = asyncio.Lock()
+_rate_limit_buckets: dict[tuple[str, str], tuple[int, float]] = {}
+
+
+async def enforce_rate_limit(
+    request: Request, bucket: str, limit: int, window_seconds: int
+) -> None:
+    identity = request.client.host if request.client is not None else "unknown"
+    key = (bucket, identity)
+    now = time.monotonic()
+    async with _rate_limit_lock:
+        count, reset_at = _rate_limit_buckets.get(key, (0, now + window_seconds))
+        if now >= reset_at:
+            count, reset_at = 0, now + window_seconds
+        if count >= limit:
+            raise HTTPException(429, "Too many requests")
+        _rate_limit_buckets[key] = (count + 1, reset_at)
+        if len(_rate_limit_buckets) > 10000:
+            expired = [k for k, (_, reset) in _rate_limit_buckets.items() if now >= reset]
+            for expired_key in expired:
+                _rate_limit_buckets.pop(expired_key, None)
 
 
 async def update_precomputation(database: Database, contentid: Optional[int] = None):
@@ -55,7 +82,7 @@ async def update_precomputation(database: Database, contentid: Optional[int] = N
 
 
 @cached(cache={})
-def get_base_select(include_data: bool, include_meta: bool):
+def get_base_select(include_data: bool, include_meta: bool, include_liked: bool = False):
     prompt = """
         SELECT c.oid,
                c.userid,
@@ -72,6 +99,18 @@ def get_base_select(include_data: bool, include_meta: bool):
             INNER JOIN precomputation ON c.oid = precomputation.contentid
     """
 
+    if include_liked:
+        prompt = prompt.replace(
+            "               precomputation.reports",
+            """               precomputation.reports,
+               EXISTS (
+                   SELECT 1
+                   FROM likes viewer_likes
+                   WHERE viewer_likes.userid = :viewer_userid
+                     AND viewer_likes.contentid = c.oid
+               ) as is_liked""",
+        )
+
     if not include_meta:
         prompt = prompt.replace("c.meta,", "")
 
@@ -87,22 +126,49 @@ def sha256(string: str) -> str:
     return sha256_hash.hexdigest()
 
 
-async def token_to_userid(
-    database: Database, token: Optional[str] = None, authorization: str = Header(None)
-) -> Optional[int]:
-    """
-    Return the userid for a given token, or None if the token is invalid
-    """
-    if authorization is not None and str(authorization).startswith("Bearer "):
-        token = sha256(authorization[7:])
-    if token is None:
+def token_hash_from_credentials(
+    authorization: Optional[str], session_token: Optional[str]
+) -> Optional[str]:
+    raw_token = session_token
+    if authorization is not None and authorization.startswith("Bearer "):
+        raw_token = authorization[7:].strip()
+    if raw_token is None or len(raw_token) < 16:
         return None
-    if len(token) == 0:
+    return sha256(raw_token)
+
+
+async def token_to_userid(
+    database: Database,
+    authorization: Optional[str] = None,
+    session_token: Optional[str] = None,
+) -> Optional[int]:
+    """Return the active, non-banned user for an Authorization header or session."""
+    token_hash = token_hash_from_credentials(authorization, session_token)
+    if token_hash is None:
         return None
     userid = await database.fetch_one(
-        "SELECT userid FROM user_tokens WHERE token=:token", {"token": token}
+        """
+        SELECT user_tokens.userid
+        FROM user_tokens
+        INNER JOIN users ON users.oid = user_tokens.userid
+        WHERE user_tokens.token=:token
+          AND users.banned = 0
+        """,
+        {"token": token_hash},
     )
     return None if userid is None else userid[0]
+
+
+async def revoke_token(
+    database: Database,
+    authorization: Optional[str] = None,
+    session_token: Optional[str] = None,
+) -> None:
+    token_hash = token_hash_from_credentials(authorization, session_token)
+    if token_hash is not None:
+        await database.execute(
+            "DELETE FROM user_tokens WHERE token=:token", {"token": token_hash}
+        )
 
 
 async def get_count(database: Database, query: str, params: dict[str, Any]):
@@ -123,12 +189,9 @@ async def user_exists(database: Database, userid: int) -> bool:
     )
 
 
-async def login_user(database: Database, google_userid, username, token):
-    """
-    Logs in the user, creating an account if necessary and updating username and token
-    """
+async def login_user(database: Database, google_userid, username, token_hash):
+    """Create/update a user and register one hashed access token."""
     async with database.transaction():
-        # Create user
         await database.execute(
             """
             INSERT INTO users (google_userid, username, moderator, banned)
@@ -138,21 +201,24 @@ async def login_user(database: Database, google_userid, username, token):
             {"google_userid": google_userid, "username": username},
         )
         user = await database.fetch_one(
-            "SELECT oid FROM users WHERE google_userid=:google_userid",
+            "SELECT oid, banned FROM users WHERE google_userid=:google_userid",
             {"google_userid": google_userid},
         )
         userid = user["oid"]
+        if user["banned"]:
+            raise HTTPException(403, "User is banned")
 
-        # Invalidate token
         await database.execute(
             "DELETE FROM user_tokens WHERE token=:token",
-            {"token": token},
+            {"token": token_hash},
         )
 
-        # Insert new token
         await database.execute(
             "INSERT INTO user_tokens (token, userid) VALUES (:token, :userid)",
-            {"token": token, "userid": userid},
+            {
+                "token": token_hash,
+                "userid": userid,
+            },
         )
 
         # Drop old tokens
@@ -171,14 +237,23 @@ async def login_user(database: Database, google_userid, username, token):
         )
 
 
-async def owns_content(database: Database, contentid: int, userid: int) -> bool:
-    """
-    Checks if the user owns that content
-    """
+async def owns_content(database: Database, project: str, contentid: int, userid: int) -> bool:
+    """Check ownership within the project named by the route."""
     return await exists(
         database,
-        "SELECT count(*) FROM content WHERE userid=:userid AND oid=:contentid",
-        {"userid": userid, "contentid": contentid},
+        """
+        SELECT count(*) FROM content
+        WHERE userid=:userid AND oid=:contentid AND project=:project
+        """,
+        {"userid": userid, "contentid": contentid, "project": project},
+    )
+
+
+async def content_exists(database: Database, project: str, contentid: int) -> bool:
+    return await exists(
+        database,
+        "SELECT count(*) FROM content WHERE oid=:contentid AND project=:project",
+        {"contentid": contentid, "project": project},
     )
 
 
@@ -188,7 +263,7 @@ async def is_moderator(database: Database, userid: int) -> bool:
     """
     return await exists(
         database,
-        "SELECT count(*) FROM users WHERE oid=:userid AND moderator=TRUE",
+        "SELECT count(*) FROM users WHERE oid=:userid AND moderator=TRUE AND banned=FALSE",
         {"userid": userid},
     )
 
@@ -215,13 +290,16 @@ async def set_moderator(database: Database, userid: int, moderator: bool):
 
 
 async def set_banned(database: Database, userid: int, banned: bool):
-    """
-    Sets banned status
-    """
-    await database.execute(
-        "UPDATE users SET banned=:banned WHERE oid=:userid",
-        {"banned": banned, "userid": userid},
-    )
+    """Set banned status and immediately revoke all active sessions when banning."""
+    async with database.transaction():
+        await database.execute(
+            "UPDATE users SET banned=:banned WHERE oid=:userid",
+            {"banned": banned, "userid": userid},
+        )
+        if banned:
+            await database.execute(
+                "DELETE FROM user_tokens WHERE userid=:userid", {"userid": userid}
+            )
 
 
 async def has_liked(database: Database, userid: int, contentid: int):
@@ -260,17 +338,18 @@ async def has_tag(database: Database, contentid: int, tag: str) -> bool:
 
 
 async def set_tags(database: Database, contentid: int, tags: list[str]):
-    """
-    Replaces the tags for a given content
-    """
+    """Replace user-editable tags while preserving server-owned moderation tags."""
+    if PROTECTED_TAGS.intersection(tags):
+        raise HTTPException(400, "Protected tags cannot be supplied in content metadata")
+
     await database.execute(
-        "DELETE FROM tags WHERE contentid=:contentid",
+        "DELETE FROM tags WHERE contentid=:contentid AND tag != 'invalid'",
         {"contentid": contentid},
     )
 
-    for tag in tags:
+    for tag in dict.fromkeys(tags):
         await database.execute(
-            "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
+            "INSERT OR IGNORE INTO tags (contentid, tag) VALUES(:contentid, :tag)",
             {"contentid": contentid, "tag": tag},
         )
 
@@ -284,7 +363,7 @@ def safe_parse(meta: str) -> Dict[str, Any]:
 
 
 def get_lite_content_class(
-    record: Record, include_meta: bool, parse_meta: bool
+    record: Record, include_meta: bool, parse_meta: bool, include_liked: bool = False
 ) -> LiteContent:
     """
     Populates a lite content object
@@ -302,6 +381,7 @@ def get_lite_content_class(
         meta=(safe_parse(m["meta"]) if parse_meta else m["meta"])
         if include_meta
         else None,
+        is_liked=bool(m["is_liked"]) if include_liked else None,
     )
 
 
@@ -359,25 +439,38 @@ async def get_user_class(
     )
 
 
-async def fetch_content(contentid: int, parse_meta: bool = True) -> Content:
-    content = await common.database.fetch_one(
-        get_base_select(True, True) + "WHERE c.oid = :contentid",
-        {"contentid": contentid},
-    )
+async def fetch_content(
+    contentid: int,
+    parse_meta: bool = True,
+    project: Optional[str] = None,
+    include_hidden: bool = False,
+) -> Content:
+    prompt = get_base_select(True, True) + "WHERE c.oid = :contentid"
+    values: dict[str, Any] = {"contentid": contentid}
+    if project is not None:
+        prompt += " AND c.project = :project"
+        values["project"] = project
+    if not include_hidden:
+        prompt += " AND NOT users.banned"
+        prompt += (
+            " AND 1.0 + precomputation.likes / 10.0 "
+            "- precomputation.reports >= 0.0"
+        )
 
+    content = await common.database.fetch_one(prompt, values)
     if content is None:
         raise HTTPException(404, "Content not found")
-
     return get_content_class(content, parse_meta)
 
 
 async def logged_in_guard(
-    token: Optional[str] = None, authorization: str = Header(None)
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None, alias=SESSION_COOKIE),
 ):
     """
     Ensures the user is logged in.
     """
-    userid = await token_to_userid(common.database, token, authorization)
+    userid = await token_to_userid(common.database, authorization, session_token)
 
     if userid is None:
         raise HTTPException(401, "Token invalid")
@@ -386,20 +479,21 @@ async def logged_in_guard(
 
 
 async def owner_guard(
+    project: str = Path(...),
     contentid: int = Path(...),
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None, alias=SESSION_COOKIE),
 ):
     """
     Ensures the user owns the content or is a moderator.
     """
-    userid = await token_to_userid(common.database, token, authorization)
+    userid = await token_to_userid(common.database, authorization, session_token)
 
     if userid is None:
         raise HTTPException(401, "Token invalid")
 
     if not await owns_content(
-        common.database, contentid, userid
+        common.database, project, contentid, userid
     ) and not await is_moderator(common.database, userid):
         raise HTTPException(403, "Not allowed")
 
@@ -407,12 +501,13 @@ async def owner_guard(
 
 
 async def moderator_guard(
-    token: Optional[str] = None, authorization: str = Header(None)
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None, alias=SESSION_COOKIE),
 ):
     """
     Ensures the user is a moderator.
     """
-    userid = await token_to_userid(common.database, token, authorization)
+    userid = await token_to_userid(common.database, authorization, session_token)
 
     if userid is None:
         raise HTTPException(401, "Token invalid")

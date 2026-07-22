@@ -12,7 +12,8 @@ from immersive_library.utils import (
 router = APIRouter(tags=["Admin"])
 
 
-@router.get("/v1/tools/post-process/{project}", responses={401: {"model": Error}})
+@router.get("/v1/tools/post-process/{project}", responses={401: {"model": Error}}, deprecated=True)
+@router.post("/v1/tools/post-process/{project}", responses={401: {"model": Error}})
 async def run_post_upload_callbacks(
     project: str, userid: int = Depends(moderator_guard)
 ) -> PlainTextResponse:
@@ -39,6 +40,9 @@ async def run_post_upload_callbacks(
 
 
 @router.get(
+    "/v1/tools/post-process/{project}/{content_id}", responses={401: {"model": Error}}, deprecated=True
+)
+@router.post(
     "/v1/tools/post-process/{project}/{content_id}", responses={401: {"model": Error}}
 )
 async def run_post_upload_callbacks_content_id(
