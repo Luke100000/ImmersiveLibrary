@@ -14,8 +14,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from redis import asyncio as aioredis
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse
-from starlette.staticfiles import StaticFiles
 
+from immersive_library.caching import CachedStaticFiles, apply_cache_policy
 from immersive_library.common import database
 from immersive_library.routers import (
     auth,
@@ -106,7 +106,14 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", CachedStaticFiles(directory="static"), name="static")
+
+
+@app.middleware("http")
+async def cache_control_middleware(request: Request, call_next):
+    response = await call_next(request)
+    apply_cache_policy(request, response)
+    return response
 
 
 # Custom OpenAPI to fix the missing description

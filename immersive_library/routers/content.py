@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi_cache.decorator import cache
 from starlette.responses import Response
 
+from immersive_library.caching import public_cache
 from immersive_library.common import database, get_project, projects
 from immersive_library.models import (
     ContentIdSuccess,
@@ -70,6 +71,7 @@ CACHE_DIR = Path("data/cache")
     response_model_exclude_none=True,
     response_model=ProjectListSuccess,
 )
+@public_cache()
 @cache(expire=300)
 async def list_projects() -> ProjectListSuccess:
     all_projects = await database.fetch_all(
@@ -87,6 +89,12 @@ async def list_projects() -> ProjectListSuccess:
     "/v2/content/{project}",
     response_model_exclude_none=True,
     response_model=ContentListSuccess,
+)
+@public_cache(
+    when=lambda request: (
+        request.query_params.get("track", "all") == "all"
+        and "userid" not in request.query_params
+    )
 )
 @cache(expire=60)
 async def list_content_v2(
@@ -273,6 +281,7 @@ async def inner_list_content_v2(
 
 
 @router.get("/v1/content/{project}/{contentid}", response_model=ContentSuccess)
+@public_cache()
 @cache(expire=60)
 async def get_content(
     project: str, contentid: int, parse_meta: bool = False, version: int = 0
@@ -394,7 +403,7 @@ async def render_content_png(
     cache_name = f"{contentid}_{record['version']}_{width}x{height}.png"
     cache_path = CACHE_DIR / cache_name
     cache_headers = {
-        "Cache-Control": "public, max-age=86400, s-maxage=86400, immutable",
+        "Cache-Control": "public, max-age=300, must-revalidate",
     }
     if cache_path.exists():
         return Response(

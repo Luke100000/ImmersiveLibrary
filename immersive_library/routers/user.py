@@ -5,6 +5,7 @@ from databases.interfaces import Record
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
+from immersive_library.caching import public_cache
 from immersive_library.common import database
 from immersive_library.models import (
     BanEntry,
@@ -46,6 +47,7 @@ class UserOrder(str, Enum):
 
 
 @router.get("/v1/user/{project}", tags=["Users"], response_model=UserListSuccess)
+@public_cache()
 @cache(expire=60)
 async def get_users(
     project: str,
@@ -64,6 +66,7 @@ async def get_users(
     responses={404: {"model": Error}},
     response_model=LiteUserSuccess,
 )
+@public_cache()
 @cache(expire=60)
 async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
     content = await get_users_inner(project, 1, 0, UserOrder.OID, False, userid)

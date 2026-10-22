@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
+from immersive_library.caching import public_cache
 from immersive_library.common import database
 from immersive_library.models import (
     Error,
@@ -18,6 +19,7 @@ router = APIRouter(tags=["Tags"])
 
 
 @router.get("/v1/tag/{project}", response_model=TagDictSuccess)
+@public_cache()
 @cache(expire=60)
 async def list_project_tags(
     project: str, limit: int = 100, offset: int = 0
@@ -40,6 +42,7 @@ async def list_project_tags(
 
 
 @router.get("/v1/tag/{project}/{contentid}", response_model=TagListSuccess)
+@public_cache()
 @cache(expire=60)
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
     assert project

@@ -5,6 +5,7 @@ from fastapi.requests import Request
 from jinja2 import TemplateNotFound
 from starlette.responses import FileResponse, HTMLResponse
 
+from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import database, projects, templates
 from immersive_library.routers.misc import get_statistics
 from immersive_library.utils import fetch_content
@@ -38,7 +39,9 @@ async def get_index(request: Request):
 
 @router.get("/favicon.ico")
 async def favicon():
-    return FileResponse("static/favicon.ico")
+    return FileResponse(
+        "static/favicon.ico", headers={"Cache-Control": STATIC_CACHE_CONTROL}
+    )
 
 
 @router.get("/privacy", response_class=HTMLResponse)
