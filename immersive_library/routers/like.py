@@ -23,13 +23,15 @@ async def add_like(
 ) -> PlainSuccess:
     assert project
 
-    if await has_liked(database, userid, contentid):
-        raise HTTPException(428, "Already liked")
-
-    await database.execute(
-        "INSERT INTO likes (userid, contentid) VALUES(:userid, :contentid)",
+    inserted_userid = await database.fetch_val(
+        """
+        INSERT INTO likes (userid, contentid) VALUES(:userid, :contentid)
+        ON CONFLICT (userid, contentid) DO NOTHING RETURNING userid
+        """,
         {"userid": userid, "contentid": contentid},
     )
+    if inserted_userid is None:
+        raise HTTPException(428, "Already liked")
 
     await update_precomputation(database, contentid)
 

@@ -31,13 +31,15 @@ async def add_report(
         "pre_report", database, userid, contentid, reason
     )
 
-    if await has_reported(database, userid, contentid, reason):
-        raise HTTPException(428, "Already reported")
-
-    await database.execute(
-        "INSERT INTO reports (userid, contentid, reason) VALUES(:userid, :contentid, :reason)",
+    inserted_userid = await database.fetch_val(
+        """
+        INSERT INTO reports (userid, contentid, reason) VALUES(:userid, :contentid, :reason)
+        ON CONFLICT (userid, contentid, reason) DO NOTHING RETURNING userid
+        """,
         {"userid": userid, "contentid": contentid, "reason": reason},
     )
+    if inserted_userid is None:
+        raise HTTPException(428, "Already reported")
 
     # Call validators for eventual post-processing
     await get_project(project).call("post_report", database, userid, contentid, reason)
