@@ -1,3 +1,4 @@
+import os
 import time
 from enum import Enum
 from pathlib import Path
@@ -412,9 +413,9 @@ async def render_content_png(
             headers=cache_headers,
         )
 
-    render_url = request.url_for(
+    render_url = request.app.url_path_for(
         "get_render_view", project=project, contentid=contentid
-    )
+    ).make_absolute_url(os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000"))
     render_url = str(render_url.include_query_params(width=width, height=height))
 
     try:
