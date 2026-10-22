@@ -21,6 +21,12 @@ router = APIRouter(tags=["Users"])
 async def add_report(
     project: str, contentid: int, reason: str, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
+    if not await database.fetch_val(
+        "SELECT 1 FROM content WHERE oid=:contentid AND project=:project",
+        {"contentid": contentid, "project": project},
+    ):
+        raise HTTPException(404, "Content not found")
+
     await get_project(project).validate(
         "pre_report", database, userid, contentid, reason
     )

@@ -382,6 +382,9 @@ async def logged_in_guard(
     if userid is None:
         raise HTTPException(401, "Token invalid")
 
+    if await is_banned(common.database, userid):
+        raise HTTPException(403, "User is banned")
+
     return userid
 
 
@@ -393,10 +396,7 @@ async def owner_guard(
     """
     Ensures the user owns the content or is a moderator.
     """
-    userid = await token_to_userid(common.database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
+    userid = await logged_in_guard(token, authorization)
 
     if not await owns_content(
         common.database, contentid, userid
@@ -412,10 +412,7 @@ async def moderator_guard(
     """
     Ensures the user is a moderator.
     """
-    userid = await token_to_userid(common.database, token, authorization)
-
-    if userid is None:
-        raise HTTPException(401, "Token invalid")
+    userid = await logged_in_guard(token, authorization)
 
     if not await is_moderator(common.database, userid):
         raise HTTPException(403, "Not a moderator")
