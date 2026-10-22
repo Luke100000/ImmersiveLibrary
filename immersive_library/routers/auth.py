@@ -66,7 +66,7 @@ async def auth(
         if return_to is not None:
             return RedirectResponse(return_to, status_code=303)
 
-        return templates.TemplateResponse("success.jinja", {"request": request})
+        return templates.TemplateResponse(request, "success.jinja")
     except ValueError:
         raise HTTPException(401, "Validation failed")
 
@@ -82,9 +82,9 @@ async def is_auth(
 @router.get("/v1/login", summary="Login")
 async def get_login(request: Request, state: str) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "login.jinja",
         {
-            "request": request,
             "state": json.loads(base64.b64decode(state)),
             "client_id": os.getenv("CLIENT_ID"),
             "login_uri": str(request.url_for("auth")),

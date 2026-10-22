@@ -29,9 +29,9 @@ async def get_index(request: Request):
         "SELECT project FROM content GROUP BY project ORDER BY COUNT(*) DESC"
     )
     return templates.TemplateResponse(
+        request,
         "index.jinja",
         {
-            "request": request,
             "projects": [p["project"] for p in project_list],
         },
     )
@@ -46,17 +46,17 @@ async def favicon():
 
 @router.get("/privacy", response_class=HTMLResponse)
 async def get_privacy(request: Request):
-    return templates.TemplateResponse("privacy.jinja", {"request": request})
+    return templates.TemplateResponse(request, "privacy.jinja")
 
 
 @router.get("/tos", response_class=HTMLResponse)
 async def get_tos(request: Request):
-    return templates.TemplateResponse("tos.jinja", {"request": request})
+    return templates.TemplateResponse(request, "tos.jinja")
 
 
 @router.get("/contact", response_class=HTMLResponse)
 async def get_contact(request: Request):
-    return templates.TemplateResponse("contact.jinja", {"request": request})
+    return templates.TemplateResponse(request, "contact.jinja")
 
 
 @router.get("/{project}", response_class=HTMLResponse)
@@ -65,9 +65,9 @@ async def get_project_front(request: Request, project: str):
         return HTMLResponse("Project not found", status_code=404)
 
     return templates.TemplateResponse(
+        request,
         get_template(project, "project"),
         {
-            "request": request,
             "project": project,
             "statistics": await get_statistics(project),
         },
@@ -82,8 +82,9 @@ async def get_content_front(request: Request, project: str, contentid: int):
     content = await fetch_content(contentid)
 
     return templates.TemplateResponse(
+        request,
         get_template(project, "view"),
-        {"request": request, "project": project, "content": content},
+        {"project": project, "content": content},
     )
 
 
@@ -101,9 +102,9 @@ async def get_render_view(
     content = await fetch_content(contentid)
 
     return templates.TemplateResponse(
+        request,
         get_template(project, "render"),
         {
-            "request": request,
             "project": project,
             "content": content,
             "width": width,

@@ -2,7 +2,6 @@ import io
 from typing import Optional
 
 import numpy as np
-import PIL
 from databases import Database
 from PIL import Image
 
@@ -32,7 +31,7 @@ class ValidClothingValidator(Validator):
 
             if image.shape != (64, 64, 4):
                 return "Shape is not (64, 64, 4)!"
-        except PIL.UnidentifiedImageError:
+        except (OSError, ValueError):
             return "Not an valid image!"
 
     async def post_upload(
