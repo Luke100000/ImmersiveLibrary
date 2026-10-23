@@ -329,24 +329,25 @@ async def add_content(
     # Call validators for content verification
     await get_project(project).validate("pre_upload", database, userid, content)
 
-    contentid = await database.execute(
-        "INSERT INTO content (userid, project, title, meta, data) VALUES(:userid, :project, :title, :meta, :data)",
-        {
-            "userid": userid,
-            "project": project,
-            "title": content.title,
-            "meta": content.meta,
-            "data": content.payload,
-        },
-    )
+    async with database.transaction():
+        contentid = await database.execute(
+            "INSERT INTO content (userid, project, title, meta, data) VALUES(:userid, :project, :title, :meta, :data)",
+            {
+                "userid": userid,
+                "project": project,
+                "title": content.title,
+                "meta": content.meta,
+                "data": content.payload,
+            },
+        )
 
-    if content.tags is not None:
-        await set_tags(database, contentid, content.tags)
+        if content.tags is not None:
+            await set_tags(database, contentid, content.tags)
 
-    # Call validators for eventual post-processing
-    await get_project(project).call("post_upload", database, userid, contentid)
+        # Call validators for eventual post-processing
+        await get_project(project).call("post_upload", database, userid, contentid)
 
-    await update_precomputation(database, contentid)
+        await update_precomputation(database, contentid)
 
     return ContentIdSuccess(contentid=contentid)
 
@@ -361,24 +362,25 @@ async def update_content(
     # Call validators for content verification
     await get_project(project).validate("pre_upload", database, userid, content)
 
-    await database.execute(
-        "UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1 WHERE project=:project AND oid=:oid",
-        {
-            "title": content.title,
-            "meta": content.meta,
-            "data": content.payload,
-            "project": project,
-            "oid": contentid,
-        },
-    )
+    async with database.transaction():
+        await database.execute(
+            "UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1 WHERE project=:project AND oid=:oid",
+            {
+                "title": content.title,
+                "meta": content.meta,
+                "data": content.payload,
+                "project": project,
+                "oid": contentid,
+            },
+        )
 
-    if content.tags is not None:
-        await set_tags(database, contentid, content.tags)
+        if content.tags is not None:
+            await set_tags(database, contentid, content.tags)
 
-    # Call validators for eventual post-processing
-    await get_project(project).call("post_upload", database, userid, contentid)
+        # Call validators for eventual post-processing
+        await get_project(project).call("post_upload", database, userid, contentid)
 
-    await update_precomputation(database, contentid)
+        await update_precomputation(database, contentid)
 
     return PlainSuccess()
 
