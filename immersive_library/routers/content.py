@@ -3,7 +3,7 @@ import time
 from enum import Enum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Optional, Union
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi_cache.decorator import cache
@@ -114,8 +114,12 @@ async def list_projects() -> ProjectListSuccess:
 async def list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
-    userid: Optional[None] = Query(
-        None, description="Only include a given users submissions."
+    userid: Optional[int] = Query(
+        None,
+        description=(
+            "User context for likes, submissions and recommendation ordering. "
+            "Defaults to the authenticated user."
+        ),
     ),
     whitelist: Optional[str] = Query(
         None,
@@ -156,6 +160,8 @@ async def list_content_v2(
     token: Optional[str] = None,
     authorization: str = Header(None),
 ) -> ContentListSuccess:
+    viewer_id = await token_to_userid(database, token, authorization)
+
     return await inner_list_content_v2(
         project,
         track,
@@ -170,8 +176,7 @@ async def list_content_v2(
         descending,
         include_meta,
         parse_meta,
-        token,
-        authorization,
+        viewer_id,
     )
 
 
@@ -189,14 +194,12 @@ async def inner_list_content_v2(
     descending: bool = False,
     include_meta: bool = False,
     parse_meta: bool = False,
-    token: Optional[str] = None,
-    authorization: str = Header(None),
+    viewer_id: Optional[int] = None,
 ) -> ContentListSuccess:
-    # Use me user if none is provided
-    userid = userid or await token_to_userid(database, token, authorization)
+    userid = userid if userid is not None else viewer_id
 
     prompt = get_base_select(False, include_meta)
-    values: dict[str, Union[str, int]] = {"project": project}
+    values: dict[str, str | int | None] = {"project": project}
 
     # Filter for a specific track
     if track == TrackEnum.ALL:
@@ -211,14 +214,14 @@ async def inner_list_content_v2(
     else:
         raise HTTPException(400, "Invalid track")
 
-    # Hide personally banned content
-    if token is not None and userid is not None:
+    # Hide content reported by the viewer.
+    if viewer_id is not None:
         prompt += """
          AND NOT EXISTS (SELECT *
                     FROM reports
-                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :userid)
+                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :viewer_id)
         """
-        values["userid"] = userid
+        values["viewer_id"] = viewer_id
 
     # Remove content from banned users
     if filter_banned:
