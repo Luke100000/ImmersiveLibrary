@@ -8,6 +8,7 @@ from immersive_library.models import (
 from immersive_library.utils import (
     content_guard,
     moderator_guard,
+    update_precomputation,
 )
 
 router = APIRouter(tags=["Admin"])
@@ -32,6 +33,8 @@ async def run_post_upload_callbacks(
                 print(message)
                 log.append(message)
 
+    await update_precomputation(database)
+
     return PlainTextResponse(
         content="\n".join(log),
         media_type="text/plain",
@@ -55,6 +58,8 @@ async def run_post_upload_callbacks_content_id(
         if message is not None:
             print(message)
             log.append(message)
+
+    await update_precomputation(database, contentid)
 
     return PlainTextResponse(
         content="\n".join(log),
