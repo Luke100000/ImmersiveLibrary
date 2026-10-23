@@ -4,9 +4,11 @@ import os
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
+from google.auth.exceptions import GoogleAuthError, TransportError
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from orjson import orjson
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from immersive_library.common import database, templates
@@ -36,9 +38,15 @@ async def auth(
 ) -> Response:
     return_to = None
     if state is not None:
-        state_dict = orjson.loads(state)
-        token = base64.b64decode(state_dict.get("token")).decode("utf-8")
-        username = base64.b64decode(state_dict.get("username")).decode("utf-8")
+        try:
+            state_dict = orjson.loads(state)
+            token = base64.b64decode(state_dict["token"], validate=True).decode("utf-8")
+            username = base64.b64decode(state_dict["username"], validate=True).decode(
+                "utf-8"
+            )
+        except (ValueError, TypeError, KeyError):
+            raise HTTPException(400, "Invalid login state")
+
         requested_return_to = state_dict.get("return_to")
         if (
             isinstance(requested_return_to, str)
@@ -54,8 +62,11 @@ async def auth(
         raise HTTPException(400, "Token should at very least contain 16 bytes")
 
     try:
-        info = id_token.verify_oauth2_token(
-            credential, requests.Request(), os.getenv("CLIENT_ID")
+        info = await run_in_threadpool(
+            id_token.verify_oauth2_token,
+            credential,
+            requests.Request(),
+            os.getenv("CLIENT_ID", ""),
         )
 
         userid = info["sub"]
@@ -67,7 +78,9 @@ async def auth(
             return RedirectResponse(return_to, status_code=303)
 
         return templates.TemplateResponse(request, "success.jinja")
-    except ValueError:
+    except TransportError:
+        raise HTTPException(503, "Authentication service unavailable")
+    except (ValueError, GoogleAuthError):
         raise HTTPException(401, "Validation failed")
 
 
@@ -81,11 +94,19 @@ async def is_auth(
 
 @router.get("/v1/login", summary="Login")
 async def get_login(request: Request, state: str) -> HTMLResponse:
+    try:
+        state_dict = json.loads(base64.b64decode(state, validate=True))
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Invalid login state")
+
+    if not isinstance(state_dict, dict):
+        raise HTTPException(400, "Invalid login state")
+
     return templates.TemplateResponse(
         request,
         "login.jinja",
         {
-            "state": json.loads(base64.b64decode(state)),
+            "state": state_dict,
             "client_id": os.getenv("CLIENT_ID"),
             "login_uri": str(request.url_for("auth")),
             "has_cookie_consent": request.cookies.get("immersive_cookie_consent")
