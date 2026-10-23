@@ -26,12 +26,12 @@ class ValidClothingValidator(Validator):
         self, database: Database, userid: int, content: ContentUpload
     ) -> Optional[str]:
         try:
-            image = Image.open(io.BytesIO(content.payload))
-            image = np.array(image.convert("RGBA"))
+            with Image.open(io.BytesIO(content.payload)) as image:
+                if image.size != (64, 64):
+                    return "Shape is not (64, 64, 4)!"
 
-            if image.shape != (64, 64, 4):
-                return "Shape is not (64, 64, 4)!"
-        except (OSError, ValueError):
+                image.convert("RGBA")
+        except (OSError, ValueError, Image.DecompressionBombError):
             return "Not an valid image!"
 
     async def post_upload(

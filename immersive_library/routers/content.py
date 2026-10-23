@@ -2,10 +2,12 @@ import os
 import time
 from enum import Enum
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi_cache.decorator import cache
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
 from immersive_library.caching import public_cache
@@ -65,6 +67,17 @@ RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
 }
 
 CACHE_DIR = Path("data/cache")
+
+
+def write_render_cache(cache_path: Path, png_bytes: bytes):
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = NamedTemporaryFile(dir=cache_path.parent, delete=False)
+    try:
+        with temporary:
+            temporary.write(png_bytes)
+        Path(temporary.name).replace(cache_path)
+    finally:
+        Path(temporary.name).unlink(missing_ok=True)
 
 
 @router.get(
@@ -400,15 +413,18 @@ async def render_content_png(
         raise HTTPException(404, "Content not found")
 
     width, height = RENDER_PRESET_SIZES[preset]
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_name = f"{contentid}_{record['version']}_{width}x{height}.png"
     cache_path = CACHE_DIR / cache_name
     cache_headers = {
         "Cache-Control": "public, max-age=300, must-revalidate",
     }
-    if cache_path.exists():
+    try:
+        png_bytes = await run_in_threadpool(cache_path.read_bytes)
+    except FileNotFoundError:
+        pass
+    else:
         return Response(
-            content=cache_path.read_bytes(),
+            content=png_bytes,
             media_type="image/png",
             headers=cache_headers,
         )
@@ -423,7 +439,5 @@ async def render_content_png(
     except Exception as exc:
         raise HTTPException(500, f"Render failed: {exc}") from exc
 
-    tmp_path = cache_path.with_suffix(".tmp")
-    tmp_path.write_bytes(png_bytes)
-    tmp_path.replace(cache_path)
+    await run_in_threadpool(write_render_cache, cache_path, png_bytes)
     return Response(content=png_bytes, media_type="image/png", headers=cache_headers)
