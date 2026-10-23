@@ -17,7 +17,10 @@ from starlette.responses import JSONResponse
 
 from immersive_library.caching import CachedStaticFiles, apply_cache_policy
 from immersive_library.common import database
-from immersive_library.migrations import migrate_content_cascades
+from immersive_library.migrations import (
+    migrate_content_cascades,
+    migrate_unique_constraints,
+)
 from immersive_library.routers import (
     auth,
     content,
@@ -201,35 +204,6 @@ async def setup_users():
             await connection.execute("COMMIT")
 
 
-async def setup_vote_constraints():
-    async with database.connection() as connection:
-        await connection.execute("BEGIN IMMEDIATE")
-        try:
-            for table, columns in (
-                ("likes", "userid, contentid"),
-                ("reports", "userid, contentid, reason"),
-            ):
-                index_name = f"{table}_unique"
-                if await connection.fetch_val(
-                    "SELECT 1 FROM sqlite_master WHERE type='index' AND name=:name",
-                    {"name": index_name},
-                ):
-                    continue
-
-                # TODO: Temporary cleanup for old databases
-                await connection.execute(
-                    f"DELETE FROM {table} WHERE rowid NOT IN (SELECT MIN(rowid) FROM {table} GROUP BY {columns})"
-                )
-
-                await connection.execute(
-                    f"CREATE UNIQUE INDEX {index_name} ON {table} ({columns})"
-                )
-            await connection.execute("COMMIT")
-        except BaseException:
-            await connection.execute("ROLLBACK")
-            raise
-
-
 async def setup():
     await setup_users()
 
@@ -273,8 +247,6 @@ async def setup():
         "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
     )
 
-    await setup_vote_constraints()
-
     # Tags
     await database.execute(
         "CREATE TABLE IF NOT EXISTS tags (contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE, tag CHAR)"
@@ -293,6 +265,7 @@ async def setup():
         ) WITHOUT ROWID
     """)
 
+    await migrate_unique_constraints(database)
     await migrate_content_cascades(database)
 
     asyncio.create_task(update_precomputation(database))

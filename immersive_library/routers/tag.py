@@ -66,13 +66,15 @@ async def add_tag(
     if "," in tag:
         raise HTTPException(401, "Contains invalid characters")
 
-    if await has_tag(database, contentid, tag):
-        raise HTTPException(428, "Already tagged")
-
-    await database.execute(
-        "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
+    inserted_tag = await database.fetch_val(
+        """
+        INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)
+        ON CONFLICT (contentid, tag) DO NOTHING RETURNING tag
+        """,
         {"contentid": contentid, "tag": tag},
     )
+    if inserted_tag is None:
+        raise HTTPException(428, "Already tagged")
 
     await update_precomputation(database, contentid)
 

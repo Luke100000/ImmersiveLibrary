@@ -270,7 +270,10 @@ async def set_tags(database: Database, contentid: int, tags: list[str]):
 
     for tag in tags:
         await database.execute(
-            "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
+            """
+            INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)
+            ON CONFLICT (contentid, tag) DO NOTHING
+            """,
             {"contentid": contentid, "tag": tag},
         )
 

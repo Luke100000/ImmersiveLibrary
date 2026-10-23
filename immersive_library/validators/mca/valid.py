@@ -62,16 +62,16 @@ class ValidClothingValidator(Validator):
             clothing_alpha < clothing_threshold and not is_hair
         ) or head_alpha < hair_threshold
 
-        is_invalid = await has_tag(database, contentid, "invalid")
-
         if seems_invalid:
-            if not is_invalid:
-                await database.execute(
-                    "INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)",
-                    {"contentid": contentid, "tag": "invalid"},
-                )
+            inserted_tag = await database.fetch_val(
+                """
+                INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)
+                ON CONFLICT (contentid, tag) DO NOTHING RETURNING tag
+                """,
+                {"contentid": contentid, "tag": "invalid"},
+            )
+            if inserted_tag is not None:
                 return f"{contentid} has been marked as invalid!"
-        else:
-            if is_invalid:
-                return f"{contentid} seems valid but was marked as invalid!"
+        elif await has_tag(database, contentid, "invalid"):
+            return f"{contentid} seems valid but was marked as invalid!"
         return None

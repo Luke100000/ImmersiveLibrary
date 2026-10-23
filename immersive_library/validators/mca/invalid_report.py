@@ -27,7 +27,10 @@ class InvalidReportValidator(Validator):
 
         if content:
             await database.execute(
-                "INSERT INTO tags (contentid, tag) VALUES (:contentid, :tag)",
+                """
+                INSERT INTO tags (contentid, tag) VALUES (:contentid, :tag)
+                ON CONFLICT (contentid, tag) DO NOTHING
+                """,
                 {"contentid": contentid, "tag": "invalid"},
             )
 
