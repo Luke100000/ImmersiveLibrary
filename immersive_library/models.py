@@ -2,7 +2,7 @@ import base64
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ContentUpload(BaseModel):
@@ -10,6 +10,17 @@ class ContentUpload(BaseModel):
     meta: str
     data: str
     tags: Optional[List[str]] = None
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, tags: list[str] | None) -> list[str] | None:
+        try:
+            for tag in tags or []:
+                tag.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise HTTPException(400, "Tags contain invalid Unicode") from exc
+
+        return tags
 
     @property
     def payload(self) -> bytes:
