@@ -19,6 +19,7 @@ from immersive_library.utils import (
     moderator_guard,
     set_banned,
     set_moderator,
+    update_precomputation,
     user_exists,
 )
 
@@ -152,11 +153,13 @@ async def set_user(
 
     # Delete the user's content
     if purge:
-        await database.execute(
-            "DELETE FROM content WHERE userid=:userid", {"userid": userid}
-        )
-        await database.execute(
-            "DELETE FROM likes WHERE userid=:userid", {"userid": userid}
-        )
+        async with database.transaction():
+            await database.execute(
+                "DELETE FROM content WHERE userid=:userid", {"userid": userid}
+            )
+            await database.execute(
+                "DELETE FROM likes WHERE userid=:userid", {"userid": userid}
+            )
+            await update_precomputation(database)
 
     return PlainSuccess()

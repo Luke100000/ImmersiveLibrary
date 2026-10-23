@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 
 from immersive_library.caching import CachedStaticFiles, apply_cache_policy
 from immersive_library.common import database
+from immersive_library.migrations import migrate_content_cascades
 from immersive_library.routers import (
     auth,
     content,
@@ -252,7 +253,7 @@ async def setup():
     await database.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             userid INTEGER,
-            contentid INTEGER,
+            contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE,
             reason CHAR
         )
     """)
@@ -265,7 +266,7 @@ async def setup():
 
     # Likes
     await database.execute(
-        "CREATE TABLE IF NOT EXISTS likes (userid INTEGER, contentid INTEGER)"
+        "CREATE TABLE IF NOT EXISTS likes (userid INTEGER, contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE)"
     )
     await database.execute("CREATE INDEX IF NOT EXISTS likes_userid on likes (userid)")
     await database.execute(
@@ -276,7 +277,7 @@ async def setup():
 
     # Tags
     await database.execute(
-        "CREATE TABLE IF NOT EXISTS tags (contentid INTEGER, tag CHAR)"
+        "CREATE TABLE IF NOT EXISTS tags (contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE, tag CHAR)"
     )
     await database.execute(
         "CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)"
@@ -285,12 +286,14 @@ async def setup():
     # Precomputation
     await database.execute("""
         CREATE TABLE IF NOT EXISTS precomputation (
-            contentid INTEGER PRIMARY KEY,
+            contentid INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
             tags CHAR,
             likes INTEGER,
             reports INTEGER
         ) WITHOUT ROWID
     """)
+
+    await migrate_content_cascades(database)
 
     asyncio.create_task(update_precomputation(database))
 

@@ -19,6 +19,7 @@ class Connection(sqlite3.Connection):
         self.execute("pragma mmap_size = 0")
         self.execute("pragma cache_size = 2000")
         self.execute("pragma busy_timeout = 5000")
+        self.execute("pragma foreign_keys = ON")
 
 
 database = Database(
