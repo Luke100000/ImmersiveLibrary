@@ -6,12 +6,13 @@ from immersive_library.models import (
     PlainSuccess,
 )
 from immersive_library.utils import (
+    content_guard,
     has_liked,
     logged_in_guard,
     update_precomputation,
 )
 
-router = APIRouter(tags=["Likes"])
+router = APIRouter(tags=["Likes"], dependencies=[Depends(content_guard)])
 
 
 @router.post(

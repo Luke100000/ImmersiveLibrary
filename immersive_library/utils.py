@@ -359,10 +359,21 @@ async def get_user_class(
     )
 
 
-async def fetch_content(contentid: int, parse_meta: bool = True) -> Content:
+async def content_guard(project: str, contentid: int):
+    if not await common.database.fetch_val(
+        "SELECT 1 FROM content WHERE oid=:contentid AND project=:project",
+        {"contentid": contentid, "project": project},
+    ):
+        raise HTTPException(404, "Content not found")
+
+
+async def fetch_content(
+    project: str, contentid: int, parse_meta: bool = True
+) -> Content:
     content = await common.database.fetch_one(
-        get_base_select(True, True) + "WHERE c.oid = :contentid",
-        {"contentid": contentid},
+        get_base_select(True, True)
+        + "WHERE c.oid = :contentid AND c.project = :project",
+        {"contentid": contentid, "project": project},
     )
 
     if content is None:
@@ -389,6 +400,7 @@ async def logged_in_guard(
 
 
 async def owner_guard(
+    project: str,
     contentid: int = Path(...),
     token: Optional[str] = None,
     authorization: str = Header(None),
@@ -397,6 +409,7 @@ async def owner_guard(
     Ensures the user owns the content or is a moderator.
     """
     userid = await logged_in_guard(token, authorization)
+    await content_guard(project, contentid)
 
     if not await owns_content(
         common.database, contentid, userid

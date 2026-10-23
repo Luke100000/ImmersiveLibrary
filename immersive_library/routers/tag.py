@@ -10,6 +10,7 @@ from immersive_library.models import (
     TagListSuccess,
 )
 from immersive_library.utils import (
+    content_guard,
     has_tag,
     owner_guard,
     update_precomputation,
@@ -45,7 +46,7 @@ async def list_project_tags(
 @public_cache()
 @cache(expire=60)
 async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
-    assert project
+    await content_guard(project, contentid)
     tags = await database.fetch_all(
         "SELECT tag FROM tags WHERE contentid=:contentid", {"contentid": contentid}
     )

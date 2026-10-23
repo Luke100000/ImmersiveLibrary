@@ -6,6 +6,7 @@ from immersive_library.models import (
     Error,
 )
 from immersive_library.utils import (
+    content_guard,
     moderator_guard,
 )
 
@@ -39,11 +40,13 @@ async def run_post_upload_callbacks(
 
 
 @router.get(
-    "/v1/tools/post-process/{project}/{content_id}", responses={401: {"model": Error}}
+    "/v1/tools/post-process/{project}/{contentid}", responses={401: {"model": Error}}
 )
 async def run_post_upload_callbacks_content_id(
-    project: str, contentid: str, userid: int = Depends(moderator_guard)
+    project: str, contentid: int, userid: int = Depends(moderator_guard)
 ) -> PlainTextResponse:
+    await content_guard(project, contentid)
+
     # Call validators for eventual post-processing
     log = []
     for message in await get_project(project).call(

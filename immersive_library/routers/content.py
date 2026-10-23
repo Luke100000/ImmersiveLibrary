@@ -290,7 +290,7 @@ async def get_content(
     assert project
     assert version is not None
 
-    content = await fetch_content(contentid, parse_meta)
+    content = await fetch_content(project, contentid, parse_meta)
 
     return ContentSuccess(content=content)
 
