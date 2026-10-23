@@ -18,6 +18,6 @@ class MaxSizeValidator(Validator):
     async def pre_upload(
         self, database: Database, userid: int, content: ContentUpload
     ) -> Optional[str]:
-        if len(content.data) > self.max_size * 1.33:
+        if len(content.payload) > self.max_size:
             return "data too large"
         return None

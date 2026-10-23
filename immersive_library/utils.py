@@ -276,11 +276,12 @@ async def set_tags(database: Database, contentid: int, tags: list[str]):
 
 
 def safe_parse(meta: str) -> Dict[str, Any]:
-    # noinspection PyBroadException
     try:
-        return orjson.loads(meta)
-    except Exception:
+        parsed_meta = orjson.loads(meta)
+    except orjson.JSONDecodeError:
         return {}
+
+    return parsed_meta if isinstance(parsed_meta, dict) else {}
 
 
 def get_lite_content_class(

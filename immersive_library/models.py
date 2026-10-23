@@ -1,6 +1,7 @@
 import base64
 from typing import Any, Dict, List, Optional, Union
 
+from fastapi import HTTPException
 from pydantic import BaseModel
 
 
@@ -12,7 +13,10 @@ class ContentUpload(BaseModel):
 
     @property
     def payload(self) -> bytes:
-        return base64.b64decode(self.data)
+        try:
+            return base64.b64decode(self.data, validate=True)
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid Base64 data") from exc
 
     def replace(self, data: bytes):
         self.data = base64.b64encode(data).decode()
