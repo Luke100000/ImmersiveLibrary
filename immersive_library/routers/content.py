@@ -24,7 +24,6 @@ from immersive_library.models import (
 )
 from immersive_library.rendering import BrowserRenderer
 from immersive_library.utils import (
-    exists,
     fetch_content,
     get_base_select,
     get_lite_content_class,
@@ -318,20 +317,19 @@ async def get_content(
 async def add_content(
     project: str, content: ContentUpload, userid: int = Depends(logged_in_guard)
 ) -> ContentIdSuccess:
-    # Check for duplicates
-    if await exists(
-        database,
-        "SELECT count(*) FROM content WHERE project=:project AND data=:data",
-        {"project": project, "data": content.payload},
-    ):
-        raise HTTPException(428, "Duplicate found!")
-
     # Call validators for content verification
     await get_project(project).validate("pre_upload", database, userid, content)
 
     async with database.transaction():
-        contentid = await database.execute(
-            "INSERT INTO content (userid, project, title, meta, data) VALUES(:userid, :project, :title, :meta, :data)",
+        contentid = await database.fetch_val(
+            """
+            INSERT INTO content (userid, project, title, meta, data)
+            SELECT :userid, :project, :title, :meta, :data
+            WHERE NOT EXISTS (
+                SELECT 1 FROM content WHERE project=:project AND data=:data
+            )
+            RETURNING oid
+            """,
             {
                 "userid": userid,
                 "project": project,
@@ -340,6 +338,9 @@ async def add_content(
                 "data": content.payload,
             },
         )
+
+        if contentid is None:
+            raise HTTPException(428, "Duplicate found!")
 
         if content.tags is not None:
             await set_tags(database, contentid, content.tags)
