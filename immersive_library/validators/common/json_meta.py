@@ -1,5 +1,3 @@
-from typing import Optional
-
 from databases import Database
 from pydantic import BaseModel, ValidationError
 
@@ -8,18 +6,17 @@ from immersive_library.validators.validator import Validator
 
 
 class JsonMetaValidator(Validator):
-    def __init__(self, schema: type[BaseModel]):
+    def __init__(self, schema: type[BaseModel]) -> None:
         """
         :param schema: The schema to validate the JSON meta-field against.
         """
-        super().__init__()
-
         self.schema = schema
 
     async def pre_upload(
         self, database: Database, userid: int, content: ContentUpload
-    ) -> Optional[str]:
+    ) -> str | None:
         try:
             self.schema.model_validate(content.meta)
-        except ValidationError as e:
-            return str(e)
+        except ValidationError as exc:
+            return str(exc)
+        return None

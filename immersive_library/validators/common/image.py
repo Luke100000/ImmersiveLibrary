@@ -1,5 +1,4 @@
 import io
-from typing import Optional
 
 from databases import Database
 from PIL import Image
@@ -11,19 +10,17 @@ from immersive_library.validators.validator import Validator
 class ImageValidator(Validator):
     def __init__(
         self,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        width: int | None = None,
+        height: int | None = None,
         file_format: str = "png",
         image_mode: str = "RGBA",
-    ):
+    ) -> None:
         """
         :param width: The width of the image.
         :param height: The height of the image.
         :param file_format: The file format to convert the image to.
         :param image_mode: The image mode to convert the image to.
         """
-        super().__init__()
-
         self.width = width
         self.height = height
         self.file_format = file_format
@@ -31,7 +28,7 @@ class ImageValidator(Validator):
 
     async def pre_upload(
         self, database: Database, userid: int, content: ContentUpload
-    ) -> Optional[str]:
+    ) -> str | None:
         # noinspection PyBroadException
         try:
             image = Image.open(io.BytesIO(content.payload))

@@ -1,5 +1,4 @@
 import io
-from typing import Optional
 
 import numpy as np
 from databases import Database
@@ -11,7 +10,8 @@ from immersive_library.validators.validator import Validator
 
 
 def get_mask(path: str):
-    return np.asarray(Image.open(path).convert("L")) > 0
+    with Image.open(path) as image:
+        return np.asarray(image.convert("L")) > 0
 
 
 clothing_mask = get_mask("immersive_library/validators/mca/data/clothing.png")
@@ -24,7 +24,7 @@ hair_threshold = 6
 class ValidClothingValidator(Validator):
     async def pre_upload(
         self, database: Database, userid: int, content: ContentUpload
-    ) -> Optional[str]:
+    ) -> str | None:
         try:
             with Image.open(io.BytesIO(content.payload)) as image:
                 if image.size != (64, 64):
@@ -36,7 +36,7 @@ class ValidClothingValidator(Validator):
 
     async def post_upload(
         self, database: Database, userid: int, contentid: int
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Mark skins as invalid if several pixels which are expected to be transparent are not.
         """
@@ -48,12 +48,12 @@ class ValidClothingValidator(Validator):
         if content is None:
             return None
 
-        image = Image.open(io.BytesIO(content[0]))
-        image = np.array(image.convert("RGBA"))
+        with Image.open(io.BytesIO(content[0])) as image:
+            pixels = np.array(image.convert("RGBA"))
 
-        clothing_alpha = ((image[:, :, 3] < 128) * clothing_mask).sum()
+        clothing_alpha = ((pixels[:, :, 3] < 128) * clothing_mask).sum()
         head_alpha = (
-            ((image[:32, :32, 3] + image[:32, 32:, 3]) < 128) * head_mask[:32, :32]
+            ((pixels[:32, :32, 3] + pixels[:32, 32:, 3]) < 128) * head_mask[:32, :32]
         ).sum()
 
         is_hair = await has_tag(database, contentid, "hair")

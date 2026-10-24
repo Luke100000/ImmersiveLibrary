@@ -3,7 +3,6 @@ import time
 from enum import Enum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi_cache.decorator import cache
@@ -68,7 +67,7 @@ RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
 CACHE_DIR = Path("data/cache")
 
 
-def write_render_cache(cache_path: Path, png_bytes: bytes):
+def write_render_cache(cache_path: Path, png_bytes: bytes) -> None:
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = NamedTemporaryFile(dir=cache_path.parent, delete=False)
     try:
@@ -113,14 +112,14 @@ async def list_projects() -> ProjectListSuccess:
 async def list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
-    userid: Optional[int] = Query(
+    userid: int | None = Query(
         None,
         description=(
             "User context for likes, submissions and recommendation ordering. "
             "Defaults to the authenticated user."
         ),
     ),
-    whitelist: Optional[str] = Query(
+    whitelist: str | None = Query(
         None,
         description=(
             "Only include content that matches every comma-separated term. Prefix a "
@@ -129,7 +128,7 @@ async def list_content_v2(
             "tags. Prefix any term with - to exclude it."
         ),
     ),
-    blacklist: Optional[str] = Query(
+    blacklist: str | None = Query(
         None,
         deprecated=True,
         description=(
@@ -156,35 +155,35 @@ async def list_content_v2(
         False,
         description="Parse the meta field and return it as a dict rather than a JSON encoded string.",
     ),
-    token: Optional[str] = None,
+    token: str | None = None,
     authorization: str = Header(None),
 ) -> ContentListSuccess:
     viewer_id = await token_to_userid(database, token, authorization)
 
     return await inner_list_content_v2(
         project,
-        track,
-        userid,
-        whitelist,
-        blacklist,
-        filter_banned,
-        filter_reported,
-        offset,
-        limit,
-        order,
-        descending,
-        include_meta,
-        parse_meta,
-        viewer_id,
+        track=track,
+        userid=userid,
+        whitelist=whitelist,
+        blacklist=blacklist,
+        filter_banned=filter_banned,
+        filter_reported=filter_reported,
+        offset=offset,
+        limit=limit,
+        order=order,
+        descending=descending,
+        include_meta=include_meta,
+        parse_meta=parse_meta,
+        viewer_id=viewer_id,
     )
 
 
 async def inner_list_content_v2(
     project: str,
     track: TrackEnum = TrackEnum.ALL,
-    userid: Optional[int] = None,
-    whitelist: Optional[str] = None,
-    blacklist: Optional[str] = None,
+    userid: int | None = None,
+    whitelist: str | None = None,
+    blacklist: str | None = None,
     filter_banned: bool = True,
     filter_reported: bool = True,
     offset: int = 0,
@@ -193,29 +192,29 @@ async def inner_list_content_v2(
     descending: bool = False,
     include_meta: bool = False,
     parse_meta: bool = False,
-    viewer_id: Optional[int] = None,
+    viewer_id: int | None = None,
 ) -> ContentListSuccess:
     userid = userid if userid is not None else viewer_id
 
-    prompt = get_base_select(False, include_meta)
+    query = get_base_select(include_data=False, include_meta=include_meta)
     values: dict[str, str | int | None] = {"project": project}
 
     # Filter for a specific track
     if track == TrackEnum.ALL:
-        prompt += "\n WHERE c.project = :project"
+        query += "\n WHERE c.project = :project"
     elif track == TrackEnum.LIKES:
-        prompt += "\n INNER JOIN likes on likes.contentid=c.oid"
-        prompt += "\n WHERE c.project=:project AND likes.userid=:userid"
+        query += "\n INNER JOIN likes on likes.contentid=c.oid"
+        query += "\n WHERE c.project=:project AND likes.userid=:userid"
         values["userid"] = userid
     elif track == TrackEnum.SUBMISSIONS:
-        prompt += "\n WHERE c.project=:project AND c.userid=:userid"
+        query += "\n WHERE c.project=:project AND c.userid=:userid"
         values["userid"] = userid
     else:
         raise HTTPException(400, "Invalid track")
 
     # Hide content reported by the viewer.
     if viewer_id is not None:
-        prompt += """
+        query += """
          AND NOT EXISTS (SELECT *
                     FROM reports
                     WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :viewer_id)
@@ -224,14 +223,16 @@ async def inner_list_content_v2(
 
     # Remove content from banned users
     if filter_banned:
-        prompt += "\n AND NOT users.banned"
+        query += "\n AND NOT users.banned"
 
     # Remove reported content
     if filter_reported:
-        prompt += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
+        query += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
 
     whitelist_terms = (
-        [v.strip() for v in whitelist.split(",") if v.strip()] if whitelist else []
+        [term.strip() for term in whitelist.split(",") if term.strip()]
+        if whitelist
+        else []
     )
 
     # Treat the deprecated blacklist as exact excluded-tag whitelist terms.
@@ -266,32 +267,34 @@ async def inner_list_content_v2(
             )
             values[parameter] = f"%{search_term}%"
 
-        prompt += f"\n AND {'NOT ' if negated else ''}{condition}"
+        query += f"\n AND {'NOT ' if negated else ''}{condition}"
 
-    # Order by
+    direction = "DESC" if descending else "ASC"
+
     if order == ContentOrder.RECOMMENDATIONS:
-        prompt += (
-            "\n ORDER BY (likes + :like_norm) * ABS(((:seed + c.oid) * 1103515245 + 12345) - 2147483648 * CAST(((:seed + c.oid) * 1103515245 + 12345) / 2147483648 AS INTEGER)) / 2147483647.0 "
-            + ("DESC" if descending else "ASC")
-        )
+        query += f"""
+            ORDER BY (likes + :like_norm) * ABS(
+                ((:seed + c.oid) * 1103515245 + 12345)
+                - 2147483648 * CAST(
+                    ((:seed + c.oid) * 1103515245 + 12345) / 2147483648 AS INTEGER
+                )
+            ) / 2147483647.0 {direction}
+        """
         values["seed"] = (0 if userid is None else userid) + int(time.time() / 86400)
         values["like_norm"] = 100
     else:
-        prompt += (
-            f"\n ORDER BY {'c.oid' if order == ContentOrder.DATE else order.name} "
-            + ("DESC" if descending else "ASC")
-        )
+        sort_column = "c.oid" if order == ContentOrder.DATE else order.name
+        query += f"\n ORDER BY {sort_column} {direction}"
 
-    # Limit
-    prompt += "\n LIMIT :limit OFFSET :offset"
+    query += "\n LIMIT :limit OFFSET :offset"
     values["limit"] = limit
     values["offset"] = offset
 
-    # Fetch
-    content = await database.fetch_all(prompt, values)
+    content = await database.fetch_all(query, values)
 
-    # Convert to content accessors, which are more lightweight than the actual content instances
-    contents = [get_lite_content_class(c, include_meta, parse_meta) for c in content]
+    contents = [
+        get_lite_content_class(record, include_meta, parse_meta) for record in content
+    ]
 
     return ContentListSuccess(contents=contents)
 

@@ -23,11 +23,10 @@ async def run_post_upload_callbacks(
         {"project": project},
     )
 
-    # Call validators for eventual post-processing
     log = []
-    for c in content:
+    for record in content:
         for message in await get_project(project).call(
-            "post_upload", database, userid, c["oid"]
+            "post_upload", database, userid, record["oid"]
         ):
             if message is not None:
                 print(message)
@@ -50,7 +49,6 @@ async def run_post_upload_callbacks_content_id(
 ) -> PlainTextResponse:
     await content_guard(project, contentid)
 
-    # Call validators for eventual post-processing
     log = []
     for message in await get_project(project).call(
         "post_upload", database, userid, contentid

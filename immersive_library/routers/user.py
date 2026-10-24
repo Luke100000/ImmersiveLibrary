@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List, Optional
 
 from databases.interfaces import Record
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +26,7 @@ router = APIRouter(tags=["Users"])
 
 
 @router.get("/v1/bans", tags=["Users"])
-async def get_banned(userid: int = Depends(moderator_guard)) -> List[BanEntry]:
+async def get_banned(userid: int = Depends(moderator_guard)) -> list[BanEntry]:
     assert userid
     content = await database.fetch_all(
         """
@@ -82,8 +81,14 @@ async def get_users_inner(
     offset: int,
     order: UserOrder,
     descending: bool,
-    userid: Optional[int] = None,
+    userid: int | None = None,
 ) -> list[Record]:
+    values = {"limit": limit, "offset": offset, "project": project}
+    user_filter = ""
+    if userid is not None:
+        user_filter = "AND users.oid = :userid"
+        values["userid"] = userid
+
     return await database.fetch_all(
         f"""
             SELECT users.oid,
@@ -116,13 +121,13 @@ async def get_users_inner(
             ) likes_received ON likes_received.userid = users.oid
 
             WHERE users.banned = 0
-            {"" if userid is None else f"AND users.oid = {int(userid)}"}
+            {user_filter}
 
             ORDER BY {order.name} {"DESC" if descending else "ASC"}
             LIMIT :limit
             OFFSET :offset
         """,
-        {"limit": limit, "offset": offset, "project": project},
+        values,
     )
 
 
@@ -134,8 +139,8 @@ async def get_users_inner(
 async def set_user(
     userid: int,
     executor_userid: int = Depends(moderator_guard),
-    banned: Optional[bool] = None,
-    moderator: Optional[bool] = None,
+    banned: bool | None = None,
+    moderator: bool | None = None,
     purge: bool = False,
 ) -> PlainSuccess:
     assert executor_userid

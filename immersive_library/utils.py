@@ -1,6 +1,6 @@
 import base64
 import hashlib
-from typing import Any, Dict, Optional
+from typing import Any
 
 import orjson
 from cachetools import cached
@@ -19,7 +19,9 @@ from immersive_library.models import (
 MAX_USER_TOKENS = 10
 
 
-async def update_precomputation(database: Database, contentid: Optional[int] = None):
+async def update_precomputation(
+    database: Database, contentid: int | None = None
+) -> None:
     """
     Refreshes the database persistent cache
     :param database: The database to refresh
@@ -55,8 +57,8 @@ async def update_precomputation(database: Database, contentid: Optional[int] = N
 
 
 @cached(cache={})
-def get_base_select(include_data: bool, include_meta: bool):
-    prompt = """
+def get_base_select(include_data: bool, include_meta: bool) -> str:
+    query = """
         SELECT c.oid,
                c.userid,
                users.username,
@@ -73,31 +75,27 @@ def get_base_select(include_data: bool, include_meta: bool):
     """
 
     if not include_meta:
-        prompt = prompt.replace("c.meta,", "")
+        query = query.replace("c.meta,", "")
 
     if not include_data:
-        prompt = prompt.replace("c.data,", "")
+        query = query.replace("c.data,", "")
 
-    return prompt
+    return query
 
 
 def sha256(string: str) -> str:
-    sha256_hash = hashlib.sha256()
-    sha256_hash.update(string.encode("utf-8"))
-    return sha256_hash.hexdigest()
+    return hashlib.sha256(string.encode("utf-8")).hexdigest()
 
 
 async def token_to_userid(
-    database: Database, token: Optional[str] = None, authorization: str = Header(None)
-) -> Optional[int]:
+    database: Database, token: str | None = None, authorization: str = Header(None)
+) -> int | None:
     """
     Return the userid for a given token, or None if the token is invalid
     """
     if authorization is not None and str(authorization).startswith("Bearer "):
         token = sha256(authorization[7:])
-    if token is None:
-        return None
-    if len(token) == 0:
+    if not token:
         return None
     userid = await database.fetch_one(
         "SELECT userid FROM user_tokens WHERE token=:token", {"token": token}
@@ -105,12 +103,12 @@ async def token_to_userid(
     return None if userid is None else userid[0]
 
 
-async def get_count(database: Database, query: str, params: dict[str, Any]):
+async def get_count(database: Database, query: str, params: dict[str, Any]) -> int:
     row = await database.fetch_one(query, params)
     return row[0] if row is not None else 0
 
 
-async def exists(database: Database, query: str, params: dict[str, Any]):
+async def exists(database: Database, query: str, params: dict[str, Any]) -> bool:
     return await get_count(database, query, params) > 0
 
 
@@ -123,7 +121,9 @@ async def user_exists(database: Database, userid: int) -> bool:
     )
 
 
-async def login_user(database: Database, google_userid, username, token):
+async def login_user(
+    database: Database, google_userid: str, username: str, token: str
+) -> None:
     """
     Logs in the user, creating an account if necessary and updating username and token
     """
@@ -204,7 +204,7 @@ async def is_banned(database: Database, userid: int) -> bool:
     )
 
 
-async def set_moderator(database: Database, userid: int, moderator: bool):
+async def set_moderator(database: Database, userid: int, moderator: bool) -> None:
     """
     Sets moderator status
     """
@@ -214,7 +214,7 @@ async def set_moderator(database: Database, userid: int, moderator: bool):
     )
 
 
-async def set_banned(database: Database, userid: int, banned: bool):
+async def set_banned(database: Database, userid: int, banned: bool) -> None:
     """
     Sets banned status
     """
@@ -224,7 +224,7 @@ async def set_banned(database: Database, userid: int, banned: bool):
     )
 
 
-async def has_liked(database: Database, userid: int, contentid: int):
+async def has_liked(database: Database, userid: int, contentid: int) -> bool:
     """
     Checks if the given user has liked the content
     """
@@ -237,7 +237,7 @@ async def has_liked(database: Database, userid: int, contentid: int):
 
 async def has_reported(
     database: Database, userid: int, contentid: int, reason: str
-) -> object:
+) -> bool:
     """
     Checks if the given user has reported the content with the given reason
     """
@@ -259,7 +259,7 @@ async def has_tag(database: Database, contentid: int, tag: str) -> bool:
     )
 
 
-async def set_tags(database: Database, contentid: int, tags: list[str]):
+async def set_tags(database: Database, contentid: int, tags: list[str]) -> None:
     """
     Replaces the tags for a given content
     """
@@ -278,7 +278,7 @@ async def set_tags(database: Database, contentid: int, tags: list[str]):
         )
 
 
-def safe_parse(meta: str) -> Dict[str, Any]:
+def safe_parse(meta: str) -> dict[str, Any]:
     try:
         parsed_meta = orjson.loads(meta)
     except orjson.JSONDecodeError:
@@ -293,19 +293,19 @@ def get_lite_content_class(
     """
     Populates a lite content object
     """
-    # noinspection PyProtectedMember
-    m = record._mapping
+    meta = None
+    if include_meta:
+        meta = safe_parse(record["meta"]) if parse_meta else record["meta"]
+
     return LiteContent(
-        contentid=m["oid"],
-        userid=m["userid"],
-        username=m["username"],
-        likes=m["likes"],
-        tags=m["tags"].split(",") if m["tags"] else [],
-        title=m["title"],
-        version=m["version"],
-        meta=(safe_parse(m["meta"]) if parse_meta else m["meta"])
-        if include_meta
-        else None,
+        contentid=record["oid"],
+        userid=record["userid"],
+        username=record["username"],
+        likes=record["likes"],
+        tags=record["tags"].split(",") if record["tags"] else [],
+        title=record["title"],
+        version=record["version"],
+        meta=meta,
     )
 
 
@@ -313,22 +313,20 @@ def get_content_class(record: Record, parse_meta: bool = True) -> Content:
     """
     Populates a content object
     """
-    # noinspection PyProtectedMember
-    m = record._mapping
     return Content(
-        contentid=m["oid"],
-        userid=m["userid"],
-        username=m["username"],
-        likes=m["likes"],
-        tags=m["tags"].split(",") if m["tags"] else [],
-        title=m["title"],
-        version=m["version"],
-        meta=safe_parse(m["meta"]) if parse_meta else m["meta"],
-        data=base64.b64encode(m["data"]).decode("utf-8"),
+        contentid=record["oid"],
+        userid=record["userid"],
+        username=record["username"],
+        likes=record["likes"],
+        tags=record["tags"].split(",") if record["tags"] else [],
+        title=record["title"],
+        version=record["version"],
+        meta=safe_parse(record["meta"]) if parse_meta else record["meta"],
+        data=base64.b64encode(record["data"]).decode("utf-8"),
     )
 
 
-def get_lite_user_class(record: Record):
+def get_lite_user_class(record: Record) -> LiteUser:
     """
     Populates a user object
     """
@@ -348,11 +346,11 @@ async def get_user_class(
     moderator: int,
     submissions: list[LiteContent],
     likes: list[LiteContent],
-):
+) -> User:
     """
     Populates a user object
     """
-    likes_received = sum([int(c.likes) for c in submissions])
+    likes_received = sum(int(content.likes) for content in submissions)
     return User(
         userid=userid,
         username=username,
@@ -363,7 +361,7 @@ async def get_user_class(
     )
 
 
-async def content_guard(project: str, contentid: int):
+async def content_guard(project: str, contentid: int) -> None:
     if not await common.database.fetch_val(
         "SELECT 1 FROM content WHERE oid=:contentid AND project=:project",
         {"contentid": contentid, "project": project},
@@ -387,8 +385,8 @@ async def fetch_content(
 
 
 async def logged_in_guard(
-    token: Optional[str] = None, authorization: str = Header(None)
-):
+    token: str | None = None, authorization: str = Header(None)
+) -> int:
     """
     Ensures the user is logged in.
     """
@@ -406,9 +404,9 @@ async def logged_in_guard(
 async def owner_guard(
     project: str,
     contentid: int = Path(...),
-    token: Optional[str] = None,
+    token: str | None = None,
     authorization: str = Header(None),
-):
+) -> int:
     """
     Ensures the user owns the content or is a moderator.
     """
@@ -424,8 +422,8 @@ async def owner_guard(
 
 
 async def moderator_guard(
-    token: Optional[str] = None, authorization: str = Header(None)
-):
+    token: str | None = None, authorization: str = Header(None)
+) -> int:
     """
     Ensures the user is a moderator.
     """

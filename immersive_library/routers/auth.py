@@ -1,7 +1,7 @@
 import base64
 import json
 import os
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from google.auth.exceptions import GoogleAuthError, TransportError
@@ -32,9 +32,9 @@ router = APIRouter(tags=["Auth"])
 async def auth(
     request: Request,
     credential: Annotated[str, Form()],
-    state: Annotated[Optional[str], Form()] = None,
-    username: Optional[str] = Query(None, deprecated=True, include_in_schema=False),
-    token: Optional[str] = Query(None, deprecated=True, include_in_schema=False),
+    state: Annotated[str | None, Form()] = None,
+    username: str | None = Query(None, deprecated=True, include_in_schema=False),
+    token: str | None = Query(None, deprecated=True, include_in_schema=False),
 ) -> Response:
     return_to = None
     if state is not None:
@@ -86,7 +86,7 @@ async def auth(
 
 @router.get("/v1/auth", summary="Check if user is authenticated")
 async def is_auth(
-    token: Optional[str] = None, authorization: str = Header(None)
+    token: str | None = None, authorization: str = Header(None)
 ) -> IsAuthResponse:
     userid = await token_to_userid(database, token, authorization)
     return IsAuthResponse(authenticated=userid is not None)

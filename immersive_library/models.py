@@ -1,5 +1,5 @@
 import base64
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, field_validator
@@ -9,7 +9,7 @@ class ContentUpload(BaseModel):
     title: str
     meta: str
     data: str
-    tags: Optional[List[str]] = None
+    tags: list[str] | None = None
 
     @field_validator("tags")
     @classmethod
@@ -29,7 +29,7 @@ class ContentUpload(BaseModel):
         except ValueError as exc:
             raise HTTPException(400, "Invalid Base64 data") from exc
 
-    def replace(self, data: bytes):
+    def replace(self, data: bytes) -> None:
         self.data = base64.b64encode(data).decode()
 
 
@@ -38,10 +38,10 @@ class Content(BaseModel):
     userid: int
     username: str
     likes: int
-    tags: List[str]
+    tags: list[str]
     title: str
     version: int
-    meta: Union[str, Dict[str, Any]]
+    meta: str | dict[str, Any]
     data: str
 
 
@@ -50,10 +50,10 @@ class LiteContent(BaseModel):
     userid: int
     username: str
     likes: int
-    tags: List[str]
+    tags: list[str]
     title: str
     version: int
-    meta: Optional[Union[str, Dict[str, Any]]] = None
+    meta: str | dict[str, Any] | None = None
 
 
 class LiteUser(BaseModel):
@@ -69,8 +69,8 @@ class User(BaseModel):
     userid: int
     username: str
     likes_received: int
-    likes: Union[List[LiteContent], List[int]]
-    submissions: Union[List[LiteContent], List[int]]
+    likes: list[LiteContent] | list[int]
+    submissions: list[LiteContent] | list[int]
     moderator: bool
 
 
@@ -80,7 +80,7 @@ class ProjectSummary(BaseModel):
 
 
 class ProjectListSuccess(BaseModel):
-    projects: List[ProjectSummary]
+    projects: list[ProjectSummary]
 
 
 class ContentSuccess(BaseModel):
@@ -88,7 +88,7 @@ class ContentSuccess(BaseModel):
 
 
 class ContentListSuccess(BaseModel):
-    contents: List[LiteContent]
+    contents: list[LiteContent]
 
 
 class UserSuccess(BaseModel):
@@ -104,15 +104,15 @@ class IsAuthResponse(BaseModel):
 
 
 class UserListSuccess(BaseModel):
-    users: List[LiteUser]
+    users: list[LiteUser]
 
 
 class TagListSuccess(BaseModel):
-    tags: List[str]
+    tags: list[str]
 
 
 class TagDictSuccess(BaseModel):
-    tags: Dict[str, int]
+    tags: dict[str, int]
 
 
 class ContentIdSuccess(BaseModel):

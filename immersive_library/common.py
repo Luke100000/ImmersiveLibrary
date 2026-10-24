@@ -1,6 +1,5 @@
 import os
 import sqlite3
-from typing import List, Optional
 
 from databases import Database
 from fastapi import HTTPException
@@ -30,27 +29,27 @@ templates = Jinja2Templates(directory="templates")
 
 
 class Project:
-    validators: List[Validator]
+    validators: list[Validator]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.validators = []
 
-    async def validate(self, callback: str, *args):
+    async def validate(self, callback: str, *args) -> None:
         for validator in self.validators:
-            exception = await validator.__getattribute__(callback)(*args)
-            if exception is not None:
-                raise HTTPException(400, exception)
+            error = await getattr(validator, callback)(*args)
+            if error is not None:
+                raise HTTPException(400, error)
 
-    async def call(self, callback: str, *args, **kwargs) -> List[Optional[str]]:
+    async def call(self, callback: str, *args, **kwargs) -> list[str | None]:
         log = []
         for validator in self.validators:
-            log.append(await validator.__getattribute__(callback)(*args, **kwargs))
+            log.append(await getattr(validator, callback)(*args, **kwargs))
         return log
 
 
 default_project = Project()
 
-projects = {}
+projects: dict[str, Project] = {}
 
 
 def get_project(name: str) -> Project:

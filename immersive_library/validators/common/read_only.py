@@ -1,5 +1,3 @@
-from typing import Optional
-
 from databases import Database
 
 from immersive_library.models import ContentUpload
@@ -10,7 +8,7 @@ from immersive_library.validators.validator import Validator
 class ReadOnlyValidator(Validator):
     async def pre_upload(
         self, database: Database, userid: int, content: ContentUpload
-    ) -> Optional[str]:
+    ) -> str | None:
         if await is_moderator(database, userid):
             return None
         return "Project is read only"

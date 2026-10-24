@@ -11,11 +11,11 @@ router = APIRouter()
 @router.get("/v1/stats/{project}")
 @public_cache()
 @cache(expire=60)
-async def get_statistics(project: str):
-    content_count = await database.fetch_one(
+async def get_statistics(project: str) -> dict[str, str | int]:
+    content_count = await database.fetch_val(
         "SELECT count(*) from content WHERE project = :project", {"project": project}
     )
-    content_count_liked = await database.fetch_one(
+    content_count_liked = await database.fetch_val(
         """
         SELECT count(*)
         FROM content
@@ -24,16 +24,16 @@ async def get_statistics(project: str):
     """,
         {"project": project},
     )
-    users_count = await database.fetch_one("SELECT count(*) FROM users")
-    users_banned_count = await database.fetch_one(
+    users_count = await database.fetch_val("SELECT count(*) FROM users")
+    users_banned_count = await database.fetch_val(
         "SELECT count(*) FROM users WHERE banned > 0"
     )
-    likes_count = await database.fetch_one("SELECT count(*) FROM likes")
-    reports_count = await database.fetch_one("SELECT count(*) FROM reports")
+    likes_count = await database.fetch_val("SELECT count(*) FROM likes")
+    reports_count = await database.fetch_val("SELECT count(*) FROM reports")
 
-    tags = dict(await list_project_tags(project, limit=50, offset=0))
+    tags = await list_project_tags(project, limit=50, offset=0)
 
-    random_oid = await database.fetch_one(
+    random_oid = await database.fetch_val(
         """
         SELECT oid
         FROM (
@@ -49,12 +49,12 @@ async def get_statistics(project: str):
     )
 
     return {
-        "oid": -1 if random_oid is None else random_oid[0],
-        "top_tags": ", ".join(list(tags["tags"].keys())[:30]),
-        "content": "{:,}".format(content_count[0]),
-        "content_liked": "{:,}".format(content_count_liked[0]),
-        "users": "{:,}".format(users_count[0]),
-        "users_banned_count": "{:,}".format(users_banned_count[0]),
-        "likes": "{:,}".format(likes_count[0]),
-        "reports": "{:,}".format(reports_count[0]),
+        "oid": -1 if random_oid is None else random_oid,
+        "top_tags": ", ".join(list(tags.tags)[:30]),
+        "content": f"{content_count:,}",
+        "content_liked": f"{content_count_liked:,}",
+        "users": f"{users_count:,}",
+        "users_banned_count": f"{users_banned_count:,}",
+        "likes": f"{likes_count:,}",
+        "reports": f"{reports_count:,}",
     }

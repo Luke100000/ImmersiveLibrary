@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import APIRouter
 from fastapi_cache.decorator import cache
 
@@ -19,7 +17,7 @@ router = APIRouter(tags=["Content"])
 )
 @cache(expire=60)
 async def list_content(
-    project: str, tag_filter: Optional[str] = None, invert_filter: bool = False
+    project: str, tag_filter: str | None = None, invert_filter: bool = False
 ) -> ContentListSuccess:
     return await inner_list_content_v2(
         project,
