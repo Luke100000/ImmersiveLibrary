@@ -130,7 +130,34 @@ function createMultiViewRenderer(canvas, animate) {
     }
 
     function clear() {
+        const resources = new Set();
+
+        for (const view of views) {
+            view.scene.traverse((object) => {
+                if (object.geometry) {
+                    resources.add(object.geometry);
+                }
+
+                const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+                for (const material of objectMaterials) {
+                    if (!material) continue;
+                    resources.add(material);
+                    for (const value of Object.values(material)) {
+                        if (value && value.isTexture) {
+                            resources.add(value);
+                        }
+                    }
+                }
+            });
+        }
+
         views.clear();
+        return () => {
+            for (const resource of resources) {
+                resource.dispose();
+            }
+            renderer.renderLists.dispose();
+        };
     }
 
     function render(timestamp) {

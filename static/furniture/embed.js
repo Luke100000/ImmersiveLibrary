@@ -292,6 +292,10 @@ export async function embed(element, content, options = {}) {
             try {
                 return createSceneFromObject(parsedData, element, options);
             } catch (e) {
+                if (options.animate === false) {
+                    throw e;
+                }
+
                 console.error("Error creating scene:", e);
                 const error = document.createElement('div');
                 error.className = 'error';

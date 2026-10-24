@@ -59,6 +59,15 @@ async def get_contact(request: Request):
     return templates.TemplateResponse(request, "contact.jinja")
 
 
+@router.get("/render", response_class=HTMLResponse)
+async def get_render_shell(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "default/render.jinja",
+        {"project": None, "content": None, "width": 512, "height": 512},
+    )
+
+
 @router.get("/{project}", response_class=HTMLResponse)
 async def get_project_front(request: Request, project: str):
     if project not in projects:

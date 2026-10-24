@@ -21,6 +21,7 @@ from immersive_library.migrations import (
     migrate_content_cascades,
     migrate_unique_constraints,
 )
+from immersive_library.rendering import BrowserRenderer
 from immersive_library.routers import (
     auth,
     content,
@@ -101,9 +102,15 @@ async def lifespan(_app: FastAPI):
         RedisBackend(redis), prefix="immersive-library", coder=FastAPIJsonCoder
     )
 
-    yield
-
-    await database.disconnect()
+    renderer = BrowserRenderer()
+    _app.state.renderer = renderer
+    try:
+        yield
+    finally:
+        try:
+            await renderer.close()
+        finally:
+            await database.disconnect()
 
 
 app = FastAPI(lifespan=lifespan)

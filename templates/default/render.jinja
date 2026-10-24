@@ -32,24 +32,43 @@
     <div id="render-body"></div>
 </div>
 <script type="module">
-    const project = {{ project | tojson }};
     const container = document.getElementById("render-container");
+    const body = document.getElementById("render-body");
+    const multiView = getSharedMultiView(false);
 
-    async function render() {
-        await embedContentPreview('render-body', project, {{ content.model_dump() | tojson }}, {
-            width: {{ width }},
-            height: {{ height }},
-            animate: false
-        });
+    window.renderPreview = async ({project, content, width, height}) => {
+        if (multiView.renderer.getContext().isContextLost()) {
+            throw new Error("Render context was lost");
+        }
 
-        container.renderReady = "1";
-    }
+        const disposePrevious = multiView.clear();
+        body.replaceChildren();
+        container.style.width = `${width}px`;
+        container.style.height = `${height}px`;
 
-    render().catch((error) => {
-        container.renderReady = "error";
+        try {
+            await embedContentPreview(body, project, content, {
+                width,
+                height,
+                animate: false
+            });
+        } finally {
+            // Keep shared shader programs alive until the next model is drawn.
+            disposePrevious();
+        }
+    };
+
+    {% if content is not none %}
+    window.renderPreview({
+        project: {{ project | tojson }},
+        content: {{ content.model_dump() | tojson }},
+        width: {{ width }},
+        height: {{ height }}
+    }).catch((error) => {
         container.textContent = "Render error.";
         console.error(error);
     });
+    {% endif %}
 </script>
 </body>
 </html>

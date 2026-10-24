@@ -22,7 +22,7 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
-from immersive_library.rendering import render_headless_png
+from immersive_library.rendering import BrowserRenderer
 from immersive_library.utils import (
     exists,
     fetch_content,
@@ -434,13 +434,16 @@ async def render_content_png(
             headers=cache_headers,
         )
 
-    render_url = request.app.url_path_for(
-        "get_render_view", project=project, contentid=contentid
-    ).make_absolute_url(os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000"))
-    render_url = str(render_url.include_query_params(width=width, height=height))
+    render_url = request.app.url_path_for("get_render_shell").make_absolute_url(
+        os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000")
+    )
 
+    content = await fetch_content(project, contentid)
     try:
-        png_bytes = await render_headless_png(render_url, width=width, height=height)
+        renderer: BrowserRenderer = request.app.state.renderer
+        png_bytes = await renderer.render_png(
+            str(render_url), project, content, width=width, height=height
+        )
     except Exception as exc:
         raise HTTPException(500, f"Render failed: {exc}") from exc
 
