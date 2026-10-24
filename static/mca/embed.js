@@ -171,8 +171,8 @@ function getMeshes(material, dilate, keys) {
     return meshes;
 }
 
-function loadTexture(url) {
-    let map = new THREE.TextureLoader().load(url);
+async function loadTexture(url) {
+    const map = await new THREE.TextureLoader().loadAsync(url);
     map.magFilter = THREE.NearestFilter;
     map.minFilter = THREE.NearestFilter;
     map.wrapS = THREE.ClampToEdgeWrapping;
@@ -180,9 +180,9 @@ function loadTexture(url) {
     return map;
 }
 
-function createMaterials(skinUrl) {
+async function createMaterials(skinUrl) {
     const clothingMaterial = new THREE.MeshBasicMaterial({alphaTest: 0.5, side: THREE.DoubleSide});
-    const skinMaterial = new THREE.MeshBasicMaterial({map: loadTexture(skinUrl)});
+    const skinMaterial = new THREE.MeshBasicMaterial({map: await loadTexture(skinUrl)});
     return {clothingMaterial, skinMaterial};
 }
 
@@ -195,9 +195,9 @@ function addMeshes(scene, clothingMeshes, skinMeshes) {
 export async function embed(element, content, options = {}) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, options.width / options.height, 0.1, 1000);
-    const {clothingMaterial, skinMaterial} = createMaterials("/static/mca/skin.png");
+    const {clothingMaterial, skinMaterial} = await createMaterials("/static/mca/skin.png");
 
-    clothingMaterial.map = loadTexture('data:image/png;base64,' + content.data);
+    clothingMaterial.map = await loadTexture('data:image/png;base64,' + content.data);
     clothingMaterial.needsUpdate = true;
 
     const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);

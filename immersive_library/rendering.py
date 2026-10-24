@@ -29,7 +29,7 @@ async def render_headless_png(
                 device_scale_factor=1,
             )
             try:
-                await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+                await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
                 await page.wait_for_function(
                     """
                     () => {

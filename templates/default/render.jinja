@@ -42,15 +42,7 @@
             animate: false
         });
 
-        function markReady() {
-            if (container.querySelector("canvas, img, svg")) {
-                container.renderReady = "1";
-                return;
-            }
-            requestAnimationFrame(markReady);
-        }
-
-        markReady();
+        container.renderReady = "1";
     }
 
     render().catch((error) => {

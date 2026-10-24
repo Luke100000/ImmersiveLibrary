@@ -95,6 +95,10 @@ async function embedContentPreview(container, project, content, options = {}) {
             update: view.update,
         });
     }
+
+    if (options.animate === false) {
+        multiView.render(0);
+    }
 }
 
 function createMultiViewRenderer(canvas, animate) {
@@ -191,7 +195,7 @@ function createMultiViewRenderer(canvas, animate) {
         renderer.setAnimationLoop(null);
     }
 
-    return {renderer, registerScene, clear, start, stop};
+    return {renderer, registerScene, clear, render, start, stop};
 }
 
 function getSharedMultiView(animate) {
@@ -204,7 +208,9 @@ function getSharedMultiView(animate) {
     window.ImmersiveMultiView = window.ImmersiveMultiView || {};
     if (!window.ImmersiveMultiView.shared) {
         const multiView = createMultiViewRenderer(canvas, animate);
-        multiView.start();
+        if (animate) {
+            multiView.start();
+        }
         window.ImmersiveMultiView.shared = multiView;
     }
 
