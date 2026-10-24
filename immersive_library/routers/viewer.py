@@ -6,8 +6,9 @@ from jinja2 import TemplateNotFound
 from starlette.responses import FileResponse, HTMLResponse
 
 from immersive_library.caching import STATIC_CACHE_CONTROL
-from immersive_library.common import database, projects, templates
-from immersive_library.routers.misc import get_statistics
+from immersive_library.common import projects, templates
+from immersive_library.database import database
+from immersive_library.services import statistics as statistics_service
 from immersive_library.utils import fetch_content
 
 router = APIRouter(tags=["Viewer"])
@@ -78,7 +79,7 @@ async def get_project_front(request: Request, project: str):
         get_template(project, "project"),
         {
             "project": project,
-            "statistics": await get_statistics(project),
+            "statistics": await statistics_service.get_statistics(project),
         },
     )
 

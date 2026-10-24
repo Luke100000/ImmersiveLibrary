@@ -1,11 +1,8 @@
-from enum import Enum
-
-from databases.interfaces import Record
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
-from immersive_library.common import database
+from immersive_library.database import database
 from immersive_library.models import (
     BanEntry,
     Error,
@@ -13,6 +10,7 @@ from immersive_library.models import (
     PlainSuccess,
     UserListSuccess,
 )
+from immersive_library.services import users as user_service
 from immersive_library.utils import (
     get_lite_user_class,
     moderator_guard,
@@ -39,13 +37,6 @@ async def get_banned(userid: int = Depends(moderator_guard)) -> list[BanEntry]:
     return [BanEntry(userid=u[0], username=u[1]) for u in content]
 
 
-class UserOrder(str, Enum):
-    OID = "date"
-    SUBMISSION_COUNT = "submissions"
-    LIKES_GIVEN = "likes_given"
-    LIKES_RECEIVED = "likes_received"
-
-
 @router.get("/v1/user/{project}", tags=["Users"], response_model=UserListSuccess)
 @public_cache()
 @cache(expire=60)
@@ -53,10 +44,10 @@ async def get_users(
     project: str,
     limit: int = 100,
     offset: int = 0,
-    order: UserOrder = UserOrder.OID,
+    order: user_service.UserOrder = user_service.UserOrder.OID,
     descending: bool = False,
 ) -> UserListSuccess:
-    content = await get_users_inner(project, limit, offset, order, descending)
+    content = await user_service.list_users(project, limit, offset, order, descending)
     return UserListSuccess(users=[get_lite_user_class(c) for c in content])
 
 
@@ -69,66 +60,12 @@ async def get_users(
 @public_cache()
 @cache(expire=60)
 async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
-    content = await get_users_inner(project, 1, 0, UserOrder.OID, False, userid)
+    content = await user_service.list_users(
+        project, 1, 0, user_service.UserOrder.OID, False, userid
+    )
     if not content:
         raise HTTPException(404, "User doesn't exist")
     return LiteUserSuccess(user=get_lite_user_class(content[0]))
-
-
-async def get_users_inner(
-    project: str,
-    limit: int,
-    offset: int,
-    order: UserOrder,
-    descending: bool,
-    userid: int | None = None,
-) -> list[Record]:
-    values = {"limit": limit, "offset": offset, "project": project}
-    user_filter = ""
-    if userid is not None:
-        user_filter = "AND users.oid = :userid"
-        values["userid"] = userid
-
-    return await database.fetch_all(
-        f"""
-            SELECT users.oid,
-                   users.username,
-                   users.moderator,
-                   COALESCE(submitted_content.submission_count, 0) as submission_count,
-                   COALESCE(likes_given.count, 0) as likes_given,
-                   COALESCE(likes_received.count, 0) as likes_received
-            FROM users
-
-            LEFT JOIN (
-                SELECT content.userid, COUNT(content.oid) as submission_count
-                FROM content
-                WHERE content.project = :project
-                GROUP BY content.userid
-            ) submitted_content ON submitted_content.userid = users.oid
-
-            LEFT JOIN (
-                SELECT likes.userid, COUNT(likes.oid) as count
-                FROM likes
-                GROUP BY likes.userid
-            ) likes_given ON likes_given.userid = users.oid
-
-            LEFT JOIN (
-                SELECT c2.userid, SUM(COALESCE(precomputation.likes, 0)) as count
-                FROM content c2
-                LEFT JOIN precomputation ON precomputation.contentid = c2.oid
-                WHERE c2.project = :project
-                GROUP BY c2.userid
-            ) likes_received ON likes_received.userid = users.oid
-
-            WHERE users.banned = 0
-            {user_filter}
-
-            ORDER BY {order.name} {"DESC" if descending else "ASC"}
-            LIMIT :limit
-            OFFSET :offset
-        """,
-        values,
-    )
 
 
 @router.put(

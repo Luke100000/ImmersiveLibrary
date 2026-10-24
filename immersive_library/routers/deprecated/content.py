@@ -4,7 +4,8 @@ from fastapi_cache.decorator import cache
 from immersive_library.models import (
     ContentListSuccess,
 )
-from immersive_library.routers.content import inner_list_content_v2
+from immersive_library.routers.deprecated.filters import merge_tag_filters
+from immersive_library.services import content as content_service
 
 router = APIRouter(tags=["Content"])
 
@@ -19,9 +20,11 @@ router = APIRouter(tags=["Content"])
 async def list_content(
     project: str, tag_filter: str | None = None, invert_filter: bool = False
 ) -> ContentListSuccess:
-    return await inner_list_content_v2(
+    return await content_service.list_content(
         project,
-        whitelist=None if invert_filter else tag_filter,
-        blacklist=tag_filter if invert_filter else None,
+        whitelist=merge_tag_filters(
+            None if invert_filter else tag_filter,
+            tag_filter if invert_filter else None,
+        ),
         limit=500,
     )

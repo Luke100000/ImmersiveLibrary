@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
-from immersive_library.common import database
+from immersive_library.database import database
 from immersive_library.models import (
     Error,
-    UserSuccess,
 )
-from immersive_library.routers.content import TrackEnum, inner_list_content_v2
+from immersive_library.routers.deprecated.models import User, UserSuccess
+from immersive_library.services import content as content_service
 from immersive_library.utils import (
-    get_user_class,
     logged_in_guard,
 )
 
@@ -51,26 +50,27 @@ async def get_user(
     if content is None:
         raise HTTPException(404, "User doesn't exist")
 
-    submissions = await inner_list_content_v2(
+    submissions = await content_service.list_content(
         project,
-        track=TrackEnum.SUBMISSIONS,
+        track=content_service.TrackEnum.SUBMISSIONS,
         limit=200,
         userid=userid,
     )
 
-    likes = await inner_list_content_v2(
+    likes = await content_service.list_content(
         project,
-        track=TrackEnum.LIKES,
+        track=content_service.TrackEnum.LIKES,
         limit=200,
         userid=userid,
     )
 
     return UserSuccess(
-        user=await get_user_class(
-            content["oid"],
-            content["username"],
-            content["moderator"],
-            submissions.contents,
-            likes.contents,
+        user=User(
+            userid=content["oid"],
+            username=content["username"],
+            moderator=content["moderator"] > 0,
+            likes_received=sum(item.likes for item in submissions.contents),
+            submissions=submissions.contents,
+            likes=likes.contents,
         )
     )

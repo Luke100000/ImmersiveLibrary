@@ -65,15 +65,6 @@ class LiteUser(BaseModel):
     moderator: bool
 
 
-class User(BaseModel):
-    userid: int
-    username: str
-    likes_received: int
-    likes: list[LiteContent] | list[int]
-    submissions: list[LiteContent] | list[int]
-    moderator: bool
-
-
 class ProjectSummary(BaseModel):
     name: str
     content_count: int
@@ -89,10 +80,6 @@ class ContentSuccess(BaseModel):
 
 class ContentListSuccess(BaseModel):
     contents: list[LiteContent]
-
-
-class UserSuccess(BaseModel):
-    user: User
 
 
 class LiteUserSuccess(BaseModel):

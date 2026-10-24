@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from immersive_library.common import database
+from immersive_library.database import database
 from immersive_library.models import (
     Error,
     PlainSuccess,

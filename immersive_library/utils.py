@@ -8,12 +8,11 @@ from databases import Database
 from databases.interfaces import Record
 from fastapi import Header, HTTPException, Path
 
-import immersive_library.common as common
+from immersive_library.database import database as app_database
 from immersive_library.models import (
     Content,
     LiteContent,
     LiteUser,
-    User,
 )
 
 MAX_USER_TOKENS = 10
@@ -340,29 +339,8 @@ def get_lite_user_class(record: Record) -> LiteUser:
     )
 
 
-async def get_user_class(
-    userid: int,
-    username: str,
-    moderator: int,
-    submissions: list[LiteContent],
-    likes: list[LiteContent],
-) -> User:
-    """
-    Populates a user object
-    """
-    likes_received = sum(int(content.likes) for content in submissions)
-    return User(
-        userid=userid,
-        username=username,
-        likes_received=likes_received,
-        likes=likes,
-        submissions=submissions,
-        moderator=moderator > 0,
-    )
-
-
 async def content_guard(project: str, contentid: int) -> None:
-    if not await common.database.fetch_val(
+    if not await app_database.fetch_val(
         "SELECT 1 FROM content WHERE oid=:contentid AND project=:project",
         {"contentid": contentid, "project": project},
     ):
@@ -372,7 +350,7 @@ async def content_guard(project: str, contentid: int) -> None:
 async def fetch_content(
     project: str, contentid: int, parse_meta: bool = True
 ) -> Content:
-    content = await common.database.fetch_one(
+    content = await app_database.fetch_one(
         get_base_select(True, True)
         + "WHERE c.oid = :contentid AND c.project = :project",
         {"contentid": contentid, "project": project},
@@ -390,12 +368,12 @@ async def logged_in_guard(
     """
     Ensures the user is logged in.
     """
-    userid = await token_to_userid(common.database, token, authorization)
+    userid = await token_to_userid(app_database, token, authorization)
 
     if userid is None:
         raise HTTPException(401, "Token invalid")
 
-    if await is_banned(common.database, userid):
+    if await is_banned(app_database, userid):
         raise HTTPException(403, "User is banned")
 
     return userid
@@ -414,8 +392,8 @@ async def owner_guard(
     await content_guard(project, contentid)
 
     if not await owns_content(
-        common.database, contentid, userid
-    ) and not await is_moderator(common.database, userid):
+        app_database, contentid, userid
+    ) and not await is_moderator(app_database, userid):
         raise HTTPException(403, "Not allowed")
 
     return userid
@@ -429,7 +407,7 @@ async def moderator_guard(
     """
     userid = await logged_in_guard(token, authorization)
 
-    if not await is_moderator(common.database, userid):
+    if not await is_moderator(app_database, userid):
         raise HTTPException(403, "Not a moderator")
 
     return userid

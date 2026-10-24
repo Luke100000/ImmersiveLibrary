@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
-from immersive_library.common import database
+from immersive_library.database import database
 from immersive_library.models import (
     Error,
     PlainSuccess,
     TagDictSuccess,
     TagListSuccess,
 )
+from immersive_library.services import tags as tag_service
 from immersive_library.utils import (
     content_guard,
     has_tag,
@@ -25,21 +26,7 @@ router = APIRouter(tags=["Tags"])
 async def list_project_tags(
     project: str, limit: int = 100, offset: int = 0
 ) -> TagDictSuccess:
-    rows = await database.fetch_all(
-        """
-        SELECT tag, COUNT(*) as count
-        FROM tags
-        INNER JOIN content ON tags.contentid = content.oid
-        WHERE content.project = :project
-        GROUP BY tag
-        ORDER BY count DESC
-        LIMIT :limit
-        OFFSET :offset
-        """,
-        {"project": project, "limit": limit, "offset": offset},
-    )
-
-    return TagDictSuccess(tags={row["tag"]: row["count"] for row in rows})
+    return await tag_service.list_project_tags(project, limit, offset)
 
 
 @router.get("/v1/tag/{project}/{contentid}", response_model=TagListSuccess)

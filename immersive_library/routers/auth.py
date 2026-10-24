@@ -11,7 +11,8 @@ from orjson import orjson
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
-from immersive_library.common import database, templates
+from immersive_library.common import templates
+from immersive_library.database import database
 from immersive_library.models import (
     Error,
     IsAuthResponse,

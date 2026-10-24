@@ -16,25 +16,10 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse
 
 from immersive_library.caching import CachedStaticFiles, apply_cache_policy
-from immersive_library.common import database
-from immersive_library.migrations import (
-    migrate_content_cascades,
-    migrate_unique_constraints,
-)
+from immersive_library.database import database
+from immersive_library.database.schema import initialize_database
 from immersive_library.rendering import BrowserRenderer
-from immersive_library.routers import (
-    auth,
-    content,
-    like,
-    misc,
-    report,
-    tag,
-    tools,
-    user,
-    viewer,
-)
-from immersive_library.routers.deprecated import content as deprecated_content
-from immersive_library.routers.deprecated import user as deprecated_user
+from immersive_library.routers import router
 from immersive_library.utils import update_precomputation
 
 description = """
@@ -90,7 +75,8 @@ class FastAPIJsonCoder(Coder):
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await database.connect()
-    await setup()
+    await initialize_database(database)
+    asyncio.create_task(update_precomputation(database))
 
     redis = aioredis.from_url(
         "redis://"
@@ -163,132 +149,4 @@ async def validation_exception_handler(request: Request, exc: HTTPException):
     )
 
 
-# Create tables
-async def setup_users():
-    async with database.connection() as connection:
-        await connection.execute("BEGIN IMMEDIATE")
-        try:
-            await connection.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    oid INTEGER PRIMARY KEY AUTOINCREMENT,
-                    google_userid CHAR,
-                    username CHAR,
-                    moderator INTEGER,
-                    banned INTEGER
-                )
-            """)
-            await connection.execute("""
-                CREATE TABLE IF NOT EXISTS user_tokens (
-                    oid INTEGER PRIMARY KEY AUTOINCREMENT,
-                    token CHAR NOT NULL UNIQUE,
-                    userid INTEGER NOT NULL
-                )
-            """)
-
-            # Migrate old databases
-            # TODO: Remove after a while
-            columns = await connection.fetch_all("PRAGMA table_info(users)")
-            if any(column["name"] == "token" for column in columns):
-                await connection.execute("""
-                    INSERT OR IGNORE INTO user_tokens (token, userid)
-                    SELECT token, oid
-                    FROM users
-                    WHERE token IS NOT NULL AND token != ''
-                """)
-                await connection.execute("DROP INDEX IF EXISTS users_token")
-                await connection.execute("ALTER TABLE users DROP COLUMN token")
-
-            await connection.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS users_google_userid on users (google_userid)"
-            )
-            await connection.execute(
-                "CREATE INDEX IF NOT EXISTS user_tokens_userid on user_tokens (userid)"
-            )
-        except BaseException:
-            await connection.execute("ROLLBACK")
-            raise
-        else:
-            await connection.execute("COMMIT")
-
-
-async def setup():
-    await setup_users()
-
-    # Content
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS content (
-            oid INTEGER PRIMARY KEY AUTOINCREMENT,
-            userid INTEGER,
-            project CHAR,
-            title CHAR,
-            version int DEFAULT 0,
-            meta TEXT,
-            data BLOB
-        )
-    """)
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS content_userid on content (userid)"
-    )
-
-    # Reports
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS reports (
-            userid INTEGER,
-            contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE,
-            reason CHAR
-        )
-    """)
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS reports_userid on reports (userid)"
-    )
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS reports_contentid on reports (contentid)"
-    )
-
-    # Likes
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS likes (userid INTEGER, contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE)"
-    )
-    await database.execute("CREATE INDEX IF NOT EXISTS likes_userid on likes (userid)")
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS likes_contentid on likes (contentid)"
-    )
-
-    # Tags
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS tags (contentid INTEGER REFERENCES content(oid) ON DELETE CASCADE, tag CHAR)"
-    )
-    await database.execute(
-        "CREATE INDEX IF NOT EXISTS tags_contentid on tags (contentid)"
-    )
-
-    # Precomputation
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS precomputation (
-            contentid INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
-            tags CHAR,
-            likes INTEGER,
-            reports INTEGER
-        ) WITHOUT ROWID
-    """)
-
-    await migrate_unique_constraints(database)
-    await migrate_content_cascades(database)
-
-    asyncio.create_task(update_precomputation(database))
-
-
-# Deprecated routes
-app.include_router(deprecated_content.router)
-app.include_router(deprecated_user.router)
-
-# Latest routes
-app.include_router(auth.router)
-app.include_router(content.router)
-app.include_router(like.router)
-app.include_router(misc.router)
-app.include_router(report.router)
-app.include_router(tag.router)
-app.include_router(tools.router)
-app.include_router(user.router)
-app.include_router(viewer.router)
+app.include_router(router)

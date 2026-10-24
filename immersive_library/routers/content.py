@@ -1,16 +1,9 @@
-import os
-import time
-from enum import Enum
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi_cache.decorator import cache
-from starlette.concurrency import run_in_threadpool
-from starlette.responses import Response
 
 from immersive_library.caching import public_cache
-from immersive_library.common import database, get_project, projects
+from immersive_library.common import get_project
+from immersive_library.database import database
 from immersive_library.models import (
     ContentIdSuccess,
     ContentListSuccess,
@@ -21,11 +14,10 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
-from immersive_library.rendering import BrowserRenderer
+from immersive_library.routers.deprecated.filters import merge_tag_filters
+from immersive_library.services import content as content_service
 from immersive_library.utils import (
     fetch_content,
-    get_base_select,
-    get_lite_content_class,
     logged_in_guard,
     owner_guard,
     set_tags,
@@ -34,48 +26,6 @@ from immersive_library.utils import (
 )
 
 router = APIRouter(tags=["Content"])
-
-
-class TrackEnum(str, Enum):
-    ALL = "all"
-    LIKES = "likes"
-    SUBMISSIONS = "submissions"
-
-
-class ContentOrder(str, Enum):
-    DATE = "date"
-    LIKES = "likes"
-    TITLE = "title"
-    REPORTS = "reports"
-    RECOMMENDATIONS = "recommendations"
-
-
-class RenderPreset(str, Enum):
-    EMBED = "embed"
-    ICON = "icon"
-    THUMBNAIL = "thumbnail"
-    SQUARE = "square"
-
-
-RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
-    RenderPreset.EMBED: (1200, 630),
-    RenderPreset.ICON: (256, 256),
-    RenderPreset.THUMBNAIL: (512, 512),
-    RenderPreset.SQUARE: (1024, 1024),
-}
-
-CACHE_DIR = Path("data/cache")
-
-
-def write_render_cache(cache_path: Path, png_bytes: bytes) -> None:
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = NamedTemporaryFile(dir=cache_path.parent, delete=False)
-    try:
-        with temporary:
-            temporary.write(png_bytes)
-        Path(temporary.name).replace(cache_path)
-    finally:
-        Path(temporary.name).unlink(missing_ok=True)
 
 
 @router.get(
@@ -111,7 +61,7 @@ async def list_projects() -> ProjectListSuccess:
 @cache(expire=60)
 async def list_content_v2(
     project: str,
-    track: TrackEnum = TrackEnum.ALL,
+    track: content_service.TrackEnum = content_service.TrackEnum.ALL,
     userid: int | None = Query(
         None,
         description=(
@@ -146,7 +96,7 @@ async def list_content_v2(
     limit: int = Query(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
     ),
-    order: ContentOrder = ContentOrder.DATE,
+    order: content_service.ContentOrder = content_service.ContentOrder.DATE,
     descending: bool = False,
     include_meta: bool = Query(
         False, description="Include the meta field in the response."
@@ -160,12 +110,11 @@ async def list_content_v2(
 ) -> ContentListSuccess:
     viewer_id = await token_to_userid(database, token, authorization)
 
-    return await inner_list_content_v2(
+    return await content_service.list_content(
         project,
         track=track,
         userid=userid,
-        whitelist=whitelist,
-        blacklist=blacklist,
+        whitelist=merge_tag_filters(whitelist, blacklist),
         filter_banned=filter_banned,
         filter_reported=filter_reported,
         offset=offset,
@@ -176,127 +125,6 @@ async def list_content_v2(
         parse_meta=parse_meta,
         viewer_id=viewer_id,
     )
-
-
-async def inner_list_content_v2(
-    project: str,
-    track: TrackEnum = TrackEnum.ALL,
-    userid: int | None = None,
-    whitelist: str | None = None,
-    blacklist: str | None = None,
-    filter_banned: bool = True,
-    filter_reported: bool = True,
-    offset: int = 0,
-    limit: int = 100,
-    order: ContentOrder = ContentOrder.DATE,
-    descending: bool = False,
-    include_meta: bool = False,
-    parse_meta: bool = False,
-    viewer_id: int | None = None,
-) -> ContentListSuccess:
-    userid = userid if userid is not None else viewer_id
-
-    query = get_base_select(include_data=False, include_meta=include_meta)
-    values: dict[str, str | int | None] = {"project": project}
-
-    # Filter for a specific track
-    if track == TrackEnum.ALL:
-        query += "\n WHERE c.project = :project"
-    elif track == TrackEnum.LIKES:
-        query += "\n INNER JOIN likes on likes.contentid=c.oid"
-        query += "\n WHERE c.project=:project AND likes.userid=:userid"
-        values["userid"] = userid
-    elif track == TrackEnum.SUBMISSIONS:
-        query += "\n WHERE c.project=:project AND c.userid=:userid"
-        values["userid"] = userid
-    else:
-        raise HTTPException(400, "Invalid track")
-
-    # Hide content reported by the viewer.
-    if viewer_id is not None:
-        query += """
-         AND NOT EXISTS (SELECT *
-                    FROM reports
-                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :viewer_id)
-        """
-        values["viewer_id"] = viewer_id
-
-    # Remove content from banned users
-    if filter_banned:
-        query += "\n AND NOT users.banned"
-
-    # Remove reported content
-    if filter_reported:
-        query += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
-
-    whitelist_terms = (
-        [term.strip() for term in whitelist.split(",") if term.strip()]
-        if whitelist
-        else []
-    )
-
-    # Treat the deprecated blacklist as exact excluded-tag whitelist terms.
-    if blacklist:
-        whitelist_terms.extend(
-            f"-#{term.strip()}" for term in blacklist.split(",") if term.strip()
-        )
-
-    # Only allow content that matches every whitelist term.
-    for index, term in enumerate(whitelist_terms):
-        parameter = f"whitelist_term_{index}"
-        negated = term.startswith("-")
-        search_term = term[1:].strip() if negated else term
-
-        if search_term.startswith("@"):
-            condition = f"username = :{parameter}"
-            values[parameter] = search_term[1:].strip()
-        elif search_term.startswith("#"):
-            condition = f"""EXISTS (
-                    SELECT 1 FROM tags AS whitelist_tags_{index}
-                    WHERE whitelist_tags_{index}.contentid = c.oid
-                    AND whitelist_tags_{index}.tag = :{parameter}
-                )"""
-            values[parameter] = search_term[1:].strip()
-        elif search_term.startswith("~"):
-            condition = f"title LIKE :{parameter}"
-            values[parameter] = f"%{search_term[1:].strip()}%"
-        else:
-            condition = (
-                f"(username LIKE :{parameter} OR title LIKE :{parameter} "
-                f"OR tags LIKE :{parameter})"
-            )
-            values[parameter] = f"%{search_term}%"
-
-        query += f"\n AND {'NOT ' if negated else ''}{condition}"
-
-    direction = "DESC" if descending else "ASC"
-
-    if order == ContentOrder.RECOMMENDATIONS:
-        query += f"""
-            ORDER BY (likes + :like_norm) * ABS(
-                ((:seed + c.oid) * 1103515245 + 12345)
-                - 2147483648 * CAST(
-                    ((:seed + c.oid) * 1103515245 + 12345) / 2147483648 AS INTEGER
-                )
-            ) / 2147483647.0 {direction}
-        """
-        values["seed"] = (0 if userid is None else userid) + int(time.time() / 86400)
-        values["like_norm"] = 100
-    else:
-        sort_column = "c.oid" if order == ContentOrder.DATE else order.name
-        query += f"\n ORDER BY {sort_column} {direction}"
-
-    query += "\n LIMIT :limit OFFSET :offset"
-    values["limit"] = limit
-    values["offset"] = offset
-
-    content = await database.fetch_all(query, values)
-
-    contents = [
-        get_lite_content_class(record, include_meta, parse_meta) for record in content
-    ]
-
-    return ContentListSuccess(contents=contents)
 
 
 @router.get("/v1/content/{project}/{contentid}", response_model=ContentSuccess)
@@ -402,54 +230,3 @@ async def delete_content(
     )
 
     return PlainSuccess()
-
-
-@router.get("/v1/render/{project}/{contentid}", response_class=Response)
-async def render_content_png(
-    request: Request,
-    project: str,
-    contentid: int,
-    preset: RenderPreset = Query(RenderPreset.EMBED),
-) -> Response:
-    if project not in projects:
-        raise HTTPException(404, "Project not found")
-
-    record = await database.fetch_one(
-        "SELECT version FROM content WHERE oid=:contentid AND project=:project",
-        {"contentid": contentid, "project": project},
-    )
-    if record is None:
-        raise HTTPException(404, "Content not found")
-
-    width, height = RENDER_PRESET_SIZES[preset]
-    cache_name = f"{contentid}_{record['version']}_{width}x{height}.png"
-    cache_path = CACHE_DIR / cache_name
-    cache_headers = {
-        "Cache-Control": "public, max-age=300, must-revalidate",
-    }
-    try:
-        png_bytes = await run_in_threadpool(cache_path.read_bytes)
-    except FileNotFoundError:
-        pass
-    else:
-        return Response(
-            content=png_bytes,
-            media_type="image/png",
-            headers=cache_headers,
-        )
-
-    render_url = request.app.url_path_for("get_render_shell").make_absolute_url(
-        os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000")
-    )
-
-    content = await fetch_content(project, contentid)
-    try:
-        renderer: BrowserRenderer = request.app.state.renderer
-        png_bytes = await renderer.render_png(
-            str(render_url), project, content, width=width, height=height
-        )
-    except Exception as exc:
-        raise HTTPException(500, f"Render failed: {exc}") from exc
-
-    await run_in_threadpool(write_render_cache, cache_path, png_bytes)
-    return Response(content=png_bytes, media_type="image/png", headers=cache_headers)
