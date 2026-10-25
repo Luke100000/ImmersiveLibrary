@@ -6,9 +6,9 @@ async def migrate_unique_constraints(database: Database) -> None:
         await connection.execute("BEGIN IMMEDIATE")
         try:
             for table, columns in (
-                ("likes", "userid, contentid"),
-                ("reports", "userid, contentid, reason"),
-                ("tags", "contentid, tag"),
+                ("likes", "user_id, content_id"),
+                ("reports", "user_id, content_id, reason"),
+                ("tags", "content_id, tag"),
             ):
                 index_name = f"{table}_unique"
                 if await connection.fetch_val(

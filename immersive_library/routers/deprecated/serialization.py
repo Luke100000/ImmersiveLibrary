@@ -10,6 +10,7 @@ from immersive_library.routers.deprecated.models import (
     Content,
     ContentListSuccess,
     LiteContent,
+    LiteUser,
 )
 from immersive_library.services import content as content_service
 
@@ -21,6 +22,17 @@ def safe_parse(meta: str) -> dict[str, Any]:
         return {}
 
     return parsed_meta if isinstance(parsed_meta, dict) else {}
+
+
+def get_lite_user_class(record: Record) -> LiteUser:
+    return LiteUser(
+        userid=record["oid"],
+        username=record["username"],
+        submission_count=record["submission_count"],
+        likes_given=record["likes_given"],
+        likes_received=record["likes_received"],
+        moderator=record["moderator"] > 0,
+    )
 
 
 def get_lite_content_class(
@@ -35,7 +47,7 @@ def get_lite_content_class(
 
     return LiteContent(
         contentid=record["oid"],
-        userid=record["userid"],
+        userid=record["user_id"],
         username=record["username"],
         likes=record["likes"],
         tags=record["tags"].split(",") if record["tags"] else [],
@@ -51,7 +63,7 @@ def get_content_class(record: Record, parse_meta: bool = True) -> Content:
     """
     return Content(
         contentid=record["oid"],
-        userid=record["userid"],
+        userid=record["user_id"],
         username=record["username"],
         likes=record["likes"],
         tags=record["tags"].split(",") if record["tags"] else [],
@@ -65,7 +77,7 @@ def get_content_class(record: Record, parse_meta: bool = True) -> Content:
 async def list_content(
     project: str,
     track: ContentTrack = ContentTrack.ALL,
-    userid: int | None = None,
+    user_id: int | None = None,
     whitelist: str | None = None,
     filter_banned: bool = True,
     filter_reported: bool = True,
@@ -77,7 +89,7 @@ async def list_content(
     parse_meta: bool = False,
     viewer_id: int | None = None,
 ) -> ContentListSuccess:
-    target_user = userid if userid is not None else viewer_id
+    target_user = user_id if user_id is not None else viewer_id
     author_id = None
     liked_by = None
     if track == ContentTrack.LIKES:
@@ -102,7 +114,7 @@ async def list_content(
         descending=descending,
         include_meta=include_meta,
         viewer_id=viewer_id,
-        recommendation_userid=target_user,
+        recommendation_user_id=target_user,
     )
     return ContentListSuccess(
         contents=[

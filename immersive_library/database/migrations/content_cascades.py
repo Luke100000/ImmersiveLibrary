@@ -15,7 +15,7 @@ async def migrate_content_cascades(database: Database) -> None:
                     f"PRAGMA foreign_key_list({table})"
                 )
                 if any(
-                    key["from"] == "contentid"
+                    key["from"] == "content_id"
                     and key["table"] == "content"
                     and key["to"] == "oid"
                     and key["on_delete"] == "CASCADE"
@@ -26,7 +26,7 @@ async def migrate_content_cascades(database: Database) -> None:
                 definition, suffix = schema.split("(", 1)[1].rsplit(")", 1)
                 await connection.execute(
                     f"CREATE TABLE {table}_cascade ({definition}, "
-                    f"FOREIGN KEY(contentid) REFERENCES content(oid) ON DELETE CASCADE){suffix}"
+                    f"FOREIGN KEY(content_id) REFERENCES content(oid) ON DELETE CASCADE){suffix}"
                 )
 
                 # Preserve rowids, indexes and triggers when rebuilding the child tables.
@@ -42,7 +42,7 @@ async def migrate_content_cascades(database: Database) -> None:
                 await connection.execute(
                     f"INSERT INTO {table}_cascade ({columns}) "
                     f"SELECT {columns} FROM {table} "
-                    "WHERE contentid IS NULL OR contentid IN (SELECT oid FROM content)"
+                    "WHERE content_id IS NULL OR content_id IN (SELECT oid FROM content)"
                 )
                 objects = await connection.fetch_all(
                     "SELECT sql FROM sqlite_master WHERE tbl_name=:name "

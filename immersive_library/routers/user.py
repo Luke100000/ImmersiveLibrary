@@ -7,7 +7,7 @@ from immersive_library.caching import public_cache
 from immersive_library.database import database
 from immersive_library.dependencies import (
     UserFilter,
-    optional_userid,
+    optional_user_id,
     resolve_user_filter,
 )
 from immersive_library.enums import UserOrder
@@ -41,10 +41,10 @@ async def get_banned() -> list[BanEntry]:
     """
     )
 
-    return [BanEntry(userid=u[0], username=u[1]) for u in content]
+    return [BanEntry(user_id=u[0], username=u[1]) for u in content]
 
 
-@router.get("/v3/user/{project}")
+@router.get("/v3/user/{project}", response_model=UserListSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_users_v3(
@@ -67,17 +67,17 @@ async def get_users_v3(
     )
 
 
-@router.get("/v3/user/{project}/{userid}")
+@router.get("/v3/user/{project}/{user_id}", response_model=LiteUserSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_user_v3(
     project: str,
-    userid: UserFilter,
-    viewer_id: Annotated[int | None, Depends(optional_userid)] = None,
+    user_id: UserFilter,
+    viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> LiteUserSuccess:
-    target_userid = resolve_user_filter(userid, viewer_id)
+    target_user_id = resolve_user_filter(user_id, viewer_id)
     rows = await user_service.list_users(
-        project, 1, 0, UserOrder.OID, False, target_userid
+        project, 1, 0, UserOrder.OID, False, target_user_id
     )
     if not rows:
         raise HTTPException(404, "User doesn't exist")
@@ -85,36 +85,36 @@ async def get_user_v3(
 
 
 @router.put(
-    "/v1/user/{userid}",
+    "/v1/user/{user_id}",
     tags=["Users"],
     dependencies=[Depends(moderator_guard)],
     responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
 )
 async def set_user(
-    userid: int,
+    user_id: int,
     banned: bool | None = None,
     moderator: bool | None = None,
     purge: bool = False,
 ) -> PlainSuccess:
-    if not await user_exists(database, userid):
+    if not await user_exists(database, user_id):
         raise HTTPException(404, "User does not exist")
 
     # Change banned status
     if banned is not None:
-        await set_banned(database, userid, banned)
+        await set_banned(database, user_id, banned)
 
     # Change moderator status
     if moderator is not None:
-        await set_moderator(database, userid, moderator)
+        await set_moderator(database, user_id, moderator)
 
     # Delete the user's content
     if purge:
         async with database.transaction():
             await database.execute(
-                "DELETE FROM content WHERE userid=:userid", {"userid": userid}
+                "DELETE FROM content WHERE user_id=:user_id", {"user_id": user_id}
             )
             await database.execute(
-                "DELETE FROM likes WHERE userid=:userid", {"userid": userid}
+                "DELETE FROM likes WHERE user_id=:user_id", {"user_id": user_id}
             )
             await update_precomputation(database)
 

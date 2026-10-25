@@ -253,18 +253,18 @@
                         contentItem.className = 'card-interactive';
                         contentItem.setAttribute('role', 'button');
                         contentItem.setAttribute('tabindex', '0');
-                        contentItem.title = `Open project ${content.contentid}`;
+                        contentItem.title = `Open project ${content.content_id}`;
                         contentItem.style.position = 'relative';
 
                         const contentBody = document.createElement('div');
                         const loading = document.createElement('p');
-                        loading.textContent = `Loading #${content.contentid}...`;
+                        loading.textContent = `Loading #${content.content_id}...`;
                         contentBody.appendChild(loading);
                         contentItem.appendChild(contentBody);
                         contentGrid.appendChild(contentItem);
 
                         // make the whole card clickable
-                        const targetUrl = `/${encodeURIComponent(project)}/${content.contentid}`;
+                        const targetUrl = `/${encodeURIComponent(project)}/${content.content_id}`;
                         contentItem.addEventListener('click', () => {
                             window.location.href = targetUrl;
                         });
@@ -279,7 +279,7 @@
                             const delBtn = document.createElement('button');
                             delBtn.textContent = 'Delete';
                             delBtn.className = 'btn';
-                            delBtn.title = `Delete content #${content.contentid}`;
+                            delBtn.title = `Delete content #${content.content_id}`;
                             delBtn.style.position = 'absolute';
                             delBtn.style.top = '8px';
                             delBtn.style.right = '8px';
@@ -290,10 +290,10 @@
                             delBtn.addEventListener('click', async (e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                const ok = window.confirm(`Are you sure you want to delete content #${content.contentid}?`);
+                                const ok = window.confirm(`Are you sure you want to delete content #${content.content_id}?`);
                                 if (!ok) return;
                                 try {
-                                    const resp = await fetch(`/v1/content/${encodeURIComponent(project)}/${content.contentid}`, {method: 'DELETE'});
+                                    const resp = await fetch(`/v1/content/${encodeURIComponent(project)}/${content.content_id}`, {method: 'DELETE'});
                                     if (resp.ok) {
                                         // remove the card from the grid
                                         contentItem.remove();
@@ -312,7 +312,7 @@
                             contentItem.appendChild(delBtn);
                         }
 
-                        embedContent(contentBody, project, content.contentid);
+                        embedContent(contentBody, project, content.content_id);
                     }
 
                 } else {

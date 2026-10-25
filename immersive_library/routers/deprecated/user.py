@@ -1,24 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
 from immersive_library.database import database
 from immersive_library.enums import ContentTrack, UserOrder
-from immersive_library.models import (
-    Error,
-    LiteUserSuccess,
-)
+from immersive_library.models import Error
 from immersive_library.routers.deprecated import serialization as legacy_content
 from immersive_library.routers.deprecated.models import (
+    LiteUserSuccess,
     User,
     UserListSuccess,
     UserSuccess,
 )
 from immersive_library.services import users as user_service
-from immersive_library.utils import (
-    get_lite_user_class,
-    logged_in_guard,
-)
+from immersive_library.utils import logged_in_guard
 
 router = APIRouter(tags=["Users"], deprecated=True)
 
@@ -33,8 +30,8 @@ router = APIRouter(tags=["Users"], deprecated=True)
     include_in_schema=False,
 )
 @cache(expire=60)
-async def get_me(project: str, userid: int = Depends(logged_in_guard)) -> UserSuccess:
-    return await get_user(project, userid)
+async def get_me(project: str, user_id: int = Depends(logged_in_guard)) -> UserSuccess:
+    return await get_user(project, user_id)
 
 
 @router.get(
@@ -49,11 +46,11 @@ async def get_me(project: str, userid: int = Depends(logged_in_guard)) -> UserSu
 @cache(expire=60)
 async def get_user(
     project: str,
-    userid: int,
+    user_id: Annotated[int, Path(alias="userid")],
 ) -> UserSuccess:
     content = await database.fetch_one(
-        "SELECT oid, username, moderator FROM users WHERE oid=:userid",
-        {"userid": userid},
+        "SELECT oid, username, moderator FROM users WHERE oid=:user_id",
+        {"user_id": user_id},
     )
 
     if content is None:
@@ -63,14 +60,14 @@ async def get_user(
         project,
         track=ContentTrack.SUBMISSIONS,
         limit=200,
-        userid=userid,
+        user_id=user_id,
     )
 
     likes = await legacy_content.list_content(
         project,
         track=ContentTrack.LIKES,
         limit=200,
-        userid=userid,
+        user_id=user_id,
     )
 
     return UserSuccess(
@@ -96,7 +93,9 @@ async def get_users(
     descending: bool = False,
 ) -> UserListSuccess:
     content = await user_service.list_users(project, limit, offset, order, descending)
-    return UserListSuccess(users=[get_lite_user_class(c) for c in content])
+    return UserListSuccess(
+        users=[legacy_content.get_lite_user_class(c) for c in content]
+    )
 
 
 @router.get(
@@ -107,8 +106,12 @@ async def get_users(
 )
 @public_cache()
 @cache(expire=60)
-async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
-    content = await user_service.list_users(project, 1, 0, UserOrder.OID, False, userid)
+async def get_user_v2(
+    project: str, user_id: Annotated[int, Path(alias="userid")]
+) -> LiteUserSuccess:
+    content = await user_service.list_users(
+        project, 1, 0, UserOrder.OID, False, user_id
+    )
     if not content:
         raise HTTPException(404, "User doesn't exist")
-    return LiteUserSuccess(user=get_lite_user_class(content[0]))
+    return LiteUserSuccess(user=legacy_content.get_lite_user_class(content[0]))

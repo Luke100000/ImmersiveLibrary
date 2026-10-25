@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Header, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Header, Path, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -12,7 +14,7 @@ from immersive_library.routers.deprecated.models import (
 )
 from immersive_library.services import content as content_service
 from immersive_library.utils import (
-    token_to_userid,
+    token_to_user_id,
 )
 
 router = APIRouter(tags=["Content"], deprecated=True)
@@ -53,8 +55,9 @@ async def list_content(
 async def list_content_v2(
     project: str,
     track: ContentTrack = ContentTrack.ALL,
-    userid: int | None = Query(
+    user_id: int | None = Query(
         None,
+        alias="userid",
         description=(
             "User context for likes, submissions and recommendation ordering. "
             "Defaults to the authenticated user."
@@ -99,12 +102,12 @@ async def list_content_v2(
     token: str | None = None,
     authorization: str = Header(None),
 ) -> ContentListSuccess:
-    viewer_id = await token_to_userid(database, token, authorization)
+    viewer_id = await token_to_user_id(database, token, authorization)
 
     return await legacy_content.list_content(
         project,
         track=track,
-        userid=userid,
+        user_id=user_id,
         whitelist=merge_tag_filters(whitelist, blacklist),
         filter_banned=filter_banned,
         filter_reported=filter_reported,
@@ -122,12 +125,15 @@ async def list_content_v2(
 @public_cache()
 @cache(expire=60)
 async def get_content(
-    project: str, contentid: int, parse_meta: bool = False, version: int = 0
+    project: str,
+    content_id: Annotated[int, Path(alias="contentid")],
+    parse_meta: bool = False,
+    version: int = 0,
 ) -> ContentSuccess:
     assert project
     assert version is not None
 
-    record = await content_service.get_record(project, contentid, include_data=True)
+    record = await content_service.get_record(project, content_id, include_data=True)
     content = legacy_content.get_content_class(record, parse_meta)
 
     return ContentSuccess(content=content)

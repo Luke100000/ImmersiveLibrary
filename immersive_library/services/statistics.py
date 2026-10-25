@@ -10,7 +10,7 @@ async def get_statistics_counts(project: str) -> dict[str, str]:
         """
         SELECT count(*)
         FROM content
-        INNER JOIN precomputation ON content.oid = precomputation.contentid
+        INNER JOIN precomputation ON content.oid = precomputation.content_id
         WHERE precomputation.likes > 10 AND content.project = :project
     """,
         {"project": project},
@@ -47,7 +47,7 @@ async def get_statistics(
         FROM (
             SELECT content.oid
             FROM content
-            INNER JOIN precomputation ON content.oid = precomputation.contentid
+            INNER JOIN precomputation ON content.oid = precomputation.content_id
             WHERE precomputation.likes > 10 AND content.project = :project
             ORDER BY RANDOM()
             LIMIT 1

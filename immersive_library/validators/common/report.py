@@ -10,7 +10,7 @@ class ReportValidator(Validator):
         self.validator = validator
 
     async def pre_report(
-        self, database: Database, userid: int, contentid: int, reason: str
+        self, database: Database, user_id: int, content_id: int, reason: str
     ) -> str | None:
         if not self.validator(reason):
             return "Reason invalid"

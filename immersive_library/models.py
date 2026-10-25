@@ -34,7 +34,7 @@ class ContentUpload(BaseModel):
 
 
 class LiteUser(BaseModel):
-    userid: int
+    user_id: int
     username: str
     submission_count: int
     likes_given: int
@@ -64,12 +64,12 @@ class TagListSuccess(BaseModel):
 
 
 class BanEntry(BaseModel):
-    userid: int
+    user_id: int
     username: str
 
 
 class ContentIdSuccess(BaseModel):
-    contentid: int
+    content_id: int
 
 
 class PlainSuccess(BaseModel):
@@ -81,8 +81,8 @@ class Error(BaseModel):
 
 
 class ContentSummary(BaseModel):
-    contentid: int
-    userid: int
+    content_id: int
+    user_id: int
     username: str
     likes: int
     tags: list[str]

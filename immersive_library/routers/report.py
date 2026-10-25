@@ -14,27 +14,27 @@ router = APIRouter(tags=["Users"], dependencies=[Depends(content_guard)])
 
 
 @router.post(
-    "/v1/report/{project}/{contentid}/{reason}",
+    "/v1/report/{project}/{content_id}/{reason}",
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def add_report(
-    project: str, contentid: int, reason: str, userid: int = Depends(logged_in_guard)
+    project: str, content_id: int, reason: str, user_id: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
-    if not await report_service.set_report(project, contentid, userid, reason, True):
+    if not await report_service.set_report(project, content_id, user_id, reason, True):
         raise HTTPException(428, "Already reported")
     return PlainSuccess()
 
 
 @router.delete(
-    "/v1/report/{project}/{contentid}/{reason}",
+    "/v1/report/{project}/{content_id}/{reason}",
     responses={401: {"model": Error}, 428: {"model": Error}},
 )
 async def delete_report(
     project: str,
-    contentid: int,
+    content_id: int,
     reason: str,
-    userid: int = Depends(logged_in_guard),
+    user_id: int = Depends(logged_in_guard),
 ) -> PlainSuccess:
-    if not await report_service.set_report(project, contentid, userid, reason, False):
+    if not await report_service.set_report(project, content_id, user_id, reason, False):
         raise HTTPException(428, "Not liked previously")
     return PlainSuccess()

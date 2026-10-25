@@ -99,12 +99,12 @@ async def get_cached_statistics_counts(
     return await statistics_service.get_statistics_counts(project)
 
 
-@router.get("/{project}/{contentid}", response_class=HTMLResponse)
-async def get_content_front(request: Request, project: str, contentid: int):
+@router.get("/{project}/{content_id}", response_class=HTMLResponse)
+async def get_content_front(request: Request, project: str, content_id: int):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    content = await content_service.get_content(project, contentid)
+    content = await content_service.get_content(project, content_id)
 
     return templates.TemplateResponse(
         request,
@@ -113,18 +113,18 @@ async def get_content_front(request: Request, project: str, contentid: int):
     )
 
 
-@router.get("/render/{project}/{contentid}", response_class=HTMLResponse)
+@router.get("/render/{project}/{content_id}", response_class=HTMLResponse)
 async def get_render_view(
     request: Request,
     project: str,
-    contentid: int,
+    content_id: int,
     width: int = Query(512, ge=64, le=2048),
     height: int = Query(512, ge=64, le=2048),
 ):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    content = await content_service.get_content(project, contentid)
+    content = await content_service.get_content(project, content_id)
 
     return templates.TemplateResponse(
         request,

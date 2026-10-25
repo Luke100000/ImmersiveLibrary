@@ -10,7 +10,7 @@ class TitleLengthValidator(Validator):
         self.max_size = max_size
 
     async def pre_upload(
-        self, database: Database, userid: int, content: ContentUpload
+        self, database: Database, user_id: int, content: ContentUpload
     ) -> str | None:
         if len(content.title) < self.min_size:
             return "title too short"

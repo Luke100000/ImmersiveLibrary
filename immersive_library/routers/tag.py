@@ -33,36 +33,36 @@ async def list_project_tags_v3(
     )
 
 
-@router.get("/v1/tag/{project}/{contentid}", response_model=TagListSuccess)
+@router.get("/v1/tag/{project}/{content_id}", response_model=TagListSuccess)
 @public_cache()
 @cache(expire=60)
-async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
-    await content_guard(project, contentid)
+async def list_content_tags(project: str, content_id: int) -> TagListSuccess:
+    await content_guard(project, content_id)
     tags = await database.fetch_all(
-        "SELECT tag FROM tags WHERE contentid=:contentid", {"contentid": contentid}
+        "SELECT tag FROM tags WHERE content_id=:content_id", {"content_id": content_id}
     )
     return TagListSuccess(tags=[t[0] for t in tags])
 
 
 @router.post(
-    "/v1/tag/{project}/{contentid}/{tag}",
+    "/v1/tag/{project}/{content_id}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     dependencies=[Depends(owner_guard)],
 )
-async def add_tag(project: str, contentid: int, tag: str) -> PlainSuccess:
+async def add_tag(project: str, content_id: int, tag: str) -> PlainSuccess:
     if "," in tag:
         raise HTTPException(401, "Contains invalid characters")
-    if not await tag_service.set_tag(project, contentid, tag, True):
+    if not await tag_service.set_tag(project, content_id, tag, True):
         raise HTTPException(428, "Already tagged")
     return PlainSuccess()
 
 
 @router.delete(
-    "/v1/tag/{project}/{contentid}/{tag}",
+    "/v1/tag/{project}/{content_id}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
     dependencies=[Depends(owner_guard)],
 )
-async def delete_tag(project: str, contentid: int, tag: str) -> PlainSuccess:
-    if not await tag_service.set_tag(project, contentid, tag, False):
+async def delete_tag(project: str, content_id: int, tag: str) -> PlainSuccess:
+    if not await tag_service.set_tag(project, content_id, tag, False):
         raise HTTPException(428, "Not tagged")
     return PlainSuccess()

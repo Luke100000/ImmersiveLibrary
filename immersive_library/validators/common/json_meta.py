@@ -13,7 +13,7 @@ class JsonMetaValidator(Validator):
         self.schema = schema
 
     async def pre_upload(
-        self, database: Database, userid: int, content: ContentUpload
+        self, database: Database, user_id: int, content: ContentUpload
     ) -> str | None:
         try:
             self.schema.model_validate(content.meta)

@@ -36,25 +36,25 @@ def write_render_cache(cache_path: Path, png_bytes: bytes) -> None:
         Path(temporary.name).unlink(missing_ok=True)
 
 
-@router.get("/v1/render/{project}/{contentid}", response_class=Response)
+@router.get("/v1/render/{project}/{content_id}", response_class=Response)
 async def render_content_png(
     request: Request,
     project: str,
-    contentid: int,
+    content_id: int,
     preset: RenderPreset = Query(RenderPreset.EMBED),
 ) -> Response:
     if project not in projects:
         raise HTTPException(404, "Project not found")
 
     record = await database.fetch_one(
-        "SELECT version FROM content WHERE oid=:contentid AND project=:project",
-        {"contentid": contentid, "project": project},
+        "SELECT version FROM content WHERE oid=:content_id AND project=:project",
+        {"content_id": content_id, "project": project},
     )
     if record is None:
         raise HTTPException(404, "Content not found")
 
     width, height = RENDER_PRESET_SIZES[preset]
-    cache_name = f"{contentid}_{record['version']}_{width}x{height}.png"
+    cache_name = f"{content_id}_{record['version']}_{width}x{height}.png"
     cache_path = CACHE_DIR / cache_name
     cache_headers = {
         "Cache-Control": "public, max-age=300, must-revalidate",
@@ -74,7 +74,7 @@ async def render_content_png(
         os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000")
     )
 
-    content = await content_service.get_content(project, contentid)
+    content = await content_service.get_content(project, content_id)
     try:
         renderer: BrowserRenderer = request.app.state.renderer
         png_bytes = await renderer.render_png(

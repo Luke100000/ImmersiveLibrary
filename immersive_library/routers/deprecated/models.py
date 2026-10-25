@@ -2,7 +2,18 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from immersive_library.models import LiteUser
+
+class LiteUser(BaseModel):
+    userid: int
+    username: str
+    submission_count: int
+    likes_given: int
+    likes_received: int
+    moderator: bool
+
+
+class LiteUserSuccess(BaseModel):
+    user: LiteUser
 
 
 class Content(BaseModel):

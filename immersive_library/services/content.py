@@ -29,7 +29,7 @@ async def list_records(
     descending: bool = False,
     include_meta: bool = False,
     viewer_id: int | None = None,
-    recommendation_userid: int | None = None,
+    recommendation_user_id: int | None = None,
     include_personal: bool = False,
 ) -> list[Record]:
     query = get_content_select(False, include_meta, include_personal)
@@ -39,10 +39,10 @@ async def list_records(
 
     query += "\n WHERE c.project = :project"
     if author_id is not None:
-        query += "\n AND c.userid = :author_id"
+        query += "\n AND c.user_id = :author_id"
         values["author_id"] = author_id
     if liked_by is not None:
-        query += "\n AND EXISTS (SELECT 1 FROM likes WHERE likes.contentid=c.oid AND likes.userid=:liked_by)"
+        query += "\n AND EXISTS (SELECT 1 FROM likes WHERE likes.content_id=c.oid AND likes.user_id=:liked_by)"
         values["liked_by"] = liked_by
 
     # Hide content reported by the viewer.
@@ -50,7 +50,7 @@ async def list_records(
         query += """
          AND NOT EXISTS (SELECT *
                     FROM reports
-                    WHERE reports.contentid = c.oid AND reports.reason = 'DEFAULT' AND reports.userid = :viewer_id)
+                    WHERE reports.content_id = c.oid AND reports.reason = 'DEFAULT' AND reports.user_id = :viewer_id)
         """
         values["viewer_id"] = viewer_id
 
@@ -75,7 +75,7 @@ async def list_records(
         elif search_term.startswith("#"):
             condition = f"""EXISTS (
                     SELECT 1 FROM tags
-                    WHERE tags.contentid = c.oid AND tags.tag = :{parameter}
+                    WHERE tags.content_id = c.oid AND tags.tag = :{parameter}
                 )"""
             values[parameter] = search_term[1:].strip()
         elif search_term.startswith("~"):
@@ -102,7 +102,7 @@ async def list_records(
             ) / 2147483647.0 {direction}
         """
         values["seed"] = (
-            0 if recommendation_userid is None else recommendation_userid
+            0 if recommendation_user_id is None else recommendation_user_id
         ) + int(time.time() / 86400)
         values["like_norm"] = 100
     else:
@@ -121,8 +121,8 @@ async def list_records(
 
 def summarize(record: Record, include_meta: bool = True) -> ContentSummary:
     return ContentSummary(
-        contentid=record["oid"],
-        userid=record["userid"],
+        content_id=record["oid"],
+        user_id=record["user_id"],
         username=record["username"],
         likes=record["likes"],
         tags=orjson.loads(record["content_tags"]),
@@ -143,17 +143,17 @@ def get_content_select(
         # Keep relationship values structured, including reasons or tags with commas.
         personal_fields = """,
             EXISTS (SELECT 1 FROM likes
-                    WHERE likes.contentid=c.oid AND likes.userid=:viewer_id) AS is_liked,
+                    WHERE likes.content_id=c.oid AND likes.user_id=:viewer_id) AS is_liked,
             (SELECT json_group_array(reason) FROM (
                 SELECT reason FROM reports
-                WHERE contentid=c.oid AND userid=:viewer_id ORDER BY reason
+                WHERE content_id=c.oid AND user_id=:viewer_id ORDER BY reason
             )) AS viewer_reports,
             (SELECT json_group_array(tag) FROM (
-                SELECT tag FROM tags WHERE contentid=c.oid ORDER BY tag
+                SELECT tag FROM tags WHERE content_id=c.oid ORDER BY tag
             )) AS content_tags"""
     return f"""
         SELECT c.oid,
-               c.userid,
+               c.user_id,
                users.username,
                c.title,
                c.version,
@@ -164,21 +164,21 @@ def get_content_select(
                precomputation.reports
                {personal_fields}
         FROM content c
-            INNER JOIN users ON c.userid = users.oid
-            INNER JOIN precomputation ON c.oid = precomputation.contentid
+            INNER JOIN users ON c.user_id = users.oid
+            INNER JOIN precomputation ON c.oid = precomputation.content_id
     """
 
 
 async def get_record(
     project: str,
-    contentid: int,
+    content_id: int,
     viewer_id: int | None = None,
     include_data: bool = False,
 ) -> Record:
     record = await database.fetch_one(
         get_content_select(include_data, True, True)
-        + " WHERE c.oid=:contentid AND c.project=:project",
-        {"project": project, "contentid": contentid, "viewer_id": viewer_id},
+        + " WHERE c.oid=:content_id AND c.project=:project",
+        {"project": project, "content_id": content_id, "viewer_id": viewer_id},
     )
     if record is None:
         raise HTTPException(404, "Content not found")
@@ -186,74 +186,74 @@ async def get_record(
 
 
 async def get_content(
-    project: str, contentid: int, viewer_id: int | None = None
+    project: str, content_id: int, viewer_id: int | None = None
 ) -> Content:
-    record = await get_record(project, contentid, viewer_id, include_data=True)
+    record = await get_record(project, content_id, viewer_id, include_data=True)
     return Content(
         **summarize(record).model_dump(),
         data=base64.b64encode(record["data"]).decode("utf-8"),
     )
 
 
-async def create_content(project: str, content: ContentUpload, userid: int) -> int:
-    await get_project(project).validate("pre_upload", database, userid, content)
+async def create_content(project: str, content: ContentUpload, user_id: int) -> int:
+    await get_project(project).validate("pre_upload", database, user_id, content)
     async with database.transaction():
-        contentid = await database.fetch_val(
+        content_id = await database.fetch_val(
             """
-            INSERT INTO content (userid, project, title, meta, data)
-            SELECT :userid, :project, :title, :meta, :data
+            INSERT INTO content (user_id, project, title, meta, data)
+            SELECT :user_id, :project, :title, :meta, :data
             WHERE NOT EXISTS (
                 SELECT 1 FROM content WHERE project=:project AND data=:data
             ) RETURNING oid
             """,
             {
-                "userid": userid,
+                "user_id": user_id,
                 "project": project,
                 "title": content.title,
                 "meta": content.meta,
                 "data": content.payload,
             },
         )
-        if contentid is None:
+        if content_id is None:
             raise HTTPException(428, "Duplicate found!")
         if content.tags is not None:
-            await set_tags(database, contentid, content.tags)
-        await get_project(project).call("post_upload", database, userid, contentid)
-        await update_precomputation(database, contentid)
-    return contentid
+            await set_tags(database, content_id, content.tags)
+        await get_project(project).call("post_upload", database, user_id, content_id)
+        await update_precomputation(database, content_id)
+    return content_id
 
 
 async def update_content(
-    project: str, contentid: int, content: ContentUpload, userid: int
+    project: str, content_id: int, content: ContentUpload, user_id: int
 ) -> None:
-    await get_project(project).validate("pre_upload", database, userid, content)
+    await get_project(project).validate("pre_upload", database, user_id, content)
     async with database.transaction():
         updated = await database.fetch_val(
             """
             UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1
-            WHERE project=:project AND oid=:contentid RETURNING oid
+            WHERE project=:project AND oid=:content_id RETURNING oid
             """,
             {
                 "title": content.title,
                 "meta": content.meta,
                 "data": content.payload,
                 "project": project,
-                "contentid": contentid,
+                "content_id": content_id,
             },
         )
         if updated is None:
             raise HTTPException(404, "Content not found")
         if content.tags is not None:
-            await set_tags(database, contentid, content.tags)
-        await get_project(project).call("post_upload", database, userid, contentid)
-        await update_precomputation(database, contentid)
+            await set_tags(database, content_id, content.tags)
+        await get_project(project).call("post_upload", database, user_id, content_id)
+        await update_precomputation(database, content_id)
 
 
-async def delete_content(project: str, contentid: int) -> None:
+async def delete_content(project: str, content_id: int) -> None:
     async with database.transaction():
         deleted = await database.fetch_val(
-            "DELETE FROM content WHERE oid=:contentid AND project=:project RETURNING oid",
-            {"contentid": contentid, "project": project},
+            "DELETE FROM content WHERE oid=:content_id AND project=:project RETURNING oid",
+            {"content_id": content_id, "project": project},
         )
         if deleted is None:
             raise HTTPException(404, "Content not found")

@@ -19,7 +19,7 @@ from immersive_library.models import (
 )
 from immersive_library.utils import (
     login_user,
-    token_to_userid,
+    token_to_user_id,
 )
 
 router = APIRouter(tags=["Auth"])
@@ -70,10 +70,10 @@ async def auth(
             os.getenv("CLIENT_ID", ""),
         )
 
-        userid = info["sub"]
+        user_id = info["sub"]
 
         # Update session for user
-        await login_user(database, userid, username, token)
+        await login_user(database, user_id, username, token)
 
         if return_to is not None:
             return RedirectResponse(return_to, status_code=303)
@@ -89,8 +89,8 @@ async def auth(
 async def is_auth(
     token: str | None = None, authorization: str = Header(None)
 ) -> IsAuthResponse:
-    userid = await token_to_userid(database, token, authorization)
-    return IsAuthResponse(authenticated=userid is not None)
+    user_id = await token_to_user_id(database, token, authorization)
+    return IsAuthResponse(authenticated=user_id is not None)
 
 
 @router.get("/v1/login", summary="Login")

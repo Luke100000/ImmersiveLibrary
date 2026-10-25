@@ -8,7 +8,7 @@ async def migrate_user_tokens(database: Database) -> None:
             columns = await connection.fetch_all("PRAGMA table_info(users)")
             if any(column["name"] == "token" for column in columns):
                 await connection.execute("""
-                    INSERT OR IGNORE INTO user_tokens (token, userid)
+                    INSERT OR IGNORE INTO user_tokens (token, user_id)
                     SELECT token, oid
                     FROM users
                     WHERE token IS NOT NULL AND token != ''

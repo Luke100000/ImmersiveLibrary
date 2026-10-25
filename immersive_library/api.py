@@ -27,7 +27,7 @@ A simple and generic user asset library.
 tags_metadata = [
     {
         "name": "Auth",
-        "description": "Authentication happens via Google Sign-In, the verified userid serves as unique identifier to a users account. On authentication, the user supplies it's access token, which it then uses for all API calls requiring authentication.",
+        "description": "Authentication happens via Google Sign-In, the verified user_id serves as unique identifier to a users account. On authentication, the user supplies it's access token, which it then uses for all API calls requiring authentication.",
     },
     {
         "name": "Content",

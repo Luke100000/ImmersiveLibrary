@@ -17,7 +17,7 @@ router = APIRouter(tags=["Admin"])
 
 @router.get("/v1/tools/post-process/{project}", responses={401: {"model": Error}})
 async def run_post_upload_callbacks(
-    project: str, userid: int = Depends(moderator_guard)
+    project: str, user_id: int = Depends(moderator_guard)
 ) -> PlainTextResponse:
     content = await database.fetch_all(
         "SELECT oid FROM content WHERE project=:project",
@@ -27,7 +27,7 @@ async def run_post_upload_callbacks(
     log = []
     for record in content:
         for message in await get_project(project).call(
-            "post_upload", database, userid, record["oid"]
+            "post_upload", database, user_id, record["oid"]
         ):
             if message is not None:
                 print(message)
@@ -43,22 +43,22 @@ async def run_post_upload_callbacks(
 
 
 @router.get(
-    "/v1/tools/post-process/{project}/{contentid}", responses={401: {"model": Error}}
+    "/v1/tools/post-process/{project}/{content_id}", responses={401: {"model": Error}}
 )
 async def run_post_upload_callbacks_content_id(
-    project: str, contentid: int, userid: int = Depends(moderator_guard)
+    project: str, content_id: int, user_id: int = Depends(moderator_guard)
 ) -> PlainTextResponse:
-    await content_guard(project, contentid)
+    await content_guard(project, content_id)
 
     log = []
     for message in await get_project(project).call(
-        "post_upload", database, userid, contentid
+        "post_upload", database, user_id, content_id
     ):
         if message is not None:
             print(message)
             log.append(message)
 
-    await update_precomputation(database, contentid)
+    await update_precomputation(database, content_id)
 
     return PlainTextResponse(
         content="\n".join(log),

@@ -22,6 +22,8 @@ uvicorn --reload immersive_library.main:app
 docker compose up
 ```
 
+Existing databases are migrated during setup. Back up the database before updating.
+
 ## Client
 
 For some endpoints a user-chosen access token is required.
@@ -43,7 +45,7 @@ Access the documentation in your browser at `/redoc` or `/docs`.
 
 A piece of content consists of:
 
-* `contentid` A unique identifier
+* `content_id` A unique identifier
 * `title` A short title
 * `meta` An unstructured metadata dictionary, JSON compliant
 * `data` Arbitrary (binary) data, base64 encoded during transfer

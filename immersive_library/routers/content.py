@@ -7,7 +7,7 @@ from immersive_library.caching import public_cache
 from immersive_library.database import database
 from immersive_library.dependencies import (
     UserFilter,
-    optional_userid,
+    optional_user_id,
     resolve_user_filter,
 )
 from immersive_library.enums import ContentOrder
@@ -92,7 +92,7 @@ async def list_content(
         False,
         description="Include the stored metadata string in each list item.",
     ),
-    viewer_id: Annotated[int | None, Depends(optional_userid)] = None,
+    viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> ContentListSuccess:
     records = await content_service.list_records(
         project,
@@ -107,7 +107,7 @@ async def list_content(
         descending=descending,
         include_meta=include_meta,
         viewer_id=viewer_id,
-        recommendation_userid=viewer_id,
+        recommendation_user_id=viewer_id,
         include_personal=True,
     )
     return ContentListSuccess(
@@ -118,16 +118,16 @@ async def list_content(
     )
 
 
-@router.get("/v3/content/{project}/{contentid}", response_model=ContentSuccess)
+@router.get("/v3/content/{project}/{content_id}", response_model=ContentSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_content_v3(
     project: str,
-    contentid: int,
-    viewer_id: Annotated[int | None, Depends(optional_userid)] = None,
+    content_id: int,
+    viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> ContentSuccess:
     return ContentSuccess(
-        content=await content_service.get_content(project, contentid, viewer_id)
+        content=await content_service.get_content(project, content_id, viewer_id)
     )
 
 
@@ -136,28 +136,28 @@ async def get_content_v3(
     responses={401: {"model": Error}, 428: {"model": Error}, 400: {"model": Error}},
 )
 async def add_content(
-    project: str, content: ContentUpload, userid: int = Depends(logged_in_guard)
+    project: str, content: ContentUpload, user_id: int = Depends(logged_in_guard)
 ) -> ContentIdSuccess:
-    contentid = await content_service.create_content(project, content, userid)
-    return ContentIdSuccess(contentid=contentid)
+    content_id = await content_service.create_content(project, content, user_id)
+    return ContentIdSuccess(content_id=content_id)
 
 
-@router.put("/v1/content/{project}/{contentid}", responses={401: {"model": Error}})
+@router.put("/v1/content/{project}/{content_id}", responses={401: {"model": Error}})
 async def update_content(
     project: str,
-    contentid: int,
+    content_id: int,
     content: ContentUpload,
-    userid: int = Depends(owner_guard),
+    user_id: int = Depends(owner_guard),
 ) -> PlainSuccess:
-    await content_service.update_content(project, contentid, content, userid)
+    await content_service.update_content(project, content_id, content, user_id)
     return PlainSuccess()
 
 
 @router.delete(
-    "/v1/content/{project}/{contentid}",
+    "/v1/content/{project}/{content_id}",
     responses={401: {"model": Error}},
     dependencies=[Depends(owner_guard)],
 )
-async def delete_content(project: str, contentid: int) -> PlainSuccess:
-    await content_service.delete_content(project, contentid)
+async def delete_content(project: str, content_id: int) -> PlainSuccess:
+    await content_service.delete_content(project, content_id)
     return PlainSuccess()
