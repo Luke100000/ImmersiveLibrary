@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Depends, Header, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
 from immersive_library.database import database
-from immersive_library.enums import ContentOrder, TrackEnum
+from immersive_library.dependencies import (
+    UserFilter,
+    optional_userid,
+    resolve_user_filter,
+)
+from immersive_library.enums import ContentOrder
 from immersive_library.models import (
     ContentIdSuccess,
     ContentListSuccess,
@@ -14,14 +21,8 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
-from immersive_library.routers.deprecated.filters import merge_tag_filters
 from immersive_library.services import content as content_service
-from immersive_library.utils import (
-    fetch_content,
-    logged_in_guard,
-    owner_guard,
-    token_to_userid,
-)
+from immersive_library.utils import logged_in_guard, owner_guard
 
 router = APIRouter(tags=["Content"])
 
@@ -46,28 +47,23 @@ async def list_projects() -> ProjectListSuccess:
 
 
 @router.get(
-    "/v2/content/{project}",
-    response_model_exclude_none=True,
+    "/v3/content/{project}",
     response_model=ContentListSuccess,
+    response_model_exclude_none=True,
 )
-@public_cache(
-    when=lambda request: (
-        request.query_params.get("track", "all") == "all"
-        and "userid" not in request.query_params
-    )
-)
+@public_cache()
 @cache(expire=60)
-async def list_content_v2(
+async def list_content(
     project: str,
-    track: TrackEnum = TrackEnum.ALL,
-    userid: int | None = Query(
+    author_id: UserFilter | None = Query(
         None,
-        description=(
-            "User context for likes, submissions and recommendation ordering. "
-            "Defaults to the authenticated user."
-        ),
+        description="Only include content authored by this user ID.",
     ),
-    whitelist: str | None = Query(
+    liked_by: UserFilter | None = Query(
+        None,
+        description="Only include content liked by this user ID.",
+    ),
+    q: str | None = Query(
         None,
         description=(
             "Only include content that matches every comma-separated term. Prefix a "
@@ -76,17 +72,13 @@ async def list_content_v2(
             "tags. Prefix any term with - to exclude it."
         ),
     ),
-    blacklist: str | None = Query(
-        None,
-        deprecated=True,
-        description=(
-            "Deprecated: use -#tag in whitelist instead. "
-            "Each blacklist term is treated as -#tag."
-        ),
-    ),
     filter_banned: bool = Query(True, description="Exclude content from banned users."),
     filter_reported: bool = Query(
-        True, description="Exclude content which has been reported by several users."
+        True,
+        description=(
+            "Exclude content hidden by its aggregate report score. Content you "
+            "reported with DEFAULT is always excluded, regardless of this setting."
+        ),
     ),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching content from."
@@ -95,48 +87,48 @@ async def list_content_v2(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
     ),
     order: ContentOrder = ContentOrder.DATE,
-    descending: bool = False,
+    descending: bool = Query(False, description="Sort in descending order."),
     include_meta: bool = Query(
-        False, description="Include the meta field in the response."
-    ),
-    parse_meta: bool = Query(
         False,
-        description="Parse the meta field and return it as a dict rather than a JSON encoded string.",
+        description="Include the stored metadata string in each list item.",
     ),
-    token: str | None = None,
-    authorization: str = Header(None),
+    viewer_id: Annotated[int | None, Depends(optional_userid)] = None,
 ) -> ContentListSuccess:
-    viewer_id = await token_to_userid(database, token, authorization)
-
-    return await content_service.list_content(
+    records = await content_service.list_records(
         project,
-        track=track,
-        userid=userid,
-        whitelist=merge_tag_filters(whitelist, blacklist),
+        author_id=resolve_user_filter(author_id, viewer_id),
+        liked_by=resolve_user_filter(liked_by, viewer_id),
+        q=q,
         filter_banned=filter_banned,
         filter_reported=filter_reported,
         offset=offset,
-        limit=limit,
+        limit=limit + 1,
         order=order,
         descending=descending,
         include_meta=include_meta,
-        parse_meta=parse_meta,
         viewer_id=viewer_id,
+        recommendation_userid=viewer_id,
+        include_personal=True,
+    )
+    return ContentListSuccess(
+        contents=[
+            content_service.summarize(row, include_meta) for row in records[:limit]
+        ],
+        has_more=len(records) > limit,
     )
 
 
-@router.get("/v1/content/{project}/{contentid}", response_model=ContentSuccess)
+@router.get("/v3/content/{project}/{contentid}", response_model=ContentSuccess)
 @public_cache()
 @cache(expire=60)
-async def get_content(
-    project: str, contentid: int, parse_meta: bool = False, version: int = 0
+async def get_content_v3(
+    project: str,
+    contentid: int,
+    viewer_id: Annotated[int | None, Depends(optional_userid)] = None,
 ) -> ContentSuccess:
-    assert project
-    assert version is not None
-
-    content = await fetch_content(project, contentid, parse_meta)
-
-    return ContentSuccess(content=content)
+    return ContentSuccess(
+        content=await content_service.get_content(project, contentid, viewer_id)
+    )
 
 
 @router.post(
@@ -167,5 +159,5 @@ async def update_content(
     dependencies=[Depends(owner_guard)],
 )
 async def delete_content(project: str, contentid: int) -> PlainSuccess:
-    await content_service.delete_content(contentid)
+    await content_service.delete_content(project, contentid)
     return PlainSuccess()

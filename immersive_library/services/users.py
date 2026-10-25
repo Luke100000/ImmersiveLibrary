@@ -18,6 +18,11 @@ async def list_users(
         user_filter = "AND users.oid = :userid"
         values["userid"] = userid
 
+    direction = "DESC" if descending else "ASC"
+    ordering = f"{order.name} {direction}"
+    if order != UserOrder.OID:
+        ordering += f", users.oid {direction}"
+
     return await database.fetch_all(
         f"""
             SELECT users.oid,
@@ -52,7 +57,7 @@ async def list_users(
             WHERE users.banned = 0
             {user_filter}
 
-            ORDER BY {order.name} {"DESC" if descending else "ASC"}
+            ORDER BY {ordering}
             LIMIT :limit
             OFFSET :offset
         """,

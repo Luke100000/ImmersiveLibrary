@@ -41,7 +41,7 @@ async def get_statistics(project: str) -> dict[str, str | int]:
 
     return {
         "oid": -1 if random_oid is None else random_oid,
-        "top_tags": ", ".join(list(tags.tags)[:30]),
+        "top_tags": ", ".join(row["tag"] for row in tags[:30]),
         "content": f"{content_count:,}",
         "content_liked": f"{content_count_liked:,}",
         "users": f"{users_count:,}",

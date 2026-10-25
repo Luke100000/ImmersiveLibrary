@@ -5,12 +5,13 @@ from functools import partial
 from typing import Any
 
 import orjson
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi_cache import Coder, FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from prometheus_fastapi_instrumentator import Instrumentator
 from redis import asyncio as aioredis
+from starlette.exceptions import HTTPException
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse
 
@@ -125,11 +126,12 @@ instrumentator.expose(app)
 
 
 @app.exception_handler(HTTPException)
-async def validation_exception_handler(request: Request, exc: HTTPException):
-    assert request
+async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
+    # MCA and Furniture read error messages from this field.
     return JSONResponse(
         status_code=exc.status_code,
         content={"message": exc.detail},
+        headers=exc.headers,
     )
 
 

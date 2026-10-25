@@ -1,8 +1,8 @@
 import base64
-from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, field_validator
+from pydantic.json_schema import SkipJsonSchema
 
 
 class ContentUpload(BaseModel):
@@ -33,29 +33,6 @@ class ContentUpload(BaseModel):
         self.data = base64.b64encode(data).decode()
 
 
-class Content(BaseModel):
-    contentid: int
-    userid: int
-    username: str
-    likes: int
-    tags: list[str]
-    title: str
-    version: int
-    meta: str | dict[str, Any]
-    data: str
-
-
-class LiteContent(BaseModel):
-    contentid: int
-    userid: int
-    username: str
-    likes: int
-    tags: list[str]
-    title: str
-    version: int
-    meta: str | dict[str, Any] | None = None
-
-
 class LiteUser(BaseModel):
     userid: int
     username: str
@@ -74,14 +51,6 @@ class ProjectListSuccess(BaseModel):
     projects: list[ProjectSummary]
 
 
-class ContentSuccess(BaseModel):
-    content: Content
-
-
-class ContentListSuccess(BaseModel):
-    contents: list[LiteContent]
-
-
 class LiteUserSuccess(BaseModel):
     user: LiteUser
 
@@ -90,25 +59,17 @@ class IsAuthResponse(BaseModel):
     authenticated: bool
 
 
-class UserListSuccess(BaseModel):
-    users: list[LiteUser]
-
-
 class TagListSuccess(BaseModel):
     tags: list[str]
-
-
-class TagDictSuccess(BaseModel):
-    tags: dict[str, int]
-
-
-class ContentIdSuccess(BaseModel):
-    contentid: int
 
 
 class BanEntry(BaseModel):
     userid: int
     username: str
+
+
+class ContentIdSuccess(BaseModel):
+    contentid: int
 
 
 class PlainSuccess(BaseModel):
@@ -117,3 +78,45 @@ class PlainSuccess(BaseModel):
 
 class Error(BaseModel):
     message: str
+
+
+class ContentSummary(BaseModel):
+    contentid: int
+    userid: int
+    username: str
+    likes: int
+    tags: list[str]
+    title: str
+    version: int
+    meta: str | SkipJsonSchema[None] = None
+    is_liked: bool
+    reports: list[str]
+
+
+class Content(ContentSummary):
+    meta: str
+    data: str
+
+
+class ContentSuccess(BaseModel):
+    content: Content
+
+
+class ContentListSuccess(BaseModel):
+    contents: list[ContentSummary]
+    has_more: bool
+
+
+class UserListSuccess(BaseModel):
+    users: list[LiteUser]
+    has_more: bool
+
+
+class TagCount(BaseModel):
+    tag: str
+    count: int
+
+
+class TagListPage(BaseModel):
+    tags: list[TagCount]
+    has_more: bool

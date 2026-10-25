@@ -23,7 +23,7 @@ class RenderPreset(str, Enum):
     SQUARE = "square"
 
 
-class TrackEnum(str, Enum):
+class ContentTrack(str, Enum):
     ALL = "all"
     LIKES = "likes"
     SUBMISSIONS = "submissions"

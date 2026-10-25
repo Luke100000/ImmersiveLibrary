@@ -8,8 +8,8 @@ from starlette.responses import FileResponse, HTMLResponse
 from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import projects, templates
 from immersive_library.database import database
+from immersive_library.services import content as content_service
 from immersive_library.services import statistics as statistics_service
-from immersive_library.utils import fetch_content
 
 router = APIRouter(tags=["Viewer"])
 
@@ -89,7 +89,7 @@ async def get_content_front(request: Request, project: str, contentid: int):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    content = await fetch_content(project, contentid)
+    content = await content_service.get_content(project, contentid)
 
     return templates.TemplateResponse(
         request,
@@ -109,7 +109,7 @@ async def get_render_view(
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    content = await fetch_content(project, contentid)
+    content = await content_service.get_content(project, contentid)
 
     return templates.TemplateResponse(
         request,

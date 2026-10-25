@@ -1,19 +1,12 @@
-import base64
 import hashlib
 from typing import Any
 
-import orjson
-from cachetools import cached
 from databases import Database
 from databases.interfaces import Record
 from fastapi import Header, HTTPException, Path
 
 from immersive_library.database import database as app_database
-from immersive_library.models import (
-    Content,
-    LiteContent,
-    LiteUser,
-)
+from immersive_library.models import LiteUser
 
 MAX_USER_TOKENS = 10
 
@@ -53,33 +46,6 @@ async def update_precomputation(
     """,
         {} if contentid is None else {"contentid": contentid},
     )
-
-
-@cached(cache={})
-def get_base_select(include_data: bool, include_meta: bool) -> str:
-    query = """
-        SELECT c.oid,
-               c.userid,
-               users.username,
-               c.title,
-               c.version,
-               c.meta,
-               c.data,
-               precomputation.likes,
-               precomputation.tags,
-               precomputation.reports
-        FROM content c
-            INNER JOIN users ON c.userid = users.oid
-            INNER JOIN precomputation ON c.oid = precomputation.contentid
-    """
-
-    if not include_meta:
-        query = query.replace("c.meta,", "")
-
-    if not include_data:
-        query = query.replace("c.data,", "")
-
-    return query
 
 
 def sha256(string: str) -> str:
@@ -223,30 +189,6 @@ async def set_banned(database: Database, userid: int, banned: bool) -> None:
     )
 
 
-async def has_liked(database: Database, userid: int, contentid: int) -> bool:
-    """
-    Checks if the given user has liked the content
-    """
-    return await exists(
-        database,
-        "SELECT count(*) FROM likes WHERE userid=:userid AND contentid=:contentid",
-        {"userid": userid, "contentid": contentid},
-    )
-
-
-async def has_reported(
-    database: Database, userid: int, contentid: int, reason: str
-) -> bool:
-    """
-    Checks if the given user has reported the content with the given reason
-    """
-    return await exists(
-        database,
-        "SELECT count(*) FROM reports WHERE userid=:userid AND contentid=:contentid AND reason=:reason",
-        {"userid": userid, "contentid": contentid, "reason": reason},
-    )
-
-
 async def has_tag(database: Database, contentid: int, tag: str) -> bool:
     """
     Checks if the given content has a given tag
@@ -277,54 +219,6 @@ async def set_tags(database: Database, contentid: int, tags: list[str]) -> None:
         )
 
 
-def safe_parse(meta: str) -> dict[str, Any]:
-    try:
-        parsed_meta = orjson.loads(meta)
-    except orjson.JSONDecodeError:
-        return {}
-
-    return parsed_meta if isinstance(parsed_meta, dict) else {}
-
-
-def get_lite_content_class(
-    record: Record, include_meta: bool, parse_meta: bool
-) -> LiteContent:
-    """
-    Populates a lite content object
-    """
-    meta = None
-    if include_meta:
-        meta = safe_parse(record["meta"]) if parse_meta else record["meta"]
-
-    return LiteContent(
-        contentid=record["oid"],
-        userid=record["userid"],
-        username=record["username"],
-        likes=record["likes"],
-        tags=record["tags"].split(",") if record["tags"] else [],
-        title=record["title"],
-        version=record["version"],
-        meta=meta,
-    )
-
-
-def get_content_class(record: Record, parse_meta: bool = True) -> Content:
-    """
-    Populates a content object
-    """
-    return Content(
-        contentid=record["oid"],
-        userid=record["userid"],
-        username=record["username"],
-        likes=record["likes"],
-        tags=record["tags"].split(",") if record["tags"] else [],
-        title=record["title"],
-        version=record["version"],
-        meta=safe_parse(record["meta"]) if parse_meta else record["meta"],
-        data=base64.b64encode(record["data"]).decode("utf-8"),
-    )
-
-
 def get_lite_user_class(record: Record) -> LiteUser:
     """
     Populates a user object
@@ -345,21 +239,6 @@ async def content_guard(project: str, contentid: int) -> None:
         {"contentid": contentid, "project": project},
     ):
         raise HTTPException(404, "Content not found")
-
-
-async def fetch_content(
-    project: str, contentid: int, parse_meta: bool = True
-) -> Content:
-    content = await app_database.fetch_one(
-        get_base_select(True, True)
-        + "WHERE c.oid = :contentid AND c.project = :project",
-        {"contentid": contentid, "project": project},
-    )
-
-    if content is None:
-        raise HTTPException(404, "Content not found")
-
-    return get_content_class(content, parse_meta)
 
 
 async def logged_in_guard(

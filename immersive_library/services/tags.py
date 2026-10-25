@@ -1,52 +1,51 @@
-from fastapi import HTTPException
+from databases.interfaces import Record
 
 from immersive_library.database import database
-from immersive_library.models import TagDictSuccess
-from immersive_library.utils import has_tag, update_precomputation
+from immersive_library.utils import content_guard, update_precomputation
 
 
 async def list_project_tags(
     project: str, limit: int = 100, offset: int = 0
-) -> TagDictSuccess:
-    rows = await database.fetch_all(
+) -> list[Record]:
+    return await database.fetch_all(
         """
         SELECT tag, COUNT(*) as count
         FROM tags
         INNER JOIN content ON tags.contentid = content.oid
         WHERE content.project = :project
         GROUP BY tag
-        ORDER BY count DESC
-        LIMIT :limit
-        OFFSET :offset
+        ORDER BY count DESC, tag ASC
+        LIMIT :limit OFFSET :offset
         """,
         {"project": project, "limit": limit, "offset": offset},
     )
 
-    return TagDictSuccess(tags={row["tag"]: row["count"] for row in rows})
 
-
-async def set_tag(contentid: int, tag: str, tagged: bool) -> bool:
-    if tagged:
-        if "," in tag:
-            raise HTTPException(401, "Contains invalid characters")
-
-        inserted_tag = await database.fetch_val(
+async def set_tag(project: str, contentid: int, tag: str, tagged: bool) -> bool:
+    async with database.transaction():
+        if tagged:
+            statement = """
+                INSERT INTO tags (contentid, tag)
+                SELECT :contentid, :tag FROM content WHERE oid=:contentid AND project=:project
+                ON CONFLICT (contentid, tag) DO NOTHING RETURNING tag
             """
-            INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)
-            ON CONFLICT (contentid, tag) DO NOTHING RETURNING tag
-            """,
-            {"contentid": contentid, "tag": tag},
-        )
-        if inserted_tag is None:
-            return False
-    else:
-        if not await has_tag(database, contentid, tag):
-            return False
+        else:
+            statement = """
+                DELETE FROM tags WHERE contentid=:contentid AND tag=:tag
+                AND EXISTS (SELECT 1 FROM content WHERE oid=:contentid AND project=:project)
+                RETURNING tag
+            """
 
-        await database.execute(
-            "DELETE FROM tags WHERE contentid=:contentid AND tag=:tag",
-            {"contentid": contentid, "tag": tag},
+        changed = (
+            await database.fetch_val(
+                statement, {"contentid": contentid, "tag": tag, "project": project}
+            )
+            is not None
         )
 
-    await update_precomputation(database, contentid)
-    return True
+        await content_guard(project, contentid)
+
+        if changed:
+            await update_precomputation(database, contentid)
+
+    return changed

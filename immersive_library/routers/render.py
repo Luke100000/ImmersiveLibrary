@@ -10,7 +10,7 @@ from immersive_library.common import projects
 from immersive_library.database import database
 from immersive_library.enums import RenderPreset
 from immersive_library.rendering import BrowserRenderer
-from immersive_library.utils import fetch_content
+from immersive_library.services import content as content_service
 
 router = APIRouter(tags=["Content"])
 
@@ -74,7 +74,7 @@ async def render_content_png(
         os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000")
     )
 
-    content = await fetch_content(project, contentid)
+    content = await content_service.get_content(project, contentid)
     try:
         renderer: BrowserRenderer = request.app.state.renderer
         png_bytes = await renderer.render_png(

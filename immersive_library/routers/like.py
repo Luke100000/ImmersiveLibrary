@@ -20,7 +20,7 @@ router = APIRouter(tags=["Likes"], dependencies=[Depends(content_guard)])
 async def add_like(
     project: str, contentid: int, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
-    if not await like_service.set_like(contentid, userid, True):
+    if not await like_service.set_like(project, contentid, userid, True):
         raise HTTPException(428, "Already liked")
     return PlainSuccess()
 
@@ -32,6 +32,6 @@ async def add_like(
 async def delete_like(
     project: str, contentid: int, userid: int = Depends(logged_in_guard)
 ) -> PlainSuccess:
-    if not await like_service.set_like(contentid, userid, False):
+    if not await like_service.set_like(project, contentid, userid, False):
         raise HTTPException(428, "Not liked previously")
     return PlainSuccess()

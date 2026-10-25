@@ -1,8 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
 from immersive_library.database import database
+from immersive_library.dependencies import (
+    UserFilter,
+    optional_userid,
+    resolve_user_filter,
+)
 from immersive_library.enums import UserOrder
 from immersive_library.models import (
     BanEntry,
@@ -37,33 +44,44 @@ async def get_banned() -> list[BanEntry]:
     return [BanEntry(userid=u[0], username=u[1]) for u in content]
 
 
-@router.get("/v1/user/{project}", tags=["Users"], response_model=UserListSuccess)
+@router.get("/v3/user/{project}")
 @public_cache()
 @cache(expire=60)
-async def get_users(
+async def get_users_v3(
     project: str,
-    limit: int = 100,
-    offset: int = 0,
-    order: UserOrder = UserOrder.OID,
-    descending: bool = False,
+    limit: int = Query(
+        100, ge=1, le=500, description="The maximum number of users to fetch."
+    ),
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching users from."
+    ),
+    order: UserOrder = Query(
+        UserOrder.OID, description="Sort order; ties are resolved by user ID."
+    ),
+    descending: bool = Query(False, description="Sort in descending order."),
 ) -> UserListSuccess:
-    content = await user_service.list_users(project, limit, offset, order, descending)
-    return UserListSuccess(users=[get_lite_user_class(c) for c in content])
+    rows = await user_service.list_users(project, limit + 1, offset, order, descending)
+    return UserListSuccess(
+        users=[get_lite_user_class(row) for row in rows[:limit]],
+        has_more=len(rows) > limit,
+    )
 
 
-@router.get(
-    "/v2/user/{project}/{userid}",
-    tags=["Users"],
-    responses={404: {"model": Error}},
-    response_model=LiteUserSuccess,
-)
+@router.get("/v3/user/{project}/{userid}")
 @public_cache()
 @cache(expire=60)
-async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
-    content = await user_service.list_users(project, 1, 0, UserOrder.OID, False, userid)
-    if not content:
+async def get_user_v3(
+    project: str,
+    userid: UserFilter,
+    viewer_id: Annotated[int | None, Depends(optional_userid)] = None,
+) -> LiteUserSuccess:
+    target_userid = resolve_user_filter(userid, viewer_id)
+    rows = await user_service.list_users(
+        project, 1, 0, UserOrder.OID, False, target_userid
+    )
+    if not rows:
         raise HTTPException(404, "User doesn't exist")
-    return LiteUserSuccess(user=get_lite_user_class(content[0]))
+    return LiteUserSuccess(user=get_lite_user_class(rows[0]))
 
 
 @router.put(

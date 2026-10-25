@@ -176,7 +176,7 @@
         searchInput.value = searchFromUrl();
 
         async function configureTracks() {
-            let authenticated = false;
+            let authenticated;
             try {
                 const response = await fetch('/v1/auth');
                 authenticated = response.ok && (await response.json()).authenticated === true;
@@ -215,25 +215,34 @@
 
             document.getElementById('current-page').textContent = `Page ${page}`;
             previousPageButton.disabled = page === 1;
+            nextPageButton.disabled = true;
             setContentGridMessage(contentGrid, 'Loading...');
 
             try {
-                const url = new URL(`/v2/content/${encodeURIComponent(project)}`, window.location.origin);
-                url.searchParams.set('track', track);
+                const url = new URL(`/v3/content/${encodeURIComponent(project)}`, window.location.origin);
+                if (track === 'likes') {
+                    url.searchParams.set('liked_by', 'me');
+                } else if (track === 'submissions') {
+                    url.searchParams.set('author_id', 'me');
+                }
                 url.searchParams.set('order', sort);
                 url.searchParams.set('descending', descending);
                 url.searchParams.set('limit', limit);
                 url.searchParams.set('offset', (page - 1) * limit);
 
-                // Add search terms as whitelist if provided
+                // Add search terms if provided
                 if (search) {
-                    url.searchParams.set('whitelist', search);
+                    url.searchParams.set('q', search);
                 }
 
                 // Fetch content list
                 const response = await fetch(url);
                 const data = await response.json();
                 if (loadVersion !== contentLoadVersion) return;
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to load content');
+                }
+                nextPageButton.disabled = !data.has_more;
 
                 if (data.contents && data.contents.length > 0) {
                     contentGrid.replaceChildren();

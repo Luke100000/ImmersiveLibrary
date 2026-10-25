@@ -5,8 +5,12 @@ function getContainerElement(container) {
 
 async function embedContent(container, project, content, options = {}) {
     if (typeof content === 'number') {
-        const res = await fetch(`/v1/content/${project}/${content}`);
-        content = (await res.json()).content;
+        const res = await fetch(`/v3/content/${encodeURIComponent(project)}/${content}`);
+        const response = await res.json();
+        if (!res.ok) {
+            throw new Error(response.message || 'Unable to load content');
+        }
+        content = response.content;
     }
 
     // General layout
