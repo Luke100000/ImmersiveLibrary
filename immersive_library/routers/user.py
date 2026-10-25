@@ -3,6 +3,7 @@ from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
 from immersive_library.database import database
+from immersive_library.enums import UserOrder
 from immersive_library.models import (
     BanEntry,
     Error,
@@ -23,9 +24,8 @@ from immersive_library.utils import (
 router = APIRouter(tags=["Users"])
 
 
-@router.get("/v1/bans", tags=["Users"])
-async def get_banned(userid: int = Depends(moderator_guard)) -> list[BanEntry]:
-    assert userid
+@router.get("/v1/bans", tags=["Users"], dependencies=[Depends(moderator_guard)])
+async def get_banned() -> list[BanEntry]:
     content = await database.fetch_all(
         """
         SELECT oid, username
@@ -44,7 +44,7 @@ async def get_users(
     project: str,
     limit: int = 100,
     offset: int = 0,
-    order: user_service.UserOrder = user_service.UserOrder.OID,
+    order: UserOrder = UserOrder.OID,
     descending: bool = False,
 ) -> UserListSuccess:
     content = await user_service.list_users(project, limit, offset, order, descending)
@@ -60,9 +60,7 @@ async def get_users(
 @public_cache()
 @cache(expire=60)
 async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
-    content = await user_service.list_users(
-        project, 1, 0, user_service.UserOrder.OID, False, userid
-    )
+    content = await user_service.list_users(project, 1, 0, UserOrder.OID, False, userid)
     if not content:
         raise HTTPException(404, "User doesn't exist")
     return LiteUserSuccess(user=get_lite_user_class(content[0]))
@@ -71,17 +69,15 @@ async def get_user_v2(project: str, userid: int) -> LiteUserSuccess:
 @router.put(
     "/v1/user/{userid}",
     tags=["Users"],
+    dependencies=[Depends(moderator_guard)],
     responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
 )
 async def set_user(
     userid: int,
-    executor_userid: int = Depends(moderator_guard),
     banned: bool | None = None,
     moderator: bool | None = None,
     purge: bool = False,
 ) -> PlainSuccess:
-    assert executor_userid
-
     if not await user_exists(database, userid):
         raise HTTPException(404, "User does not exist")
 

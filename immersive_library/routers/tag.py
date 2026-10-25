@@ -41,13 +41,9 @@ async def list_content_tags(project: str, contentid: int) -> TagListSuccess:
 @router.post(
     "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
+    dependencies=[Depends(owner_guard)],
 )
-async def add_tag(
-    project: str, contentid: int, tag: str, userid: int = Depends(owner_guard)
-) -> PlainSuccess:
-    assert project
-    assert userid
-
+async def add_tag(project: str, contentid: int, tag: str) -> PlainSuccess:
     if not await tag_service.set_tag(contentid, tag, True):
         raise HTTPException(428, "Already tagged")
     return PlainSuccess()
@@ -56,13 +52,9 @@ async def add_tag(
 @router.delete(
     "/v1/tag/{project}/{contentid}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
+    dependencies=[Depends(owner_guard)],
 )
-async def delete_tag(
-    project: str, contentid: int, tag: str, userid: int = Depends(owner_guard)
-) -> PlainSuccess:
-    assert project
-    assert userid
-
+async def delete_tag(project: str, contentid: int, tag: str) -> PlainSuccess:
     if not await tag_service.set_tag(contentid, tag, False):
         raise HTTPException(428, "Not tagged")
     return PlainSuccess()

@@ -1,10 +1,10 @@
 import time
-from enum import Enum
 
 from fastapi import HTTPException
 
 from immersive_library.common import get_project
 from immersive_library.database import database
+from immersive_library.enums import ContentOrder, TrackEnum
 from immersive_library.models import ContentListSuccess, ContentUpload
 from immersive_library.utils import (
     get_base_select,
@@ -12,20 +12,6 @@ from immersive_library.utils import (
     set_tags,
     update_precomputation,
 )
-
-
-class TrackEnum(str, Enum):
-    ALL = "all"
-    LIKES = "likes"
-    SUBMISSIONS = "submissions"
-
-
-class ContentOrder(str, Enum):
-    DATE = "date"
-    LIKES = "likes"
-    TITLE = "title"
-    REPORTS = "reports"
-    RECOMMENDATIONS = "recommendations"
 
 
 async def list_content(

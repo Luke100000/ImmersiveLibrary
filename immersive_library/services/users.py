@@ -1,15 +1,7 @@
-from enum import Enum
-
 from databases.interfaces import Record
 
 from immersive_library.database import database
-
-
-class UserOrder(str, Enum):
-    OID = "date"
-    SUBMISSION_COUNT = "submissions"
-    LIKES_GIVEN = "likes_given"
-    LIKES_RECEIVED = "likes_received"
+from immersive_library.enums import UserOrder
 
 
 async def list_users(

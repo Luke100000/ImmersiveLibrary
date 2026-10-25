@@ -3,6 +3,7 @@ from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
 from immersive_library.database import database
+from immersive_library.enums import ContentOrder, TrackEnum
 from immersive_library.models import (
     ContentIdSuccess,
     ContentListSuccess,
@@ -58,7 +59,7 @@ async def list_projects() -> ProjectListSuccess:
 @cache(expire=60)
 async def list_content_v2(
     project: str,
-    track: content_service.TrackEnum = content_service.TrackEnum.ALL,
+    track: TrackEnum = TrackEnum.ALL,
     userid: int | None = Query(
         None,
         description=(
@@ -93,7 +94,7 @@ async def list_content_v2(
     limit: int = Query(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
     ),
-    order: content_service.ContentOrder = content_service.ContentOrder.DATE,
+    order: ContentOrder = ContentOrder.DATE,
     descending: bool = False,
     include_meta: bool = Query(
         False, description="Include the meta field in the response."
@@ -160,12 +161,11 @@ async def update_content(
     return PlainSuccess()
 
 
-@router.delete("/v1/content/{project}/{contentid}", responses={401: {"model": Error}})
-async def delete_content(
-    project: str, contentid: int, userid: int = Depends(owner_guard)
-) -> PlainSuccess:
-    assert project
-    assert userid
-
+@router.delete(
+    "/v1/content/{project}/{contentid}",
+    responses={401: {"model": Error}},
+    dependencies=[Depends(owner_guard)],
+)
+async def delete_content(project: str, contentid: int) -> PlainSuccess:
     await content_service.delete_content(contentid)
     return PlainSuccess()

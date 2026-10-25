@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.database import database
+from immersive_library.enums import TrackEnum
 from immersive_library.models import (
     Error,
 )
@@ -52,14 +53,14 @@ async def get_user(
 
     submissions = await content_service.list_content(
         project,
-        track=content_service.TrackEnum.SUBMISSIONS,
+        track=TrackEnum.SUBMISSIONS,
         limit=200,
         userid=userid,
     )
 
     likes = await content_service.list_content(
         project,
-        track=content_service.TrackEnum.LIKES,
+        track=TrackEnum.LIKES,
         limit=200,
         userid=userid,
     )

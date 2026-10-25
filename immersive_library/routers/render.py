@@ -1,5 +1,4 @@
 import os
-from enum import Enum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -9,17 +8,11 @@ from starlette.responses import Response
 
 from immersive_library.common import projects
 from immersive_library.database import database
+from immersive_library.enums import RenderPreset
 from immersive_library.rendering import BrowserRenderer
 from immersive_library.utils import fetch_content
 
 router = APIRouter(tags=["Content"])
-
-
-class RenderPreset(str, Enum):
-    EMBED = "embed"
-    ICON = "icon"
-    THUMBNAIL = "thumbnail"
-    SQUARE = "square"
 
 
 RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {

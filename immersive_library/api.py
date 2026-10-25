@@ -7,7 +7,6 @@ from typing import Any
 import orjson
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.openapi.utils import get_openapi
 from fastapi_cache import Coder, FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -99,7 +98,13 @@ async def lifespan(_app: FastAPI):
             await database.disconnect()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Immersive Library",
+    version="0.0.1",
+    description=description,
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
+)
 
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 
@@ -111,27 +116,6 @@ async def cache_control_middleware(request: Request, call_next):
     response = await call_next(request)
     apply_cache_policy(request, response)
     return response
-
-
-# Custom OpenAPI to fix the missing description
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-
-    openapi_schema = get_openapi(
-        title="Immersive Library",
-        version="0.0.1",
-        description=description,
-        routes=app.routes,
-    )
-
-    openapi_schema["tags"] = tags_metadata
-
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-
-app.openapi = custom_openapi
 
 
 # Prometheus integration
