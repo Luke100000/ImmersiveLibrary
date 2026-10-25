@@ -20,6 +20,7 @@ async def list_records(
     project: str,
     author_id: int | None = None,
     liked_by: int | None = None,
+    collection_id: int | None = None,
     q: str | None = None,
     filter_banned: bool = True,
     filter_reported: bool = True,
@@ -32,12 +33,33 @@ async def list_records(
     recommendation_user_id: int | None = None,
     include_personal: bool = False,
 ) -> list[Record]:
+    if order == ContentOrder.ADDED and collection_id is None:
+        raise HTTPException(400, "Added ordering requires a collection")
+
     query = get_content_select(False, include_meta, include_personal)
     values: dict[str, str | int | None] = {"project": project}
     if include_personal:
         values["viewer_id"] = viewer_id
 
+    if collection_id is not None:
+        query += """
+            JOIN collection_items AS collection_membership
+                ON collection_membership.content_id=c.oid
+                AND collection_membership.collection_id=:collection_id
+        """
+
     query += "\n WHERE c.project = :project"
+
+    if collection_id is not None:
+        query += """
+            AND EXISTS (
+                SELECT 1 FROM collections WHERE oid=:collection_id AND project=:project
+                    AND (user_id=:collection_viewer_id OR is_public=1)
+            )
+        """
+        values["collection_id"] = collection_id
+        values["collection_viewer_id"] = viewer_id
+
     if author_id is not None:
         query += "\n AND c.user_id = :author_id"
         values["author_id"] = author_id
@@ -105,6 +127,8 @@ async def list_records(
             0 if recommendation_user_id is None else recommendation_user_id
         ) + int(time.time() / 86400)
         values["like_norm"] = 100
+    elif order == ContentOrder.ADDED:
+        query += f"\n ORDER BY collection_membership.added_at {direction}"
     else:
         sort_column = "c.oid" if order == ContentOrder.DATE else order.name
         query += f"\n ORDER BY {sort_column} {direction}"

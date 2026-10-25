@@ -3,6 +3,15 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class ContentIdSuccess(BaseModel):
+    contentid: int
+
+
+class BanEntry(BaseModel):
+    userid: int
+    username: str
+
+
 class LiteUser(BaseModel):
     userid: int
     username: str

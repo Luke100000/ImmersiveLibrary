@@ -68,6 +68,33 @@ async def initialize_database(database: Database) -> None:
         "CREATE INDEX IF NOT EXISTS content_project_user_id ON content (project, user_id)"
     )
 
+    # Collections reference shared assets without changing their ownership.
+    await database.execute("""
+        CREATE TABLE IF NOT EXISTS collections (
+            oid INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(oid) ON DELETE CASCADE,
+            project TEXT NOT NULL,
+            title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 100),
+            description TEXT NOT NULL DEFAULT '' CHECK(length(description) <= 2000),
+            is_public INTEGER NOT NULL DEFAULT 0 CHECK(is_public IN (0, 1)),
+            created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+    """)
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS collections_user_id_project ON collections (user_id, project)"
+    )
+    await database.execute("""
+        CREATE TABLE IF NOT EXISTS collection_items (
+            collection_id INTEGER NOT NULL REFERENCES collections(oid) ON DELETE CASCADE,
+            content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
+            added_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            PRIMARY KEY (collection_id, content_id)
+        ) WITHOUT ROWID
+    """)
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS collection_items_content_id ON collection_items (content_id)"
+    )
+
     # Reports
     await database.execute("""
         CREATE TABLE IF NOT EXISTS reports (

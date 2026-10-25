@@ -1,7 +1,8 @@
 import base64
+from typing import Annotated
 
 from fastapi import HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, StringConstraints, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
 
@@ -63,15 +64,6 @@ class TagListSuccess(BaseModel):
     tags: list[str]
 
 
-class BanEntry(BaseModel):
-    user_id: int
-    username: str
-
-
-class ContentIdSuccess(BaseModel):
-    content_id: int
-
-
 class PlainSuccess(BaseModel):
     pass
 
@@ -119,4 +111,52 @@ class TagCount(BaseModel):
 
 class TagListPage(BaseModel):
     tags: list[TagCount]
+    has_more: bool
+
+
+CollectionTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
+CollectionDescription = Annotated[str, StringConstraints(max_length=2000)]
+
+
+class CollectionCreate(BaseModel):
+    title: CollectionTitle
+    description: CollectionDescription = ""
+    is_public: bool = False
+
+
+class CollectionUpdate(BaseModel):
+    title: CollectionTitle | SkipJsonSchema[None] = None
+    description: CollectionDescription | SkipJsonSchema[None] = None
+    is_public: bool | SkipJsonSchema[None] = None
+
+    @field_validator("title", "description", "is_public")
+    @classmethod
+    def reject_null(cls, value: str | bool | None) -> str | bool:
+        if value is None:
+            raise ValueError("Collection fields cannot be null")
+        return value
+
+
+class Collection(BaseModel):
+    collection_id: int
+    user_id: int
+    username: str
+    project: str
+    title: str
+    description: str
+    is_public: bool
+    created_at: int
+    content_count: int
+    is_owner: bool
+    contains_content: bool | SkipJsonSchema[None] = None
+
+
+class CollectionSuccess(BaseModel):
+    collection: Collection
+
+
+class CollectionListSuccess(BaseModel):
+    collections: list[Collection]
     has_more: bool

@@ -38,6 +38,10 @@ tags_metadata = [
         "description": "A content can be liked, raising the accumulated like counter on the content as well as providing a way to list a users liked content. Can also be used for a content subscription model.",
     },
     {
+        "name": "Collections",
+        "description": "User-owned, project-specific lists of shared content.",
+    },
+    {
         "name": "Tags",
         "description": "The owner or moderator can add and remove tags used to filter content.",
     },

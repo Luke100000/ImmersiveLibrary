@@ -12,7 +12,6 @@ from immersive_library.dependencies import (
 )
 from immersive_library.enums import ContentOrder
 from immersive_library.models import (
-    ContentIdSuccess,
     ContentListSuccess,
     ContentSuccess,
     ContentUpload,
@@ -21,6 +20,7 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
+from immersive_library.routers.deprecated.models import ContentIdSuccess
 from immersive_library.services import content as content_service
 from immersive_library.utils import logged_in_guard, owner_guard
 
@@ -63,6 +63,11 @@ async def list_content(
         None,
         description="Only include content liked by this user ID.",
     ),
+    collection_id: int | None = Query(
+        None,
+        ge=1,
+        description="Only include content in this accessible collection.",
+    ),
     q: str | None = Query(
         None,
         description=(
@@ -80,14 +85,14 @@ async def list_content(
             "reported with DEFAULT is always excluded, regardless of this setting."
         ),
     ),
+    order: ContentOrder = ContentOrder.DATE,
+    descending: bool = Query(False, description="Sort in descending order."),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching content from."
     ),
     limit: int = Query(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
     ),
-    order: ContentOrder = ContentOrder.DATE,
-    descending: bool = Query(False, description="Sort in descending order."),
     include_meta: bool = Query(
         False,
         description="Include the stored metadata string in each list item.",
@@ -98,13 +103,14 @@ async def list_content(
         project,
         author_id=resolve_user_filter(author_id, viewer_id),
         liked_by=resolve_user_filter(liked_by, viewer_id),
+        collection_id=collection_id,
         q=q,
         filter_banned=filter_banned,
         filter_reported=filter_reported,
-        offset=offset,
-        limit=limit + 1,
         order=order,
         descending=descending,
+        offset=offset,
+        limit=limit + 1,
         include_meta=include_meta,
         viewer_id=viewer_id,
         recommendation_user_id=viewer_id,
@@ -139,7 +145,7 @@ async def add_content(
     project: str, content: ContentUpload, user_id: int = Depends(logged_in_guard)
 ) -> ContentIdSuccess:
     content_id = await content_service.create_content(project, content, user_id)
-    return ContentIdSuccess(content_id=content_id)
+    return ContentIdSuccess(contentid=content_id)
 
 
 @router.put("/v1/content/{project}/{content_id}", responses={401: {"model": Error}})

@@ -113,7 +113,7 @@
 
     function logout() {
         eraseCookie(TOKEN_COOKIE);
-        alert('Signed out');
+        window.location.reload();
     }
 
     const originalFetch = window.fetch;

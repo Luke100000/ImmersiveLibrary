@@ -7,6 +7,7 @@ A generic user asset library, accessible via REST API, authenticated via Google 
 * Public read, authenticated write
 * Authentication via Google Sign-In
 * Tags, Likes, Reports
+* Personal collections with optional public sharing
 * Moderation tools
 
 ## Server
@@ -61,6 +62,12 @@ Tags are used for filtering or marking content, either set by the user or as par
 
 Simple like/favorite system, one like per user per content.
 Likes are considered public information.
+
+### Collections
+
+Named, user-owned collections of content within a project.
+Collections are private by default; owners can make them public.
+Deleting a collection leaves its content in the library.
 
 ### Reports
 

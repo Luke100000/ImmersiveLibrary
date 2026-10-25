@@ -12,12 +12,12 @@ from immersive_library.dependencies import (
 )
 from immersive_library.enums import UserOrder
 from immersive_library.models import (
-    BanEntry,
     Error,
     LiteUserSuccess,
     PlainSuccess,
     UserListSuccess,
 )
+from immersive_library.routers.deprecated.models import BanEntry
 from immersive_library.services import users as user_service
 from immersive_library.utils import (
     get_lite_user_class,
@@ -41,7 +41,7 @@ async def get_banned() -> list[BanEntry]:
     """
     )
 
-    return [BanEntry(user_id=u[0], username=u[1]) for u in content]
+    return [BanEntry(userid=u[0], username=u[1]) for u in content]
 
 
 @router.get("/v3/user/{project}", response_model=UserListSuccess)

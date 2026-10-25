@@ -269,6 +269,7 @@
                             window.location.href = targetUrl;
                         });
                         contentItem.addEventListener('keydown', (e) => {
+                            if (e.target !== contentItem) return;
                             if (e.key === 'Enter' || e.key === ' ') {
                                 e.preventDefault();
                                 window.location.href = targetUrl;

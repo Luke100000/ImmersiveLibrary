@@ -9,7 +9,6 @@ from starlette.responses import FileResponse, HTMLResponse
 
 from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import projects, templates
-from immersive_library.database import database
 from immersive_library.services import content as content_service
 from immersive_library.services import statistics as statistics_service
 
@@ -28,14 +27,11 @@ def get_template(project: str, file: str):
 
 @router.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
-    project_list = await database.fetch_all(
-        "SELECT project FROM content GROUP BY project ORDER BY COUNT(*) DESC"
-    )
     return templates.TemplateResponse(
         request,
         "index.jinja",
         {
-            "projects": [p["project"] for p in project_list],
+            "projects": list(projects.keys()),
         },
     )
 

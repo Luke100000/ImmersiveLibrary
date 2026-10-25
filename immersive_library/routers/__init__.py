@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from immersive_library.routers import (
     auth,
+    collection,
     content,
     deprecated,
     like,
@@ -19,6 +20,7 @@ router = APIRouter()
 router.include_router(deprecated.router)
 
 router.include_router(auth.router)
+router.include_router(collection.router)
 router.include_router(content.router)
 router.include_router(render.router)
 router.include_router(like.router)

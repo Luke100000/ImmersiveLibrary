@@ -7,6 +7,7 @@ class ContentOrder(str, Enum):
     TITLE = "title"
     REPORTS = "reports"
     RECOMMENDATIONS = "recommendations"
+    ADDED = "added"
 
 
 class UserOrder(str, Enum):
