@@ -31,15 +31,18 @@ async def update_precomputation(
         
          LEFT JOIN (SELECT likes.contentid, COUNT(*) as c_likes
                     FROM likes
+                    {"" if contentid is None else "WHERE likes.contentid = :contentid"}
                     GROUP BY likes.contentid) liked_content ON liked_content.contentid = content.oid
 
          LEFT JOIN (SELECT tags.contentid, GROUP_CONCAT(tag, ',') as c_tags
                     FROM tags
+                    {"" if contentid is None else "WHERE tags.contentid = :contentid"}
                     GROUP BY tags.contentid) tagged_content on tagged_content.contentid = content.oid
 
          LEFT JOIN (SELECT reports.contentid, COUNT(*) as reports
                     FROM reports
                     WHERE reports.reason = 'DEFAULT'
+                    {"" if contentid is None else "AND reports.contentid = :contentid"}
                     GROUP BY reports.contentid) reported_c on reported_c.contentid = content.oid
                     
         {"" if contentid is None else "WHERE content.oid = :contentid"}

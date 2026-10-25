@@ -14,7 +14,8 @@ A generic user asset library, accessible via REST API, authenticated via Google 
 The server is implemented in python using FastAPI.
 
 ```sh
-uvicorn --reload main:app
+python -m immersive_library.database.prepare
+uvicorn --reload immersive_library.main:app
 ```
 
 ```sh

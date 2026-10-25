@@ -1,4 +1,3 @@
-import asyncio
 import os
 from contextlib import asynccontextmanager
 from functools import partial
@@ -20,7 +19,6 @@ from immersive_library.database import database
 from immersive_library.database.schema import initialize_database
 from immersive_library.rendering import BrowserRenderer
 from immersive_library.routers import router
-from immersive_library.utils import update_precomputation
 
 description = """
 A simple and generic user asset library.
@@ -76,7 +74,6 @@ class FastAPIJsonCoder(Coder):
 async def lifespan(_app: FastAPI):
     await database.connect()
     await initialize_database(database)
-    asyncio.create_task(update_precomputation(database))
 
     redis = aioredis.from_url(
         "redis://"

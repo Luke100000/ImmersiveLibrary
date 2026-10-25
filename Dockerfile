@@ -72,4 +72,4 @@ WORKDIR /app
 USER app
 
 # Run FastAPI with configurable workers
-CMD fastapi run --host 0.0.0.0 --workers $FASTAPI_WORKERS /app/immersive_library/main.py
+CMD python -m immersive_library.database.prepare && exec fastapi run --host 0.0.0.0 --workers $FASTAPI_WORKERS /app/immersive_library/main.py

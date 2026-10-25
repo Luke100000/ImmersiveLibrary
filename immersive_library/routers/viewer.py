@@ -1,7 +1,9 @@
 from functools import cache
+from typing import cast
 
 from fastapi import APIRouter, Query
 from fastapi.requests import Request
+from fastapi_cache.decorator import cache as cache_result
 from jinja2 import TemplateNotFound
 from starlette.responses import FileResponse, HTMLResponse
 
@@ -74,14 +76,27 @@ async def get_project_front(request: Request, project: str):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
+    counts = cast(
+        dict[str, str], await get_cached_statistics_counts(project, request=request)
+    )
     return templates.TemplateResponse(
         request,
         get_template(project, "project"),
         {
             "project": project,
-            "statistics": await statistics_service.get_statistics(project),
+            "statistics": await statistics_service.get_statistics(
+                project, counts=counts
+            ),
         },
     )
+
+
+@cache_result(expire=60)
+async def get_cached_statistics_counts(
+    project: str, request: Request
+) -> dict[str, str]:
+    """The cache decorator uses request to honor Cache-Control headers."""
+    return await statistics_service.get_statistics_counts(project)
 
 
 @router.get("/{project}/{contentid}", response_class=HTMLResponse)

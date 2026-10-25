@@ -55,6 +55,15 @@ async def initialize_database(database: Database) -> None:
     await database.execute(
         "CREATE INDEX IF NOT EXISTS content_userid on content (userid)"
     )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS content_project ON content (project)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS content_project_title ON content (project, title)"
+    )
+    await database.execute(
+        "CREATE INDEX IF NOT EXISTS content_project_userid ON content (project, userid)"
+    )
 
     # Reports
     await database.execute("""
