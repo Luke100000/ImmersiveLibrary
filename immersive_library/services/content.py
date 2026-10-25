@@ -3,9 +3,15 @@ from enum import Enum
 
 from fastapi import HTTPException
 
+from immersive_library.common import get_project
 from immersive_library.database import database
-from immersive_library.models import ContentListSuccess
-from immersive_library.utils import get_base_select, get_lite_content_class
+from immersive_library.models import ContentListSuccess, ContentUpload
+from immersive_library.utils import (
+    get_base_select,
+    get_lite_content_class,
+    set_tags,
+    update_precomputation,
+)
 
 
 class TrackEnum(str, Enum):
@@ -134,3 +140,72 @@ async def list_content(
     ]
 
     return ContentListSuccess(contents=contents)
+
+
+async def create_content(project: str, content: ContentUpload, userid: int) -> int:
+    await get_project(project).validate("pre_upload", database, userid, content)
+
+    async with database.transaction():
+        contentid = await database.fetch_val(
+            """
+            INSERT INTO content (userid, project, title, meta, data)
+            SELECT :userid, :project, :title, :meta, :data
+            WHERE NOT EXISTS (
+                SELECT 1 FROM content WHERE project=:project AND data=:data
+            )
+            RETURNING oid
+            """,
+            {
+                "userid": userid,
+                "project": project,
+                "title": content.title,
+                "meta": content.meta,
+                "data": content.payload,
+            },
+        )
+
+        if contentid is None:
+            raise HTTPException(428, "Duplicate found!")
+
+        if content.tags is not None:
+            await set_tags(database, contentid, content.tags)
+
+        # Call validators for eventual post-processing
+        await get_project(project).call("post_upload", database, userid, contentid)
+
+        await update_precomputation(database, contentid)
+
+    return contentid
+
+
+async def update_content(
+    project: str, contentid: int, content: ContentUpload, userid: int
+) -> None:
+    await get_project(project).validate("pre_upload", database, userid, content)
+
+    async with database.transaction():
+        await database.execute(
+            "UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1 WHERE project=:project AND oid=:oid",
+            {
+                "title": content.title,
+                "meta": content.meta,
+                "data": content.payload,
+                "project": project,
+                "oid": contentid,
+            },
+        )
+
+        if content.tags is not None:
+            await set_tags(database, contentid, content.tags)
+
+        # Call validators for eventual post-processing
+        await get_project(project).call("post_upload", database, userid, contentid)
+
+        await update_precomputation(database, contentid)
+
+
+async def delete_content(contentid: int) -> None:
+    await database.execute(
+        "DELETE FROM content WHERE oid=:contentid",
+        {"contentid": contentid},
+    )

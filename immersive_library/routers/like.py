@@ -1,15 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from immersive_library.database import database
 from immersive_library.models import (
     Error,
     PlainSuccess,
 )
+from immersive_library.services import likes as like_service
 from immersive_library.utils import (
     content_guard,
-    has_liked,
     logged_in_guard,
-    update_precomputation,
 )
 
 router = APIRouter(tags=["Likes"], dependencies=[Depends(content_guard)])
@@ -24,18 +22,8 @@ async def add_like(
 ) -> PlainSuccess:
     assert project
 
-    inserted_userid = await database.fetch_val(
-        """
-        INSERT INTO likes (userid, contentid) VALUES(:userid, :contentid)
-        ON CONFLICT (userid, contentid) DO NOTHING RETURNING userid
-        """,
-        {"userid": userid, "contentid": contentid},
-    )
-    if inserted_userid is None:
+    if not await like_service.set_like(contentid, userid, True):
         raise HTTPException(428, "Already liked")
-
-    await update_precomputation(database, contentid)
-
     return PlainSuccess()
 
 
@@ -48,14 +36,6 @@ async def delete_like(
 ) -> PlainSuccess:
     assert project
 
-    if not await has_liked(database, userid, contentid):
+    if not await like_service.set_like(contentid, userid, False):
         raise HTTPException(428, "Not liked previously")
-
-    await database.execute(
-        "DELETE FROM likes WHERE userid=:userid AND contentid=:contentid",
-        {"userid": userid, "contentid": contentid},
-    )
-
-    await update_precomputation(database, contentid)
-
     return PlainSuccess()

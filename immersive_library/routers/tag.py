@@ -12,9 +12,7 @@ from immersive_library.models import (
 from immersive_library.services import tags as tag_service
 from immersive_library.utils import (
     content_guard,
-    has_tag,
     owner_guard,
-    update_precomputation,
 )
 
 router = APIRouter(tags=["Tags"])
@@ -50,21 +48,8 @@ async def add_tag(
     assert project
     assert userid
 
-    if "," in tag:
-        raise HTTPException(401, "Contains invalid characters")
-
-    inserted_tag = await database.fetch_val(
-        """
-        INSERT INTO tags (contentid, tag) VALUES(:contentid, :tag)
-        ON CONFLICT (contentid, tag) DO NOTHING RETURNING tag
-        """,
-        {"contentid": contentid, "tag": tag},
-    )
-    if inserted_tag is None:
+    if not await tag_service.set_tag(contentid, tag, True):
         raise HTTPException(428, "Already tagged")
-
-    await update_precomputation(database, contentid)
-
     return PlainSuccess()
 
 
@@ -78,14 +63,6 @@ async def delete_tag(
     assert project
     assert userid
 
-    if not await has_tag(database, contentid, tag):
+    if not await tag_service.set_tag(contentid, tag, False):
         raise HTTPException(428, "Not tagged")
-
-    await database.execute(
-        "DELETE FROM tags WHERE contentid=:contentid AND tag=:tag",
-        {"contentid": contentid, "tag": tag},
-    )
-
-    await update_precomputation(database, contentid)
-
     return PlainSuccess()

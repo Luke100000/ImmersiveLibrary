@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
-from immersive_library.common import get_project
 from immersive_library.database import database
 from immersive_library.models import (
     ContentIdSuccess,
@@ -20,9 +19,7 @@ from immersive_library.utils import (
     fetch_content,
     logged_in_guard,
     owner_guard,
-    set_tags,
     token_to_userid,
-    update_precomputation,
 )
 
 router = APIRouter(tags=["Content"])
@@ -148,39 +145,7 @@ async def get_content(
 async def add_content(
     project: str, content: ContentUpload, userid: int = Depends(logged_in_guard)
 ) -> ContentIdSuccess:
-    # Call validators for content verification
-    await get_project(project).validate("pre_upload", database, userid, content)
-
-    async with database.transaction():
-        contentid = await database.fetch_val(
-            """
-            INSERT INTO content (userid, project, title, meta, data)
-            SELECT :userid, :project, :title, :meta, :data
-            WHERE NOT EXISTS (
-                SELECT 1 FROM content WHERE project=:project AND data=:data
-            )
-            RETURNING oid
-            """,
-            {
-                "userid": userid,
-                "project": project,
-                "title": content.title,
-                "meta": content.meta,
-                "data": content.payload,
-            },
-        )
-
-        if contentid is None:
-            raise HTTPException(428, "Duplicate found!")
-
-        if content.tags is not None:
-            await set_tags(database, contentid, content.tags)
-
-        # Call validators for eventual post-processing
-        await get_project(project).call("post_upload", database, userid, contentid)
-
-        await update_precomputation(database, contentid)
-
+    contentid = await content_service.create_content(project, content, userid)
     return ContentIdSuccess(contentid=contentid)
 
 
@@ -191,29 +156,7 @@ async def update_content(
     content: ContentUpload,
     userid: int = Depends(owner_guard),
 ) -> PlainSuccess:
-    # Call validators for content verification
-    await get_project(project).validate("pre_upload", database, userid, content)
-
-    async with database.transaction():
-        await database.execute(
-            "UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1 WHERE project=:project AND oid=:oid",
-            {
-                "title": content.title,
-                "meta": content.meta,
-                "data": content.payload,
-                "project": project,
-                "oid": contentid,
-            },
-        )
-
-        if content.tags is not None:
-            await set_tags(database, contentid, content.tags)
-
-        # Call validators for eventual post-processing
-        await get_project(project).call("post_upload", database, userid, contentid)
-
-        await update_precomputation(database, contentid)
-
+    await content_service.update_content(project, contentid, content, userid)
     return PlainSuccess()
 
 
@@ -224,9 +167,5 @@ async def delete_content(
     assert project
     assert userid
 
-    await database.execute(
-        "DELETE FROM content WHERE oid=:contentid",
-        {"contentid": contentid},
-    )
-
+    await content_service.delete_content(contentid)
     return PlainSuccess()
