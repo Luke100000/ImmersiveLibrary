@@ -22,7 +22,7 @@ RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
     RenderPreset.SQUARE: (1024, 1024),
 }
 
-CACHE_DIR = Path("data/cache")
+CACHE_DIR = Path(database.url.database).parent / "cache"
 
 
 def write_render_cache(cache_path: Path, png_bytes: bytes) -> None:
