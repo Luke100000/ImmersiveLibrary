@@ -11,12 +11,16 @@ async def list_users(
     order: UserOrder,
     descending: bool,
     user_id: int | None = None,
+    q: str | None = None,
 ) -> list[Record]:
     values = {"limit": limit, "offset": offset, "project": project}
     user_filter = ""
     if user_id is not None:
         user_filter = "AND users.oid = :user_id"
         values["user_id"] = user_id
+    if q and q.strip():
+        user_filter += " AND users.username LIKE :q"
+        values["q"] = f"%{q.strip()}%"
 
     direction = "DESC" if descending else "ASC"
     ordering = f"{order.name} {direction}"

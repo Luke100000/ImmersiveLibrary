@@ -5,7 +5,8 @@
     <button class="btn" type="button" :class="{active: content.is_liked}" :disabled="pending || loading"
             :title="content.is_liked ? 'Unlike' : 'Like'" :aria-label="content.is_liked ? 'Unlike' : 'Like'"
             :aria-pressed="content.is_liked" @click="toggleLike()">
-        {{ icon("like") }}<span class="btn-label" x-text="content.is_liked ? 'Unlike' : 'Like'">Like</span>
+        {{ icon("like") }}<span x-text="content.likes.toLocaleString()"></span>
+        <span class="btn-label" x-text="content.is_liked ? 'Unlike' : 'Like'">Like</span>
     </button>
     {{ action_button("collect", "Collections", "editCollections()", ':disabled="pending || loading"') }}
     {{ action_button("report", "Report", "report()", ':disabled="pending || loading" :class="{active: content.reports.length > 0}"') }}

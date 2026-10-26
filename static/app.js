@@ -282,9 +282,9 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'users',
         idName: 'user_id',
         itemUrl: (id) => sitePath(project, 'users', id),
-        settings: {sort: 'likes_received', descending: 'true', limit: '24'},
+        settings: {sort: 'likes_received', descending: 'true', limit: '24', search: ''},
         query() {
-            return {order: this.sort, descending: this.descending};
+            return {order: this.sort, descending: this.descending, q: this.search.trim()};
         },
     }));
 

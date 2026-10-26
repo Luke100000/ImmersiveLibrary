@@ -1,5 +1,5 @@
 {% extends "library/base.jinja" %}
-{% from "components/macros.jinja" import select_control, limit_control, order_control %}
+{% from "components/macros.jinja" import select_control, search_control, limit_control, order_control %}
 
 {% block title %}Users – {{ project_info.title or project }}{% endblock %}
 
@@ -14,6 +14,7 @@
         ]) }}
         {{ order_control() }}
         {{ limit_control(["24", "48", "96"]) }}
+        {{ search_control("Search users by name") }}
     </div>
 
     <div class="grid">

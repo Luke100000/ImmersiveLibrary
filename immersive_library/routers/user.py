@@ -49,6 +49,9 @@ async def get_banned() -> list[BanEntry]:
 @cache(expire=60)
 async def get_users_v3(
     project: str,
+    q: str | None = Query(
+        None, description="Only include users whose name contains this text."
+    ),
     limit: int = Query(
         100, ge=1, le=500, description="The maximum number of users to fetch."
     ),
@@ -60,7 +63,9 @@ async def get_users_v3(
     ),
     descending: bool = Query(False, description="Sort in descending order."),
 ) -> UserListSuccess:
-    rows = await user_service.list_users(project, limit + 1, offset, order, descending)
+    rows = await user_service.list_users(
+        project, limit + 1, offset, order, descending, q=q
+    )
     return UserListSuccess(
         users=[get_lite_user_class(row) for row in rows[:limit]],
         has_more=len(rows) > limit,
