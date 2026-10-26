@@ -97,6 +97,10 @@ async def list_content(
         False,
         description="Include the stored metadata string in each list item.",
     ),
+    include_data: bool = Query(
+        False,
+        description="Include the Base64 content data in each list item.",
+    ),
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> ContentListSuccess:
     records = await content_service.list_records(
@@ -112,13 +116,15 @@ async def list_content(
         offset=offset,
         limit=limit + 1,
         include_meta=include_meta,
+        include_data=include_data,
         viewer_id=viewer_id,
         recommendation_user_id=viewer_id,
         include_personal=True,
     )
     return ContentListSuccess(
         contents=[
-            content_service.summarize(row, include_meta) for row in records[:limit]
+            content_service.summarize(row, include_meta, include_data)
+            for row in records[:limit]
         ],
         has_more=len(records) > limit,
     )

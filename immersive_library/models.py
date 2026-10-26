@@ -81,6 +81,7 @@ class ContentSummary(BaseModel):
     title: str
     version: int
     meta: str | SkipJsonSchema[None] = None
+    data: str | SkipJsonSchema[None] = None
     is_liked: bool
     reports: list[str]
 

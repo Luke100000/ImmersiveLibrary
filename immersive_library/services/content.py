@@ -29,6 +29,7 @@ async def list_records(
     order: ContentOrder = ContentOrder.DATE,
     descending: bool = False,
     include_meta: bool = False,
+    include_data: bool = False,
     viewer_id: int | None = None,
     recommendation_user_id: int | None = None,
     include_personal: bool = False,
@@ -36,7 +37,7 @@ async def list_records(
     if order == ContentOrder.ADDED and collection_id is None:
         raise HTTPException(400, "Added ordering requires a collection")
 
-    query = get_content_select(False, include_meta, include_personal)
+    query = get_content_select(include_meta, include_data, include_personal)
     values: dict[str, str | int | None] = {"project": project}
     if include_personal:
         values["viewer_id"] = viewer_id
@@ -143,7 +144,9 @@ async def list_records(
     return await database.fetch_all(query, values)
 
 
-def summarize(record: Record, include_meta: bool = True) -> ContentSummary:
+def summarize(
+    record: Record, include_meta: bool = True, include_data: bool = False
+) -> ContentSummary:
     return ContentSummary(
         content_id=record["oid"],
         user_id=record["user_id"],
@@ -153,6 +156,7 @@ def summarize(record: Record, include_meta: bool = True) -> ContentSummary:
         title=record["title"],
         version=record["version"],
         meta=record["meta"] if include_meta else None,
+        data=base64.b64encode(record["data"]).decode() if include_data else None,
         is_liked=bool(record["is_liked"]),
         reports=orjson.loads(record["viewer_reports"]),
     )
@@ -160,7 +164,7 @@ def summarize(record: Record, include_meta: bool = True) -> ContentSummary:
 
 @cached(cache={})
 def get_content_select(
-    include_data: bool, include_meta: bool, include_personal: bool = False
+    include_meta: bool, include_data: bool, include_personal: bool = False
 ) -> str:
     personal_fields = ""
     if include_personal:
@@ -200,7 +204,7 @@ async def get_record(
     include_data: bool = False,
 ) -> Record:
     record = await database.fetch_one(
-        get_content_select(include_data, True, True)
+        get_content_select(True, include_data, True)
         + " WHERE c.oid=:content_id AND c.project=:project",
         {"project": project, "content_id": content_id, "viewer_id": viewer_id},
     )
@@ -213,10 +217,7 @@ async def get_content(
     project: str, content_id: int, viewer_id: int | None = None
 ) -> Content:
     record = await get_record(project, content_id, viewer_id, include_data=True)
-    return Content(
-        **summarize(record).model_dump(),
-        data=base64.b64encode(record["data"]).decode("utf-8"),
-    )
+    return Content(**summarize(record, include_data=True).model_dump())
 
 
 async def create_content(project: str, content: ContentUpload, user_id: int) -> int:

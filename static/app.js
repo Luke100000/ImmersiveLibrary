@@ -193,9 +193,9 @@ document.addEventListener('alpine:init', () => {
         onCreate: null,
 
         show({
-            title, message = '', emptyText = 'Nothing found', createLabel = 'Create', searchable = false,
-            items, onChange, onCreate = null,
-        }) {
+                 title, message = '', emptyText = 'Nothing found', createLabel = 'Create', searchable = false,
+                 items, onChange, onCreate = null,
+             }) {
             Object.assign(this, {
                 title, message, emptyText, createLabel, searchable, onChange, onCreate,
                 items: items.map((item) => ({...item, initial: item.selected})),
@@ -265,6 +265,7 @@ document.addEventListener('alpine:init', () => {
                     order: this.sort,
                     descending: this.descending,
                     q: this.search.trim(),
+                    include_data: true,
                 };
             },
         }),
@@ -501,7 +502,9 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 this.pending = true;
-                const liked = this.content.is_liked;
+                const {is_liked: liked, likes} = this.content;
+                this.content.is_liked = !liked;
+                this.content.likes = likes + (liked ? -1 : 1);
                 try {
                     await fetchJson(sitePath('v1', 'like', project, contentId), {
                         method: liked ? 'DELETE' : 'POST',
@@ -509,19 +512,24 @@ document.addEventListener('alpine:init', () => {
                         // A repeated request can already be in the desired state.
                         allowedStatuses: [428],
                     });
-                    this.content.is_liked = !liked;
-                    // Revalidate this item's cached viewer state after the mutation.
-                    const refreshed = await this.fetchContent(true);
-                    this.content.is_liked = refreshed.is_liked;
-                    this.content.likes = refreshed.likes;
-                    this.$dispatch('content-like-changed', {contentId, liked: this.content.is_liked});
+                    this.$dispatch('content-like-changed', {contentId, liked: !liked});
                 } catch (error) {
+                    this.content.is_liked = liked;
+                    this.content.likes = likes;
                     if (!controller.signal.aborted) {
                         alert(error.message);
                     }
+                    return;
                 } finally {
                     this.pending = false;
                 }
+
+                // Revalidate this item's cached viewer state in the background.
+                this.fetchContent(true).then((refreshed) => {
+                    this.content.is_liked = refreshed.is_liked;
+                    this.content.likes = refreshed.likes;
+                }).catch(() => {
+                });
             },
 
             requireUser() {

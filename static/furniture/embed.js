@@ -281,10 +281,25 @@ function createSceneFromObject(data, options = {}) {
     return {scene, camera, update};
 }
 
+let nbtLibrary;
+
+// The NBT parser is large and only needed here, so it is loaded on first use. It defines a global require.
+function loadNbtLibrary() {
+    nbtLibrary ??= new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = '/static/vendor/pnbt.js';
+        script.onload = () => resolve(window.require);
+        script.onerror = () => reject(new Error('Unable to load the NBT parser'));
+        document.head.append(script);
+    });
+    return nbtLibrary;
+}
+
 // noinspection JSUnusedGlobalSymbols
 export async function embed(element, content, options = {}) {
-    const nbt = require('prismarine-nbt');
-    const {Buffer} = require('buffer');
+    const load = await loadNbtLibrary();
+    const nbt = load('prismarine-nbt');
+    const {Buffer} = load('buffer');
 
     const parsedData = await nbt.parse(Buffer.from(atob(content.data), 'binary'));
     return createSceneFromObject(parsedData, options);
