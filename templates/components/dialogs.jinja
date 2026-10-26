@@ -1,0 +1,40 @@
+<dialog class="panel dialog" aria-labelledby="confirm-title" x-data
+        x-modal="$store.confirm.open" @close="$store.confirm.close(false)">
+    <h2 id="confirm-title" x-text="$store.confirm.title"></h2>
+    <p x-text="$store.confirm.message"></p>
+    <div class="button-row">
+        <button type="button" class="btn" @click="$store.confirm.close(false)">Cancel</button>
+        <button type="button" class="btn" :data-danger="$store.confirm.danger"
+                @click="$store.confirm.close(true)" x-text="$store.confirm.confirmLabel"></button>
+    </div>
+</dialog>
+
+<dialog class="panel dialog" aria-labelledby="picker-title" x-data
+        x-modal="$store.picker.open" @close="$store.picker.open = false">
+    <form @submit.prevent="$store.picker.save()">
+        <h2 id="picker-title" x-text="$store.picker.title"></h2>
+        <p x-show="$store.picker.message" x-text="$store.picker.message"></p>
+        <div class="control-item" x-show="$store.picker.searchable">
+            <input type="text" placeholder="Search or create" aria-label="Search" x-model="$store.picker.search"
+                   @keydown.enter.prevent="$store.picker.canCreate && $store.picker.create()">
+        </div>
+        <div class="picker-list">
+            <template x-for="item in $store.picker.visibleItems" :key="item.id">
+                <label class="picker-item">
+                    <input type="checkbox" x-model="item.selected">
+                    <span x-text="item.label"></span>
+                </label>
+            </template>
+            <button type="button" class="picker-item picker-create" x-show="$store.picker.canCreate"
+                    :disabled="$store.picker.pending" @click="$store.picker.create()"
+                    x-text="`${$store.picker.createLabel} &quot;${$store.picker.search.trim()}&quot;`"></button>
+            <p class="picker-empty" x-show="!$store.picker.visibleItems.length && !$store.picker.canCreate"
+               x-text="$store.picker.emptyText"></p>
+        </div>
+        <p class="dialog-error" x-show="$store.picker.error" x-text="$store.picker.error"></p>
+        <div class="button-row">
+            <button type="button" class="btn" @click="$store.picker.open = false">Cancel</button>
+            <button type="submit" class="btn" :disabled="$store.picker.pending">Save</button>
+        </div>
+    </form>
+</dialog>

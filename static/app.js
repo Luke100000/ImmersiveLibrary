@@ -16,6 +16,21 @@ function sitePath(...parts) {
     return '/' + parts.map((part) => encodeURIComponent(part)).join('/');
 }
 
+function sendJson(url, method, body, errorMessage) {
+    return fetchJson(url, {
+        method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+        errorMessage,
+    });
+}
+
+// Server-provided settings for the current project page.
+function pageConfig() {
+    const element = document.getElementById('page-config');
+    return element ? JSON.parse(element.textContent) : {};
+}
+
 // Shared state for a paged API list. Settings mirror the controls and, with syncUrl, the query string.
 function pagedList({project, endpoint, itemsKey, idName, itemUrl, settings, query, syncUrl = true}) {
     let loadVersion = 0;
@@ -126,6 +141,113 @@ function pagedList({project, endpoint, itemsKey, idName, itemUrl, settings, quer
 }
 
 document.addEventListener('alpine:init', () => {
+    // x-modal="expression" shows a <dialog> as a modal while the expression is true.
+    Alpine.directive('modal', (el, {expression}, {effect, evaluateLater}) => {
+        const isOpen = evaluateLater(expression);
+        effect(() => isOpen((open) => {
+            if (open && !el.open) {
+                el.showModal();
+            } else if (!open && el.open) {
+                el.close();
+            }
+        }));
+    });
+
+    // One confirmation dialog shared by all actions; ask() resolves to the user's choice.
+    Alpine.store('confirm', {
+        open: false,
+        title: '',
+        message: '',
+        confirmLabel: '',
+        danger: false,
+        resolve: null,
+
+        ask({title, message, confirmLabel = 'Confirm', danger = false}) {
+            this.resolve?.(false);
+            Object.assign(this, {title, message, confirmLabel, danger, open: true});
+            return new Promise((resolve) => {
+                this.resolve = resolve;
+            });
+        },
+
+        close(confirmed) {
+            this.open = false;
+            this.resolve?.(confirmed);
+            this.resolve = null;
+        },
+    });
+
+    // A searchable multi-select dialog. onChange applies one changed item, onCreate optionally adds a new one.
+    Alpine.store('picker', {
+        open: false,
+        title: '',
+        message: '',
+        emptyText: '',
+        createLabel: '',
+        searchable: false,
+        items: [],
+        search: '',
+        pending: false,
+        error: '',
+        onChange: null,
+        onCreate: null,
+
+        show({
+            title, message = '', emptyText = 'Nothing found', createLabel = 'Create', searchable = false,
+            items, onChange, onCreate = null,
+        }) {
+            Object.assign(this, {
+                title, message, emptyText, createLabel, searchable, onChange, onCreate,
+                items: items.map((item) => ({...item, initial: item.selected})),
+                search: '',
+                error: '',
+                pending: false,
+                open: true,
+            });
+        },
+
+        get visibleItems() {
+            const search = this.search.trim().toLowerCase();
+            return this.items.filter((item) => item.label.toLowerCase().includes(search));
+        },
+
+        get canCreate() {
+            const search = this.search.trim().toLowerCase();
+            return Boolean(this.onCreate && search && !this.items.some((item) => item.label.toLowerCase() === search));
+        },
+
+        async run(action) {
+            this.pending = true;
+            this.error = '';
+            try {
+                await action();
+            } catch (error) {
+                this.error = error.message;
+            } finally {
+                this.pending = false;
+            }
+        },
+
+        create() {
+            return this.run(async () => {
+                const item = await this.onCreate(this.search.trim());
+                this.items.unshift({...item, selected: true, initial: false});
+                this.search = '';
+            });
+        },
+
+        save() {
+            return this.run(async () => {
+                // Apply changes one by one so a failure keeps only the remaining ones pending.
+                for (const item of this.items.filter((item) => item.selected !== item.initial)) {
+                    await this.onChange(item);
+                    item.initial = item.selected;
+                }
+                this.open = false;
+            });
+        },
+    });
+
     // filters are fixed API parameters, e.g., the author on a user page.
     Alpine.data('contentList', (project, filters = {}) => ({
         ...pagedList({
@@ -183,22 +305,130 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('collectionDetail', (project, collectionId) => ({
-        project,
-        collection: null,
-        error: '',
+    Alpine.data('collectionDetail', (project, collectionId) => {
+        const collectionUrl = sitePath('v1', 'collection', project, collectionId);
+
+        return {
+            project,
+            collection: null,
+            error: '',
+            editing: false,
+            form: {},
+            formError: '',
+            pending: false,
+
+            async init() {
+                try {
+                    await this.$store.auth.loadUser(project);
+                    const data = await fetchJson(collectionUrl, {errorMessage: 'Unable to load collection'});
+                    this.collection = data.collection;
+                    document.title = this.collection.title;
+                } catch (error) {
+                    this.error = error.message;
+                }
+            },
+
+            openEdit() {
+                const {title, description, is_public} = this.collection;
+                this.form = {title, description, is_public};
+                this.formError = '';
+                this.editing = true;
+            },
+
+            async saveEdit() {
+                this.pending = true;
+                this.formError = '';
+                try {
+                    const data = await sendJson(collectionUrl, 'PATCH', this.form, 'Unable to save collection');
+                    this.collection = data.collection;
+                    document.title = this.collection.title;
+                    this.editing = false;
+                } catch (error) {
+                    this.formError = error.message;
+                } finally {
+                    this.pending = false;
+                }
+            },
+
+            async deleteCollection() {
+                const confirmed = await this.$store.confirm.ask({
+                    title: 'Delete collection',
+                    message: `Delete "${this.collection.title}"? The content itself is kept.`,
+                    confirmLabel: 'Delete',
+                    danger: true,
+                });
+                if (!confirmed) return;
+                try {
+                    await fetchJson(collectionUrl, {method: 'DELETE', errorMessage: 'Unable to delete collection'});
+                    window.location.assign(sitePath(project, 'collections'));
+                } catch (error) {
+                    alert(error.message);
+                }
+            },
+        };
+    });
+
+    Alpine.data('userDetail', (project, user) => ({
+        item: user,
+        pending: false,
 
         async init() {
+            await this.$store.auth.loadUser(project);
+        },
+
+        get canModerate() {
+            const viewer = this.$store.auth.user;
+            return Boolean(viewer?.moderator && viewer.user_id !== this.item.user_id);
+        },
+
+        async moderate({parameters, done, ...dialog}) {
+            if (this.pending || !await this.$store.confirm.ask(dialog)) return;
+            this.pending = true;
             try {
-                await this.$store.auth.loadUser(project);
-                const data = await fetchJson(sitePath('v1', 'collection', project, collectionId), {
-                    errorMessage: 'Unable to load collection',
-                });
-                this.collection = data.collection;
-                document.title = this.collection.title;
+                const url = `${sitePath('v1', 'user', this.item.user_id)}?${new URLSearchParams(parameters)}`;
+                await fetchJson(url, {method: 'PUT', errorMessage: 'Moderation failed'});
+                done();
             } catch (error) {
-                this.error = error.message;
+                alert(error.message);
+            } finally {
+                this.pending = false;
             }
+        },
+
+        setModerator(moderator) {
+            return this.moderate({
+                title: moderator ? 'Promote user' : 'Demote user',
+                message: moderator
+                    ? `Make ${this.item.username} a moderator? Moderators can delete any content and moderate users.`
+                    : `Remove moderator status from ${this.item.username}?`,
+                confirmLabel: moderator ? 'Promote' : 'Demote',
+                parameters: {moderator},
+                done: () => {
+                    this.item.moderator = moderator;
+                },
+            });
+        },
+
+        ban() {
+            return this.moderate({
+                title: 'Ban user',
+                message: `Ban ${this.item.username}? Banned users can no longer sign in, and their content is hidden.`,
+                confirmLabel: 'Ban',
+                danger: true,
+                parameters: {banned: true},
+                done: () => window.location.assign(sitePath(project, 'users')),
+            });
+        },
+
+        purge() {
+            return this.moderate({
+                title: 'Purge user',
+                message: `Permanently delete all content and likes of ${this.item.username}? This cannot be undone.`,
+                confirmLabel: 'Purge',
+                danger: true,
+                parameters: {purge: true},
+                done: () => window.location.reload(),
+            });
         },
     }));
 
@@ -294,9 +524,78 @@ document.addEventListener('alpine:init', () => {
                 }
             },
 
+            requireUser() {
+                if (this.$store.auth.user) return true;
+                this.$store.auth.login();
+                return false;
+            },
+
+            async editCollections() {
+                if (!this.requireUser()) return;
+                const collectionsUrl = sitePath('v1', 'collection', project);
+                try {
+                    const parameters = new URLSearchParams({user_id: 'me', content_id: contentId, limit: 500});
+                    const {collections} = await fetchJson(`${collectionsUrl}?${parameters}`, {
+                        errorMessage: 'Unable to load collections',
+                    });
+                    this.$store.picker.show({
+                        title: 'Collections',
+                        message: `Choose the collections that contain "${this.content.title}".`,
+                        emptyText: 'Type a name to create a collection.',
+                        createLabel: 'Create collection',
+                        searchable: true,
+                        items: collections.map((collection) => ({
+                            id: collection.collection_id,
+                            label: collection.title,
+                            selected: collection.contains_content,
+                        })),
+                        onCreate: async (title) => {
+                            const {collection} = await sendJson(collectionsUrl, 'POST', {title}, 'Unable to create collection');
+                            return {id: collection.collection_id, label: collection.title};
+                        },
+                        onChange: (item) => fetchJson(sitePath('v1', 'collection', project, item.id, 'content', contentId), {
+                            method: item.selected ? 'PUT' : 'DELETE',
+                            errorMessage: 'Unable to update collection',
+                        }),
+                    });
+                } catch (error) {
+                    alert(error.message);
+                }
+            },
+
+            report() {
+                if (!this.requireUser()) return;
+                this.$store.picker.show({
+                    title: 'Report content',
+                    message: `Why are you reporting "${this.content.title}"?`,
+                    items: Object.entries(pageConfig().reportReasons ?? {}).map(([reason, label]) => ({
+                        id: reason,
+                        label,
+                        selected: this.content.reports.includes(reason),
+                    })),
+                    onChange: async (item) => {
+                        await fetchJson(sitePath('v1', 'report', project, contentId, item.id), {
+                            method: item.selected ? 'POST' : 'DELETE',
+                            errorMessage: 'Unable to update report',
+                            // A repeated request can already be in the desired state.
+                            allowedStatuses: [428],
+                        });
+                        this.content.reports = item.selected
+                            ? [...this.content.reports, item.id]
+                            : this.content.reports.filter((reason) => reason !== item.id);
+                    },
+                });
+            },
+
             async deleteContent() {
                 if (this.pending || !this.canDelete) return;
-                if (!window.confirm(`Are you sure you want to delete content #${contentId}?`)) return;
+                const confirmed = await this.$store.confirm.ask({
+                    title: 'Delete content',
+                    message: `Delete "${this.content.title}"? This cannot be undone.`,
+                    confirmLabel: 'Delete',
+                    danger: true,
+                });
+                if (!confirmed) return;
 
                 this.pending = true;
                 try {

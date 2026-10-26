@@ -1,8 +1,13 @@
+{% from "components/macros.jinja" import icon, action_button %}
 <div class="button-row content-actions" role="group" aria-label="Content actions"
      x-show="showActions" @click.stop @keydown.stop>
-    <a class="btn" href="/" :href="backUrl" x-show="isDetail">Back</a>
-    <button class="btn" type="button" :disabled="pending || loading"
-            :title="$store.auth.user ? null : 'Sign in to like this content'"
-            @click="toggleLike()" x-text="content.is_liked ? 'Unlike' : 'Like'"></button>
-    <button class="btn" type="button" :disabled="pending || loading" x-show="canDelete" @click="deleteContent()">Delete</button>
+    <a class="btn" href="/" :href="backUrl" x-show="isDetail">{{ icon("back") }}<span class="btn-label">Back</span></a>
+    <button class="btn" type="button" :class="{active: content.is_liked}" :disabled="pending || loading"
+            :title="content.is_liked ? 'Unlike' : 'Like'" :aria-label="content.is_liked ? 'Unlike' : 'Like'"
+            :aria-pressed="content.is_liked" @click="toggleLike()">
+        {{ icon("like") }}<span class="btn-label" x-text="content.is_liked ? 'Unlike' : 'Like'">Like</span>
+    </button>
+    {{ action_button("collect", "Collections", "editCollections()", ':disabled="pending || loading"') }}
+    {{ action_button("report", "Report", "report()", ':disabled="pending || loading" :class="{active: content.reports.length > 0}"') }}
+    {{ action_button("delete", "Delete", "deleteContent()", 'x-show="canDelete" :disabled="pending || loading" data-danger') }}
 </div>

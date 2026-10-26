@@ -3,10 +3,16 @@
 {% block title %}{{ user.username }} – {{ project_info.title or project }}{% endblock %}
 
 {% block library %}
-<section class="panel detail-header" x-data='{ item: {{ user.model_dump() | tojson }} }'>
+<section class="panel detail-header" x-data='userDetail({{ project | tojson }}, {{ user.model_dump() | tojson }})'>
     <div class="detail-heading">
         <h1>{{ user.username }}</h1>
-        {% if user.moderator %}<span class="badge">Moderator</span>{% endif %}
+        <span class="badge" x-show="item.moderator"{% if not user.moderator %} x-cloak{% endif %}>Moderator</span>
+        <div class="button-row detail-actions" x-show="canModerate" x-cloak>
+            <button class="btn" type="button" :disabled="pending" x-show="!item.moderator" @click="setModerator(true)">Promote</button>
+            <button class="btn" type="button" :disabled="pending" x-show="item.moderator" @click="setModerator(false)">Demote</button>
+            <button class="btn" type="button" :disabled="pending" data-danger @click="ban()">Ban</button>
+            <button class="btn" type="button" :disabled="pending" data-danger @click="purge()">Purge</button>
+        </div>
     </div>
     {% include "components/user-stats.jinja" %}
 </section>

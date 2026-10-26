@@ -1,11 +1,9 @@
-<div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="consent-title"
-     x-data x-show="$store.auth.consentRequired" x-cloak>
-    <div class="panel consent-dialog__content">
-        <h2 id="consent-title">Cookies and sign-in</h2>
-        {% include "components/consent-notice.jinja" %}
-        <div class="button-row">
-            <button type="button" class="btn" @click="$store.auth.declineConsent()">Leave</button>
-            <button type="button" class="btn" @click="$store.auth.acceptConsent()">Accept and continue</button>
-        </div>
+<dialog class="panel dialog" aria-labelledby="consent-title" x-data
+        x-modal="$store.auth.consentRequired" @close="$store.auth.consentRequired = false">
+    <h2 id="consent-title">Cookies and sign-in</h2>
+    {% include "components/consent-notice.jinja" %}
+    <div class="button-row">
+        <button type="button" class="btn" @click="$store.auth.declineConsent()">Leave</button>
+        <button type="button" class="btn" @click="$store.auth.acceptConsent()">Accept and continue</button>
     </div>
-</div>
+</dialog>

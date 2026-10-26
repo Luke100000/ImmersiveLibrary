@@ -9,9 +9,16 @@ templates = Jinja2Templates(directory="templates")
 class Project:
     validators: list[Validator]
 
-    def __init__(self, title: str = "", description: str = "") -> None:
+    def __init__(
+        self,
+        title: str = "",
+        description: str = "",
+        report_reasons: dict[str, str] | None = None,
+    ) -> None:
         self.title = title
         self.description = description
+        # Maps accepted report reasons to the labels shown in the report dialog.
+        self.report_reasons = report_reasons or {"DEFAULT": "Inappropriate or harmful"}
         self.validators = []
 
     async def validate(self, callback: str, *args) -> None:

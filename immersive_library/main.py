@@ -31,6 +31,10 @@ class MetaSchema(BaseModel):
 projects["mca"] = Project(
     "MCA Reborn",
     "Clothing and hair for the villagers of Minecraft Comes Alive Reborn.",
+    {
+        "DEFAULT": "Inappropriate or harmful",
+        "INVALID": "Broken or not clothing",
+    },
 )
 projects["mca"].validators = [
     TitleLengthValidator(),

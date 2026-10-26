@@ -10,6 +10,9 @@
     --border-highlight: #3a5577;
     --field-bg: rgba(15, 22, 32, .6);
     --focus-ring: 0 0 0 3px rgba(94, 179, 255, .2);
+    --dialog-bg: #1a2332;
+    --danger: #ff7b7b;
+    --danger-border: rgba(255, 123, 123, .45);
 }
 
 [x-cloak] {
@@ -213,7 +216,8 @@ a:hover {
 }
 
 .control-item select,
-.control-item input {
+.control-item input,
+.control-item textarea {
     width: 100%;
     box-sizing: border-box;
     padding: 10px 12px;
@@ -227,12 +231,14 @@ a:hover {
 }
 
 .control-item select:hover,
-.control-item input:hover {
+.control-item input:hover,
+.control-item textarea:hover {
     border-color: var(--border-highlight);
 }
 
 .control-item select:focus,
-.control-item input:focus {
+.control-item input:focus,
+.control-item textarea:focus {
     outline: none;
     border-color: var(--accent-blue);
     box-shadow: var(--focus-ring);
@@ -567,7 +573,49 @@ a.btn {
 .btn .icon {
     width: 14px;
     height: 14px;
+    flex: none;
     fill: currentColor;
+}
+
+.btn .icon-like {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.btn.active {
+    border-color: var(--border-highlight);
+    color: var(--accent-blue);
+}
+
+.btn.active .icon-like {
+    fill: currentColor;
+}
+
+.btn[data-danger] {
+    color: var(--danger);
+}
+
+.btn[data-danger]:hover:not(:disabled) {
+    border-color: var(--danger-border);
+    box-shadow: 0 10px 16px rgba(0, 0, 0, .4), 0 0 20px rgba(255, 123, 123, .12);
+}
+
+.card-interactive .btn-label {
+    display: none;
+}
+
+.detail-heading {
+    flex-wrap: wrap;
+}
+
+.list-card .title {
+    min-width: 0;
+}
+
+.detail-actions {
+    flex-wrap: wrap;
+    margin: 0 0 0 auto;
 }
 
 .pagination .btn {
@@ -582,20 +630,91 @@ a.btn {
     color: var(--text-secondary);
 }
 
-.consent-dialog {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
+.dialog {
+    width: min(480px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
+    color: var(--text-primary);
+    background: var(--dialog-bg);
+}
+
+/* Only open dialogs get a layout; closed ones keep the browser's display: none. */
+.dialog[open] {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dialog::backdrop {
     background: rgba(0, 0, 0, .65);
 }
 
-.consent-dialog__content {
-    width: min(480px, 100%);
-    background: #1a2332;
+.dialog form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dialog h2 {
+    margin: 0;
+}
+
+.dialog p {
+    margin: 0;
+}
+
+.dialog .control-item {
+    flex: none;
+}
+
+.dialog .button-row {
+    margin-top: 8px;
+}
+
+.dialog-error {
+    color: var(--danger);
+}
+
+.control-item textarea {
+    resize: vertical;
+}
+
+.picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    background: var(--field-bg);
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.picker-item:hover {
+    border-color: var(--border-highlight);
+}
+
+.picker-item input {
+    margin: 0;
+    accent-color: var(--accent-blue);
+}
+
+.picker-create {
+    color: var(--accent-blue);
+}
+
+.picker-empty {
+    color: var(--text-muted);
 }
 
 footer {
