@@ -43,7 +43,7 @@
             {{ select_control("descending", "Order", [("true", "Descending"), ("false", "Ascending")]) }}
             {{ select_control("limit", "Items per page", ["8", "16", "32"]) }}
 
-            <div class="control-item">
+            <div class="control-item control-search">
                 <label for="search">Search:</label>
                 <input type="text" id="search" placeholder="Search: @user, #tag, ~title, -exclude"
                        x-model="search" @input.debounce.500ms="searchContent()">

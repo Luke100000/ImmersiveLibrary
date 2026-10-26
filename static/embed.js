@@ -5,9 +5,11 @@ async function embedContentPreview(contentElement, project, content, options = {
     const rect = contentElement.getBoundingClientRect();
     const width = options.width || Math.max(1, Math.floor(rect.width)) || 1;
     const height = options.height || (rect.height > 1 ? Math.floor(rect.height) : width);
-    contentElement.style.height = `${height}px`;
-    contentElement.style.minHeight = `${height}px`;
-    contentElement.style.width = '100%';
+    if (options.height || rect.height <= 1) {
+        contentElement.style.height = `${height}px`;
+        contentElement.style.minHeight = `${height}px`;
+        contentElement.style.width = '100%';
+    }
 
     // Embed the project-specific content
     const {embed} = await import(`/static/${project}/embed.js`);
