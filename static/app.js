@@ -232,6 +232,11 @@ document.addEventListener('alpine:init', () => {
                 }
             },
 
+            formatTag(tag) {
+                return tag.replaceAll('_', ' ').toLowerCase()
+                    .replace(/(^|\s)\S/g, letter => letter.toUpperCase());
+            },
+
             searchUrl(search) {
                 const url = new URL('/', window.location.origin);
                 url.searchParams.set('project', project);

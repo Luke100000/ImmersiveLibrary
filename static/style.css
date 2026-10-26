@@ -220,6 +220,12 @@ a:hover {
     color: var(--text-secondary);
 }
 
+.content-body .title {
+    white-space: nowrap;
+    overflow: hidden;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+
 .author {
     font-size: 18px;
     color: var(--text-muted);
@@ -231,6 +237,7 @@ a:hover {
 
 .content {
     width: 100%;
+    margin-bottom: -24px;
 }
 
 .content-preview,
@@ -242,6 +249,8 @@ a:hover {
 }
 
 .tags-container {
+    position: relative;
+    z-index: 2;
     margin-top: auto;
     display: flex;
     flex-wrap: wrap;

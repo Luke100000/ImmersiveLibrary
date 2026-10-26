@@ -2,7 +2,7 @@
 <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
 <template x-if="content">
     <div class="content-body">
-        <div class="title" x-text="content.title"></div>
+        <div class="title" :title="content.title" x-text="content.title"></div>
         {% if search_links %}
             <div class="author">
                 <a class="search-link" :href="searchUrl(`@${content.username}`)" x-text="content.username"></a>
@@ -14,9 +14,9 @@
         <div class="tags-container">
             <template x-for="(tag, index) in content.tags" :key="index">
                 {% if search_links %}
-                    <a class="tag search-link" :href="searchUrl(`#${tag}`)" x-text="tag"></a>
+                    <a class="tag search-link" :href="searchUrl(`#${tag}`)" x-text="formatTag(tag)"></a>
                 {% else %}
-                    <span class="tag" x-text="tag"></span>
+                    <span class="tag" x-text="formatTag(tag)"></span>
                 {% endif %}
             </template>
         </div>
