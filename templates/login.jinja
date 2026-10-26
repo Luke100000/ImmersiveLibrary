@@ -1,50 +1,19 @@
-<html lang="en">
-<head>
-    <title>Login</title>
-    {% include "components/alpine.jinja" %}
-    <link rel="stylesheet" href="/static/style.css">
+{% extends "base.jinja" %}
+
+{% block title %}Login{% endblock %}
+
+{% block head %}
     <meta name="referrer" content="no-referrer-when-downgrade">
-    <style>
-        body {
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
+    {% include "components/alpine.jinja" %}
+{% endblock %}
 
-        .container {
-            display: flex;
-            flex-flow: wrap;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            flex: 1;
-            width: 100%;
-        }
-
-        .container hr {
-            width: 100%;
-        }
-
-        .chunk {
-            color: black;
-            font-family: Calibri, sans-serif;
-            background-color: white;
-            opacity: 95%;
-            border-radius: 32px;
-            padding: 16px 32px 32px 32px;
-            box-shadow: 4px 6px 64px;
-        }
-    </style>
-</head>
-<body>
-<div class="container" x-data>
-    <div class="chunk">
+{% block content %}
+<main class="page-centered" x-data>
+    <div class="panel auth-panel">
         {% if has_cookie_consent %}
             <h1>Authenticate</h1>
-            Immersive Library uses your Google account as authentication.
-            <br/>
-            Only your Google user id is stored.
-            <br/> <br/>
+            <p>Immersive Library uses your Google account as authentication.<br>
+                Only your Google user id is stored.</p>
 
             <div id="g_id_onload"
                  data-client_id="{{ client_id }}"
@@ -62,23 +31,17 @@
                  data-shape="rectangular"
                  data-logo_alignment="left">
             </div>
-            <p style="margin-top: 20px; font-size: 12px; color: #666;">Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of Service</a> before continuing.</p>
+            <p class="auth-notice">Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of Service</a> before continuing.</p>
             <script src="https://accounts.google.com/gsi/client" async defer></script>
         {% else %}
             <h1>Cookies and sign-in</h1>
             <p>We use a necessary cookie to keep you signed in and Google Sign-In to authenticate you.</p>
             <p>Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of Service</a> before continuing.</p>
-            <div class="consent-dialog__actions">
+            <div class="button-row">
                 <button id="reject-cookies" type="button" class="btn" @click="window.location.replace('/')">Leave</button>
                 <button id="accept-cookies" type="button" class="btn" @click="$store.auth.rememberConsent(); window.location.reload()">Accept and continue</button>
             </div>
         {% endif %}
     </div>
-</div>
-<footer>
-    <a href="/privacy">Privacy Notice</a> •
-    <a href="/tos">Terms of Service</a> •
-    <a href="/contact">Contact</a>
-</footer>
-</body>
-</html>
+</main>
+{% endblock %}

@@ -1,39 +1,14 @@
-<!DOCTYPE html>
-<html lang="en_us">
-<head>
-    <title>Immersive Library</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/vendor/three.js"></script>
-    <script src="/static/vendor/pnbt.js"></script>
-    <script src="/static/embed.js"></script>
+{% extends "base.jinja" %}
+
+{% block head %}
+    {% include "components/preview-scripts.jinja" %}
     {% include "components/alpine.jinja" %}
-    <style>
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 10px;
-        }
+{% endblock %}
 
-        @media (min-width: 1680px) {
-            .grid {
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }
-        }
-
-        .current-page {
-            padding: 8px 14px;
-            border: 1px solid rgba(42, 63, 90, 0.8);
-            border-radius: 10px;
-            background: rgba(15, 22, 32, 0.6);
-            color: #b8c9db;
-        }
-    </style>
-</head>
-
-<body>
+{% block content %}
 <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
 
-<div class="content-wrapper">
+<main class="content-wrapper">
     <div class="browser-container" x-data="libraryBrowser">
         <div class="controls">
             <div class="control-item">
@@ -98,10 +73,8 @@
                        x-model="search" @input.debounce.500ms="searchContent()">
             </div>
 
-            <div class="spacer"></div>
-            <div class="control-item right">
-                <label>&nbsp;</label>
-                <button id="login-btn" class="btn" :class="{secondary: $store.auth.hasToken}"
+            <div class="control-item control-actions">
+                <button id="login-btn" class="btn"
                         :title="$store.auth.hasToken ? 'Sign out' : 'Sign in with Google'"
                         @click="$store.auth.hasToken ? $store.auth.logout() : $store.auth.login()">
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -118,7 +91,7 @@
             <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
             <p x-show="!loading && !error && contents.length === 0" x-cloak>No content found</p>
             <template x-for="item in contents" :key="item.content_id">
-                <div class="card-interactive" role="button" tabindex="0" :title="`Open project ${item.content_id}`"
+                <div class="card card-interactive" role="button" tabindex="0" :title="`Open project ${item.content_id}`"
                      @click="window.location.assign(contentUrl(item.content_id))"
                      @keydown.enter.self.prevent="window.location.assign(contentUrl(item.content_id))"
                      @keydown.space.self.prevent="window.location.assign(contentUrl(item.content_id))">
@@ -134,19 +107,13 @@
         </div>
 
         <div class="pagination">
-            <button id="prev-page" :disabled="page === 1" @click="navigate({page: page - 1})">&laquo; Previous</button>
+            <button class="btn" id="prev-page" :disabled="page === 1" @click="navigate({page: page - 1})">&laquo; Previous</button>
             <div id="current-page" class="current-page" x-text="`Page ${page}`">Page 1</div>
-            <button id="next-page" :disabled="loading || !hasMore" @click="navigate({page: page + 1})">Next &raquo;</button>
+            <button class="btn" id="next-page" :disabled="loading || !hasMore" @click="navigate({page: page + 1})">Next &raquo;</button>
         </div>
     </div>
-</div>
+</main>
 
 {% include "components/consent.jinja" %}
 
-<footer>
-    <a href="/privacy">Privacy Notice</a> •
-    <a href="/tos">Terms of Service</a> •
-    <a href="/contact">Contact</a>
-</footer>
-</body>
-</html>
+{% endblock %}

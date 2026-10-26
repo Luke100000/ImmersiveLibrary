@@ -1,16 +1,10 @@
-<!DOCTYPE html>
-<html lang="en_us">
-<head>
-    <title>{{ content.title | e }}</title>
-    <script src="/static/vendor/three.js"></script>
-    <script src="/static/vendor/pnbt.js"></script>
-    <script src="/static/embed.js"></script>
+{% extends "base.jinja" %}
 
-    <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="/static/default/style.css">
+{% block title %}{{ content.title }}{% endblock %}
 
+{% block head %}
+    {% include "components/preview-scripts.jinja" %}
     {% include "components/alpine.jinja" %}
-
     {% set page_title = content.title %}
     {% set page_url = request.url %}
     {% set thumb_url = request.url_for('render_content_png', project=project, content_id=content.content_id) %}
@@ -25,10 +19,10 @@
     <meta name="twitter:title" content="{{ page_title }}">
     <meta name="twitter:description" content="{{ page_description }}">
     <meta name="twitter:image" content="{{ thumb_url }}">
-</head>
+{% endblock %}
 
-<body>
-<div class="content-wrapper">
+{% block content %}
+<main class="page-centered">
     <div class="card view-box" id="view-box">
         <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
         <div id="view-body" x-data='contentPreview({{ project | tojson }}, {{ content.model_dump() | tojson }})'>
@@ -36,12 +30,5 @@
             {% include "components/content.jinja" %}
         </div>
     </div>
-</div>
-
-<footer>
-    <a href="/privacy">Privacy Notice</a> •
-    <a href="/tos">Terms of Service</a> •
-    <a href="/contact">Contact</a>
-</footer>
-</body>
-</html>
+</main>
+{% endblock %}

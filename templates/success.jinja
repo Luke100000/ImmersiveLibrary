@@ -1,51 +1,13 @@
-<html lang="en">
-<head>
-    <title>Done</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <style>
-        body {
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
+{% extends "base.jinja" %}
 
-        .container {
-            display: flex;
-            flex-flow: wrap;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            flex: 1;
-        }
+{% block title %}Done{% endblock %}
 
-        .container hr {
-            width: 100%;
-        }
-
-        .chunk {
-            color: black;
-            font-family: Calibri, sans-serif;
-            background-color: white;
-            opacity: 95%;
-            border-radius: 32px;
-            padding: 16px 32px 32px 32px;
-            box-shadow: 4px 6px 64px;
-        }
-    </style>
-</head>
-<body>
-<div class="container">
-    <div class="chunk">
+{% block content %}
+<main class="page-centered">
+    <div class="panel auth-panel">
         <h1>Done!</h1>
-        Return to Minecraft to finish authentication.
-        <br>
-        You can close this tab now.
+        <p>Return to Minecraft to finish authentication.<br>
+            You can close this tab now.</p>
     </div>
-</div>
-<footer>
-    <a href="/privacy">Privacy Notice</a> •
-    <a href="/tos">Terms of Service</a> •
-    <a href="/contact">Contact</a>
-</footer>
-</body>
-</html>
+</main>
+{% endblock %}

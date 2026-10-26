@@ -1,17 +1,14 @@
-<!DOCTYPE html>
-<html lang="en_us">
-<head>
-    <title>Project</title>
-    <script src="/static/vendor/three.js"></script>
-    <script src="/static/vendor/pnbt.js"></script>
-    <script src="/static/embed.js"></script>
-    <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="/static/default/style.css">
-    {% include "components/alpine.jinja" %}
-</head>
+{% extends "base.jinja" %}
 
-<body>
-<div class="content-wrapper">
+{% block title %}Project{% endblock %}
+
+{% block head %}
+    {% include "components/preview-scripts.jinja" %}
+    {% include "components/alpine.jinja" %}
+{% endblock %}
+
+{% block content %}
+<main class="page-centered">
     <div class="dashboard-container">
         <div class="card statistics-box">
             <div class="title">Immersive Library</div>
@@ -20,7 +17,7 @@
             <div class="statistic-item">{{ statistics.users }} users registered</div>
             <div class="statistic-item">{{ statistics.likes }} likes cast</div>
             <div class="statistic-item">{{ statistics.reports }} reports sent</div>
-            <div class="statistic-item" style="font-size: 18px">Top tags: {{ statistics.top_tags }}</div>
+            <div class="statistic-item statistic-tags">Top tags: {{ statistics.top_tags }}</div>
         </div>
         <div class="card renderers-box" id="skin-box">
             <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
@@ -30,11 +27,5 @@
             </div>
         </div>
     </div>
-</div>
-<footer>
-    <a href="/privacy">Privacy Notice</a> •
-    <a href="/tos">Terms of Service</a> •
-    <a href="/contact">Contact</a>
-</footer>
-</body>
-</html>
+</main>
+{% endblock %}

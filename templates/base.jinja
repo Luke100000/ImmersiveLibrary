@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Immersive Library{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+{% block content %}{% endblock %}
+{% block footer %}
+    <footer>
+        <a href="/privacy">Privacy Notice</a> •
+        <a href="/tos">Terms of Service</a> •
+        <a href="/contact">Contact</a>
+    </footer>
+{% endblock %}
+</body>
+</html>

@@ -1,33 +1,13 @@
-<!DOCTYPE html>
-<html lang="en_us">
-<head>
-    <meta charset="utf-8">
-    <title>Render</title>
+{% extends "base.jinja" %}
 
-    <script src="/static/vendor/three.js"></script>
-    <script src="/static/vendor/pnbt.js"></script>
-    <script src="/static/embed.js"></script>
+{% block title %}Render{% endblock %}
 
-    <link rel="stylesheet" href="/static/style.css">
+{% block head %}
+    {% include "components/preview-scripts.jinja" %}
+{% endblock %}
 
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            background: radial-gradient(ellipse at bottom, #0d1d31 0%, #0c0d13 100%);
-        }
-
-        #render-container {
-            position: relative;
-            width: {{ width }}px;
-            height: {{ height }}px;
-            overflow: hidden;
-            background: radial-gradient(ellipse at bottom, #0d1d31 0%, #0c0d13 100%);
-        }
-    </style>
-</head>
-<body>
-<div id="render-container">
+{% block content %}
+<div id="render-container" style="width: {{ width }}px; height: {{ height }}px;">
     <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
     <div id="render-body"></div>
 </div>
@@ -70,5 +50,6 @@
     });
     {% endif %}
 </script>
-</body>
-</html>
+{% endblock %}
+
+{% block footer %}{% endblock %}
