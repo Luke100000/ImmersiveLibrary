@@ -112,7 +112,7 @@ const offsets = {
     "Right Leg Layer 2": [-2, -12, -0.25],
 }
 
-let dilate = 0.5;
+const dilate = 0.5;
 const sizes = {
     "Head": [8, 8, 8],
     "Helm": [8 + dilate, 8 + dilate, 8 + dilate],
@@ -128,14 +128,13 @@ const sizes = {
     "Right Leg Layer 2": [4 + dilate, 12 + dilate, 4 + dilate],
 }
 
-function getMeshes(material, dilate, keys) {
-    let meshes = {};
+function getMeshes(material, inflate, keys) {
+    const meshes = {};
 
     // Create a mesh for each body part
-    for (const i in keys) {
-        const key = keys[i];
+    for (const key of keys) {
         const uv = uvs[key];
-        let geometry = new THREE.BoxGeometry(sizes[key][0] + dilate, sizes[key][1] + dilate, sizes[key][2] + dilate);
+        const geometry = new THREE.BoxGeometry(sizes[key][0] + inflate, sizes[key][1] + inflate, sizes[key][2] + inflate);
 
         const faceMapping = [4, 2, 0, 1, 3, 5];
         const antiBleed = 0.01 / 64.0;
@@ -159,12 +158,7 @@ function getMeshes(material, dilate, keys) {
 
         const mesh = new THREE.Mesh(geometry, material);
 
-        // Set the position of the mesh
-        mesh.position.x = offsets[key][0];
-        mesh.position.y = offsets[key][1];
-        mesh.position.z = offsets[key][2];
-
-        // Add the mesh to the list of meshes
+        mesh.position.set(...offsets[key]);
         meshes[key] = mesh;
     }
 
@@ -180,37 +174,29 @@ async function loadTexture(url) {
     return map;
 }
 
-async function createMaterials(skinUrl) {
-    const clothingMaterial = new THREE.MeshBasicMaterial({alphaTest: 0.5, side: THREE.DoubleSide});
-    const skinMaterial = new THREE.MeshBasicMaterial({map: await loadTexture(skinUrl)});
-    return {clothingMaterial, skinMaterial};
-}
-
-function addMeshes(scene, clothingMeshes, skinMeshes) {
-    Object.values(clothingMeshes).forEach(mesh => scene.add(mesh));
-    Object.values(skinMeshes).forEach(mesh => scene.add(mesh));
-}
 
 // noinspection JSUnusedGlobalSymbols
 export async function embed(element, content, options = {}) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, options.width / options.height, 0.1, 1000);
-    const {clothingMaterial, skinMaterial} = await createMaterials("/static/mca/skin.png");
+    const [skinMap, clothingMap] = await Promise.all([
+        loadTexture("/static/mca/skin.png"),
+        loadTexture('data:image/png;base64,' + content.data),
+    ]);
+    const skinMaterial = new THREE.MeshBasicMaterial({map: skinMap});
+    const clothingMaterial = new THREE.MeshBasicMaterial({map: clothingMap, alphaTest: 0.5, side: THREE.DoubleSide});
 
-    clothingMaterial.map = await loadTexture('data:image/png;base64,' + content.data);
-    clothingMaterial.needsUpdate = true;
-
-    const clothingMeshes = getMeshes(clothingMaterial, 0.25, ["Head", "Helm", "Torso", "Torso Layer 2", "Right Arm", "Right Arm Layer 2", "Left Arm", "Left Arm Layer 2", "Right Leg", "Right Leg Layer 2", "Left Leg", "Left Leg Layer 2"]);
+    const clothingMeshes = getMeshes(clothingMaterial, 0.25, Object.keys(uvs));
     const skinMeshes = getMeshes(skinMaterial, 0.0, ["Head", "Torso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"]);
+    for (const mesh of [...Object.values(clothingMeshes), ...Object.values(skinMeshes)]) {
+        scene.add(mesh);
+    }
 
-    addMeshes(scene, clothingMeshes, skinMeshes);
+    const distance = 35;
+    camera.rotation.y = 0.25;
+    camera.position.set(Math.sin(camera.rotation.y) * distance, -2, Math.cos(camera.rotation.y) * distance);
 
     const update = function update(time) {
-        const distance = 35;
-        camera.rotation.y = 0.25;
-        camera.position.x = Math.sin(camera.rotation.y) * distance;
-        camera.position.y = -2;
-        camera.position.z = Math.cos(camera.rotation.y) * distance;
 
         clothingMeshes["Head"].rotation.y = Math.cos(time * 0.001) * 0.5;
         clothingMeshes["Head"].rotation.x = Math.cos(time * 0.0007) * 0.2;

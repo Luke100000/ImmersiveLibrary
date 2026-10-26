@@ -19,10 +19,9 @@
             <div class="statistic-item">{{ statistics.reports }} reports sent</div>
             <div class="statistic-item statistic-tags">Top tags: {{ statistics.top_tags }}</div>
         </div>
-        <div class="card renderers-box" id="skin-box">
+        <div class="card renderers-box">
             <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
-            <div id="skin-body" class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ statistics.oid | tojson }}, "preview")'>
-                {% set search_links = false %}
+            <div class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ statistics.oid | tojson }}, "preview")'>
                 {% include "components/content.jinja" %}
             </div>
         </div>

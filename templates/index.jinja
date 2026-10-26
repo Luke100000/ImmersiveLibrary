@@ -1,5 +1,20 @@
 {% extends "base.jinja" %}
 
+{# Options are (value, label) pairs or plain strings used as both. #}
+{% macro select_control(name, label, options, show=none) %}
+    <div class="control-item"{% if show %} x-show="{{ show }}" x-cloak{% endif %}>
+        <label for="{{ name }}">{{ label }}:</label>
+        <div class="select-wrap">
+            <select id="{{ name }}" name="{{ name }}" x-model="{{ name }}" @change="changeSetting('{{ name }}')">
+                {% for option in options %}
+                    {% set value, text = (option, option) if option is string else option %}
+                    <option value="{{ value }}">{{ text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+{% endmacro %}
+
 {% block head %}
     {% include "components/preview-scripts.jinja" %}
     {% include "components/alpine.jinja" %}
@@ -12,61 +27,21 @@
     <div class="browser-container" x-data="libraryBrowser"
          @content-deleted="removeContent($event.detail)" @content-like-changed="likeChanged($event.detail)">
         <div class="controls">
-            <div class="control-item">
-                <label for="project">Project:</label>
-                <div class="select-wrap">
-                    <select id="project" name="project" x-model="project" @change="navigate({project, page: 1})">
-                        {% for project in projects %}
-                            <option value="{{ project }}">{{ project }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <div id="track-control" class="control-item" x-show="authenticated" x-cloak>
-                <label for="track">Track:</label>
-                <div class="select-wrap">
-                    <select id="track" name="track" x-model="track" @change="navigate({track, page: 1})">
-                        <option value="all">All content</option>
-                        <option value="submissions">My submissions</option>
-                        <option value="likes">My likes</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="control-item">
-                <label for="sort">Sort by:</label>
-                <div class="select-wrap">
-                    <select id="sort" name="sort" x-model="sort" @change="navigate({sort})">
-                        <option value="recommendations">Recommendations</option>
-                        <option value="date">Date</option>
-                        <option value="likes">Likes</option>
-                        <option value="title">Title</option>
-                        <option value="reports">Reports</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="control-item">
-                <label for="order">Order:</label>
-                <div class="select-wrap">
-                    <select id="order" name="descending" x-model="descending" @change="navigate({descending})">
-                        <option value="true">Descending</option>
-                        <option value="false">Ascending</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="control-item">
-                <label for="limit">Items per page:</label>
-                <div class="select-wrap">
-                    <select id="limit" name="limit" x-model="limit" @change="navigate({limit, page: 1})">
-                        <option value="8">8</option>
-                        <option value="16">16</option>
-                        <option value="32">32</option>
-                    </select>
-                </div>
-            </div>
+            {{ select_control("project", "Project", projects) }}
+            {{ select_control("track", "Track", [
+                ("all", "All content"),
+                ("submissions", "My submissions"),
+                ("likes", "My likes"),
+            ], show="authenticated") }}
+            {{ select_control("sort", "Sort by", [
+                ("recommendations", "Recommendations"),
+                ("date", "Date"),
+                ("likes", "Likes"),
+                ("title", "Title"),
+                ("reports", "Reports"),
+            ]) }}
+            {{ select_control("descending", "Order", [("true", "Descending"), ("false", "Ascending")]) }}
+            {{ select_control("limit", "Items per page", ["8", "16", "32"]) }}
 
             <div class="control-item">
                 <label for="search">Search:</label>
@@ -75,7 +50,7 @@
             </div>
 
             <div class="control-item control-actions">
-                <button id="login-btn" class="btn"
+                <button class="btn" type="button"
                         :title="$store.auth.hasToken ? 'Sign out' : 'Sign in with Google'"
                         @click="$store.auth.hasToken ? $store.auth.logout() : $store.auth.login()">
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -87,17 +62,16 @@
             </div>
         </div>
 
-        <div id="content-grid" class="grid">
+        <div class="grid">
             <p x-show="loading">Loading...</p>
             <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
             <p x-show="!loading && !error && contents.length === 0" x-cloak>No content found</p>
             <template x-for="item in contents" :key="item.content_id">
-                <div class="card card-interactive" role="button" tabindex="0" :title="`Open project ${item.content_id}`"
-                     @click="window.location.assign(contentUrl(item.content_id))"
-                     @keydown.enter.self.prevent="window.location.assign(contentUrl(item.content_id))"
-                     @keydown.space.self.prevent="window.location.assign(contentUrl(item.content_id))">
-                    <div class="content-preview" x-data="contentPreview(project, item.content_id)">
-                        {% set search_links = false %}
+                <div class="card card-interactive" role="button" tabindex="0" :title="`Open content #${item.content_id}`"
+                     @click="openContent(item.content_id)"
+                     @keydown.enter.self.prevent="openContent(item.content_id)"
+                     @keydown.space.self.prevent="openContent(item.content_id)">
+                    <div class="content-preview" x-data="contentPreview(project, item)">
                         {% include "components/content.jinja" %}
                     </div>
                 </div>
@@ -105,9 +79,9 @@
         </div>
 
         <div class="pagination">
-            <button class="btn" id="prev-page" :disabled="page === 1" @click="navigate({page: page - 1})">&laquo; Previous</button>
-            <div id="current-page" class="current-page" x-text="`Page ${page}`">Page 1</div>
-            <button class="btn" id="next-page" :disabled="loading || !hasMore" @click="navigate({page: page + 1})">Next &raquo;</button>
+            <button class="btn" type="button" :disabled="page === 1" @click="navigate({page: page - 1})">&laquo; Previous</button>
+            <div class="current-page" x-text="`Page ${page}`">Page 1</div>
+            <button class="btn" type="button" :disabled="loading || !hasMore" @click="navigate({page: page + 1})">Next &raquo;</button>
         </div>
     </div>
 </main>

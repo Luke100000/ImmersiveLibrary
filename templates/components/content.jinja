@@ -1,4 +1,4 @@
-<p x-show="loading" x-text="loadingLabel"></p>
+<p x-show="loading && !content">Loading...</p>
 <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
 <template x-if="content">
     <div class="content-body">

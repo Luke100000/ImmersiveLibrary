@@ -23,9 +23,9 @@
 
 {% block content %}
 <main class="page-centered">
-    <div class="card view-box" id="view-box">
+    <div class="card view-box">
         <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
-        <div id="view-body" class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ content.model_dump() | tojson }}, "detail")'>
+        <div class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ content.model_dump() | tojson }}, "detail")'>
             {% set search_links = true %}
             {% include "components/content.jinja" %}
         </div>

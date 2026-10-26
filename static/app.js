@@ -1,3 +1,13 @@
+async function fetchJson(url, {errorMessage = 'Request failed', allowedStatuses = [], ...options} = {}) {
+    const response = await fetch(url, options);
+    // Error responses are not guaranteed to be JSON, e.g., proxy errors.
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok && !allowedStatuses.includes(response.status)) {
+        throw new Error(data.message || `${errorMessage} (${response.status})`);
+    }
+    return data;
+}
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('libraryBrowser', () => {
         let loadVersion = 0;
@@ -52,6 +62,10 @@ document.addEventListener('alpine:init', () => {
                 window.location.assign(this.urlWith(parameters));
             },
 
+            changeSetting(name) {
+                this.navigate({[name]: this[name], page: 1});
+            },
+
             searchContent() {
                 this.page = 1;
                 window.history.replaceState(null, '', this.urlWith({search: this.search.trim(), page: 1}));
@@ -80,12 +94,8 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 try {
-                    const response = await fetch(url);
-                    const data = await response.json();
+                    const data = await fetchJson(url, {errorMessage: 'Unable to load content'});
                     if (version !== loadVersion) return;
-                    if (!response.ok) {
-                        throw new Error(data.message || 'Unable to load content');
-                    }
                     this.contents = data.contents;
                     this.hasMore = data.has_more;
                 } catch (error) {
@@ -99,8 +109,8 @@ document.addEventListener('alpine:init', () => {
                 }
             },
 
-            contentUrl(contentId) {
-                return `/${encodeURIComponent(this.project)}/${contentId}`;
+            openContent(contentId) {
+                window.location.assign(`/${encodeURIComponent(this.project)}/${contentId}`);
             },
 
             removeContent(contentId) {
@@ -115,20 +125,20 @@ document.addEventListener('alpine:init', () => {
         };
     });
 
+    // initialContent is a content id, a content summary, or a full content object.
     Alpine.data('contentPreview', (project, initialContent, mode = 'card') => {
         const controller = new AbortController();
-        let unregister;
         const contentId = typeof initialContent === 'number' ? initialContent : initialContent.content_id;
+        let unregister;
 
         return {
-            content: null,
+            content: typeof initialContent === 'number' ? null : initialContent,
             loading: true,
             error: '',
             pending: false,
             isDetail: mode === 'detail',
             showActions: mode !== 'preview',
             backUrl: '/',
-            loadingLabel: typeof initialContent === 'number' ? `Loading #${initialContent}...` : 'Loading...',
 
             async init() {
                 try {
@@ -141,8 +151,10 @@ document.addEventListener('alpine:init', () => {
                     if (this.showActions) {
                         await this.$store.auth.loadUser(project);
                     }
-                    this.content = typeof initialContent === 'number' || (this.isDetail && this.$store.auth.user)
-                        ? await this.fetchContent() : initialContent;
+                    // Summaries lack the data payload, and server-rendered content lacks the viewer's like state.
+                    if (!this.content?.data || (this.isDetail && this.$store.auth.user)) {
+                        this.content = await this.fetchContent();
+                    }
                     this.$dispatch('content-like-changed', {contentId, liked: this.content.is_liked});
                     this.loading = false;
                     await this.$nextTick();
@@ -166,14 +178,11 @@ document.addEventListener('alpine:init', () => {
             },
 
             async fetchContent(refresh = false) {
-                const response = await fetch(`/v3/content/${encodeURIComponent(project)}/${contentId}`, {
+                const data = await fetchJson(`/v3/content/${encodeURIComponent(project)}/${contentId}`, {
                     signal: controller.signal,
                     headers: refresh ? {'Cache-Control': 'no-cache'} : {},
+                    errorMessage: 'Unable to load content',
                 });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Unable to load content');
-                }
                 return data.content;
             },
 
@@ -187,14 +196,12 @@ document.addEventListener('alpine:init', () => {
                 this.pending = true;
                 const liked = this.content.is_liked;
                 try {
-                    const response = await fetch(`/v1/like/${encodeURIComponent(project)}/${contentId}`, {
+                    await fetchJson(`/v1/like/${encodeURIComponent(project)}/${contentId}`, {
                         method: liked ? 'DELETE' : 'POST',
+                        errorMessage: 'Unable to update like',
+                        // A repeated request can already be in the desired state.
+                        allowedStatuses: [428],
                     });
-                    // A repeated request can already be in the desired state.
-                    if (!response.ok && response.status !== 428) {
-                        const data = await response.json();
-                        throw new Error(data.message || 'Unable to update like');
-                    }
                     this.content.is_liked = !liked;
                     // Revalidate this item's cached viewer state after the mutation.
                     const refreshed = await this.fetchContent(true);
@@ -216,11 +223,10 @@ document.addEventListener('alpine:init', () => {
 
                 this.pending = true;
                 try {
-                    const response = await fetch(`/v1/content/${encodeURIComponent(project)}/${contentId}`, {method: 'DELETE'});
-                    if (!response.ok) {
-                        const data = await response.json();
-                        throw new Error(data.message || `Delete failed (${response.status})`);
-                    }
+                    await fetchJson(`/v1/content/${encodeURIComponent(project)}/${contentId}`, {
+                        method: 'DELETE',
+                        errorMessage: 'Delete failed',
+                    });
                     this.$dispatch('content-deleted', contentId);
                     if (this.isDetail) {
                         window.location.assign(this.backUrl);

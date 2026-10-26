@@ -34,14 +34,17 @@
         return btoa(String.fromCharCode(...bytes));
     }
 
-    function createToken() {
-        const bytes = crypto.getRandomValues(new Uint8Array(32));
+    function toHex(bytes) {
         return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    function createToken() {
+        return toHex(crypto.getRandomValues(new Uint8Array(32)));
     }
 
     async function hashToken(token) {
         const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
-        return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        return toHex(new Uint8Array(digest));
     }
 
     document.addEventListener('alpine:init', () => {
@@ -126,8 +129,7 @@
     });
 
     const originalFetch = window.fetch;
-    window.fetch = function (input, init) {
-        init = init || {};
+    window.fetch = function (input, init = {}) {
         const headers = new Headers(
             init.headers || (input instanceof Request ? input.headers : undefined)
         );
@@ -138,7 +140,6 @@
                 headers.set('Authorization', 'Bearer ' + token);
             }
         }
-        init.headers = headers;
-        return originalFetch(input, init);
+        return originalFetch(input, {...init, headers});
     };
 })();

@@ -1,8 +1,8 @@
 <div class="button-row content-actions" role="group" aria-label="Content actions"
      x-show="showActions" @click.stop @keydown.stop>
     <a class="btn" href="/" :href="backUrl" x-show="isDetail">Back</a>
-    <button class="btn" type="button" :disabled="pending"
+    <button class="btn" type="button" :disabled="pending || loading"
             :title="$store.auth.user ? null : 'Sign in to like this content'"
             @click="toggleLike()" x-text="content.is_liked ? 'Unlike' : 'Like'"></button>
-    <button class="btn" type="button" :disabled="pending" x-show="canDelete" @click="deleteContent()">Delete</button>
+    <button class="btn" type="button" :disabled="pending || loading" x-show="canDelete" @click="deleteContent()">Delete</button>
 </div>

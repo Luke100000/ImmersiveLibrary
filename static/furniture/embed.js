@@ -152,7 +152,7 @@ function listTextures(elements) {
     return textures;
 }
 
-function createSceneFromObject(data, element, options = {}) {
+function createSceneFromObject(data, options = {}) {
     const {Elements} = data.parsed.value;
     let elements = Elements.value.value;
 
@@ -278,7 +278,7 @@ function createSceneFromObject(data, element, options = {}) {
         pivot.rotation.y = Math.PI * 0.75 + time * 0.0005;
     }
 
-    return {scene, camera, element, update};
+    return {scene, camera, update};
 }
 
 // noinspection JSUnusedGlobalSymbols
@@ -286,23 +286,6 @@ export async function embed(element, content, options = {}) {
     const nbt = require('prismarine-nbt');
     const {Buffer} = require('buffer');
 
-    const nbtBuffer = Buffer.from(atob(content.data), 'binary');
-    return nbt.parse(nbtBuffer).then(
-        (parsedData) => {
-            try {
-                return createSceneFromObject(parsedData, element, options);
-            } catch (e) {
-                if (options.animate === false) {
-                    throw e;
-                }
-
-                console.error("Error creating scene:", e);
-                const error = document.createElement('div');
-                error.className = 'error';
-                error.textContent = `Failed to render model: ${e.message}`;
-                element.replaceChildren(error);
-                return null;
-            }
-        }
-    );
+    const parsedData = await nbt.parse(Buffer.from(atob(content.data), 'binary'));
+    return createSceneFromObject(parsedData, options);
 }

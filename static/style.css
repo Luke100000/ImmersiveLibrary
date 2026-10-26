@@ -8,6 +8,8 @@
     --text-muted: #8a9fb5;
     --border-light: #2a3f5a;
     --border-highlight: #3a5577;
+    --field-bg: rgba(15, 22, 32, .6);
+    --focus-ring: 0 0 0 3px rgba(94, 179, 255, .2);
 }
 
 [x-cloak] {
@@ -149,10 +151,10 @@ a:hover {
 .control-item input {
     width: 100%;
     box-sizing: border-box;
-    padding: 10px 38px 10px 12px;
+    padding: 10px 12px;
     border: 1px solid var(--border-light);
     border-radius: 10px;
-    background: rgba(15, 22, 32, .6);
+    background: var(--field-bg);
     color: var(--text-primary);
     font: inherit;
     transition: border-color .2s ease, box-shadow .2s ease;
@@ -168,7 +170,11 @@ a:hover {
 .control-item input:focus {
     outline: none;
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 3px rgba(94, 179, 255, .2);
+    box-shadow: var(--focus-ring);
+}
+
+.control-item select {
+    padding-right: 38px;
 }
 
 .select-wrap {
@@ -206,6 +212,11 @@ a:hover {
 .card-interactive {
     cursor: pointer;
     transition: transform .12s ease, box-shadow .12s ease, border-color .2s ease;
+}
+
+.card-interactive:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
 }
 
 .card-interactive:hover {
@@ -405,7 +416,7 @@ a.btn {
     padding: 8px 14px;
     border: 1px solid var(--border-light);
     border-radius: 10px;
-    background: rgba(15, 22, 32, .6);
+    background: var(--field-bg);
     color: var(--text-secondary);
 }
 
