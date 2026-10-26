@@ -1,0 +1,39 @@
+{% extends "base.jinja" %}
+
+{% block head %}
+    {% include "components/preview-scripts.jinja" %}
+    {% include "components/alpine.jinja" %}
+{% endblock %}
+
+{% block header %}
+    {% include "components/nav.jinja" %}
+{% endblock %}
+
+{% block content %}
+<canvas id="multiview-canvas" class="multiview-canvas"></canvas>
+<main class="content-wrapper">
+    <div class="browser-container">
+        <div class="grid project-grid">
+            {% for project, info in projects.items() %}
+                {% set stats = statistics[project] %}
+                <a class="card card-interactive card-link project-card" href="/{{ project | urlencode }}">
+                    <div class="title">{{ info.title or project }}</div>
+                    <p class="description">{{ info.description }}</p>
+                    {% if stats.oid > 0 %}
+                        <div class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ stats.oid }}, "preview")'>
+                            <div class="content" x-ref="preview"></div>
+                            <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
+                        </div>
+                    {% endif %}
+                    <dl class="metrics">
+                        <div><dt>Content</dt><dd>{{ stats.content }}</dd></div>
+                        <div><dt>Popular</dt><dd title="Content with more than 10 likes">{{ stats.content_liked }}</dd></div>
+                        <div><dt>Creators</dt><dd>{{ stats.authors }}</dd></div>
+                        <div><dt>Likes</dt><dd>{{ stats.content_likes }}</dd></div>
+                    </dl>
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+</main>
+{% endblock %}

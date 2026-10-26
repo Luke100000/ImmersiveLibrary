@@ -15,6 +15,16 @@ async def get_statistics_counts(project: str) -> dict[str, str]:
     """,
         {"project": project},
     )
+    project_counts = await database.fetch_one(
+        """
+        SELECT count(DISTINCT content.user_id) AS authors,
+               COALESCE(sum(precomputation.likes), 0) AS likes
+        FROM content
+        LEFT JOIN precomputation ON content.oid = precomputation.content_id
+        WHERE content.project = :project
+    """,
+        {"project": project},
+    )
     users_count = await database.fetch_val("SELECT count(*) FROM users")
     users_banned_count = await database.fetch_val(
         "SELECT count(*) FROM users WHERE banned > 0"
@@ -28,6 +38,8 @@ async def get_statistics_counts(project: str) -> dict[str, str]:
         "top_tags": ", ".join(row["tag"] for row in tags[:30]),
         "content": f"{content_count:,}",
         "content_liked": f"{content_count_liked:,}",
+        "authors": f"{project_counts['authors']:,}",
+        "content_likes": f"{project_counts['likes']:,}",
         "users": f"{users_count:,}",
         "users_banned_count": f"{users_banned_count:,}",
         "likes": f"{likes_count:,}",

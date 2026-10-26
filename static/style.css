@@ -49,6 +49,71 @@ a:hover {
     box-sizing: border-box;
 }
 
+.site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    width: 85%;
+    max-width: 1700px;
+    margin: 20px auto 0;
+    padding: 12px 20px;
+    box-sizing: border-box;
+}
+
+.site-brand,
+.site-project {
+    color: var(--text-primary);
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.site-brand:hover,
+.site-project:hover {
+    color: var(--accent-blue);
+}
+
+.site-brand + .site-project::before {
+    content: '/';
+    display: inline-block;
+    margin-right: 14px;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.site-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: 10px;
+    padding-left: 18px;
+    border-left: 1px solid var(--border-light);
+}
+
+.tab {
+    padding: 8px 14px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.tab:hover {
+    border-color: var(--border-light);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.tab.active {
+    border-color: var(--border-light);
+    background: var(--field-bg);
+    color: var(--text-primary);
+}
+
+.site-login {
+    margin-left: auto;
+}
+
 .browser-container {
     max-width: 1700px;
     width: 85%;
@@ -58,7 +123,8 @@ a:hover {
 
 .card,
 .panel,
-.controls {
+.controls,
+.site-header {
     border: 1px solid var(--border-light);
     border-radius: 14px;
     background: var(--panel-bg);
@@ -141,13 +207,6 @@ a:hover {
     flex: 2 1 220px;
 }
 
-.control-actions {
-    flex: 0 0 auto;
-    min-width: 0;
-    margin-left: auto;
-    justify-content: flex-end;
-}
-
 .control-item label {
     font-size: 12px;
     color: var(--text-secondary);
@@ -201,7 +260,7 @@ a:hover {
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
     gap: 10px;
 }
 
@@ -213,6 +272,127 @@ a:hover {
     margin: 4px;
     min-height: 220px;
     border-radius: 12px;
+}
+
+.card-link,
+.card-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+.list-card {
+    min-height: 0;
+    gap: 10px;
+}
+
+.list-card-heading,
+.detail-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.list-card .title {
+    font-size: 22px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge {
+    flex: none;
+    padding: 2px 8px;
+    border: 1px solid var(--border-highlight);
+    border-radius: 999px;
+    color: var(--accent-blue);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+
+.metrics-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metrics div {
+    min-width: 0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--field-bg);
+}
+
+.metrics dt {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.metrics dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.detail-meta {
+    color: var(--text-muted);
+}
+
+.project-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 420px));
+    justify-content: center;
+}
+
+.list-section + .list-section,
+.list-section + .section-title {
+    margin-top: 28px;
+}
+
+.section-title {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--text-secondary);
+}
+
+.detail-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+    padding: 20px 24px;
+}
+
+.panel.detail-header h1 {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.detail-header .metrics {
+    max-width: 420px;
+}
+
+.project-card {
+    gap: 10px;
+}
+
+.description {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.list-card .description {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .card-interactive {
@@ -304,35 +484,10 @@ a:hover {
     pointer-events: none;
 }
 
-.dashboard-container {
-    display: flex;
-    width: min(860px, 100%);
-}
-
-.statistics-box {
-    flex: 5;
-    min-width: 0;
-}
-
-.renderers-box {
-    flex: 3;
-    min-width: 0;
-}
-
 .view-box {
     width: 500px;
     max-width: 100%;
     box-sizing: border-box;
-}
-
-.statistic-item {
-    font-size: 24px;
-    margin: 10px;
-    color: var(--text-secondary);
-}
-
-.statistic-tags {
-    font-size: 18px;
 }
 
 #render-container {
@@ -458,15 +613,15 @@ footer a {
 }
 
 @media (min-width: 1680px) {
-    .grid {
+    .content-grid {
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 
 @media (min-width: 601px) {
-    /* Shrink previews so two rows of cards fit the viewport, minus controls, pagination, and card chrome. */
-    .grid .content {
-        max-height: max(160px, calc(50dvh - 310px));
+    /* Shrink previews so two rows of cards fit the viewport, minus header, controls, pagination, and card chrome. */
+    .content-grid .content {
+        max-height: max(130px, calc(50dvh - 355px));
     }
 }
 
@@ -481,8 +636,15 @@ footer a {
         min-width: 0;
     }
 
-    .dashboard-container {
-        flex-direction: column;
+    .site-header {
+        width: auto;
+        margin: 16px 16px 0;
+    }
+
+    .site-tabs {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
     }
 
     .panel {

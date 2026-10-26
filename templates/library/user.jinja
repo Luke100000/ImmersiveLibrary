@@ -1,0 +1,26 @@
+{% extends "library/base.jinja" %}
+
+{% block title %}{{ user.username }} – {{ project_info.title or project }}{% endblock %}
+
+{% block library %}
+<section class="panel detail-header" x-data='{ item: {{ user.model_dump() | tojson }} }'>
+    <div class="detail-heading">
+        <h1>{{ user.username }}</h1>
+        {% if user.moderator %}<span class="badge">Moderator</span>{% endif %}
+    </div>
+    {% include "components/user-stats.jinja" %}
+</section>
+
+<section class="list-section" x-data='collectionList({{ project | tojson }}, {user_id: {{ user.user_id }}}, false)'
+         x-show="loading || items.length > 0">
+    <h2 class="section-title">Collections</h2>
+    <div class="grid">
+        {% include "components/collection-cards.jinja" %}
+    </div>
+    {% include "components/pagination.jinja" %}
+</section>
+
+<h2 class="section-title">Submissions</h2>
+{% set filters = {"author_id": user.user_id} %}
+{% include "components/content-grid.jinja" %}
+{% endblock %}

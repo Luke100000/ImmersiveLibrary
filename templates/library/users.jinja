@@ -1,0 +1,34 @@
+{% extends "library/base.jinja" %}
+{% from "components/macros.jinja" import select_control, limit_control, order_control %}
+
+{% block title %}Users – {{ project_info.title or project }}{% endblock %}
+
+{% block library %}
+<section class="list-section" x-data='userList({{ project | tojson }})'>
+    <div class="controls">
+        {{ select_control("sort", "Sort by", [
+            ("likes_received", "Likes received"),
+            ("likes_given", "Likes given"),
+            ("submissions", "Submissions"),
+            ("date", "Join date"),
+        ]) }}
+        {{ order_control() }}
+        {{ limit_control(["24", "48", "96"]) }}
+    </div>
+
+    <div class="grid">
+        {% include "components/list-status.jinja" %}
+        <template x-for="item in items" :key="item.user_id">
+            <a class="card card-interactive card-link list-card" :href="itemUrl(item.user_id)">
+                <div class="list-card-heading">
+                    <div class="title" :title="item.username" x-text="item.username"></div>
+                    <span class="badge" x-show="item.moderator">Moderator</span>
+                </div>
+                {% include "components/user-stats.jinja" %}
+            </a>
+        </template>
+    </div>
+
+    {% include "components/pagination.jinja" %}
+</section>
+{% endblock %}

@@ -1,0 +1,6 @@
+{# Expects a user object in the Alpine scope named item. #}
+<dl class="metrics metrics-row">
+    <div title="Submissions"><dt>Uploads</dt><dd x-text="item.submission_count.toLocaleString()"></dd></div>
+    <div title="Likes received"><dt>Likes</dt><dd x-text="item.likes_received.toLocaleString()"></dd></div>
+    <div title="Likes given to others"><dt>Liked</dt><dd x-text="item.likes_given.toLocaleString()"></dd></div>
+</dl>

@@ -1,0 +1,10 @@
+<template x-for="item in items" :key="item.collection_id">
+    <a class="card card-interactive card-link list-card" :href="itemUrl(item.collection_id)">
+        <div class="list-card-heading">
+            <div class="title" :title="item.title" x-text="item.title"></div>
+            <span class="badge" x-show="!item.is_public">Private</span>
+        </div>
+        <div class="detail-meta" x-text="`by ${item.username} • ${plural(item.content_count, 'item')}`"></div>
+        <p class="description" x-show="item.description" x-text="item.description"></p>
+    </a>
+</template>

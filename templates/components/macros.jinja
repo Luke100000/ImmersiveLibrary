@@ -1,0 +1,30 @@
+{# Options are (value, label) pairs or plain strings used as both. #}
+{% macro select_control(name, label, options, show=none) %}
+    <div class="control-item"{% if show %} x-show="{{ show }}" x-cloak{% endif %}>
+        <label for="{{ name }}">{{ label }}:</label>
+        <div class="select-wrap">
+            <select id="{{ name }}" name="{{ name }}" x-model="{{ name }}" @change="changeSetting()">
+                {% for option in options %}
+                    {% set value, text = (option, option) if option is string else option %}
+                    <option value="{{ value }}">{{ text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+{% endmacro %}
+
+{% macro search_control(placeholder) %}
+    <div class="control-item control-search">
+        <label for="search">Search:</label>
+        <input type="text" id="search" name="search" placeholder="{{ placeholder }}"
+               x-model="search" @input.debounce.500ms="changeSetting()">
+    </div>
+{% endmacro %}
+
+{% macro limit_control(options) %}
+    {{ select_control("limit", "Items per page", options) }}
+{% endmacro %}
+
+{% macro order_control() %}
+    {{ select_control("descending", "Order", [("true", "Descending"), ("false", "Ascending")]) }}
+{% endmacro %}

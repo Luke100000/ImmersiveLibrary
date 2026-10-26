@@ -21,6 +21,10 @@
     <meta name="twitter:image" content="{{ thumb_url }}">
 {% endblock %}
 
+{% block header %}
+    {% include "components/nav.jinja" %}
+{% endblock %}
+
 {% block content %}
 <main class="page-centered">
     <div class="card view-box">
@@ -31,5 +35,4 @@
         </div>
     </div>
 </main>
-{% include "components/consent.jinja" %}
 {% endblock %}

@@ -8,122 +8,199 @@ async function fetchJson(url, {errorMessage = 'Request failed', allowedStatuses 
     return data;
 }
 
+function plural(count, noun, suffix = '') {
+    return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}${suffix}`;
+}
+
+function sitePath(...parts) {
+    return '/' + parts.map((part) => encodeURIComponent(part)).join('/');
+}
+
+// Shared state for a paged API list. Settings mirror the controls and, with syncUrl, the query string.
+function pagedList({project, endpoint, itemsKey, idName, itemUrl, settings, query, syncUrl = true}) {
+    let loadVersion = 0;
+
+    return {
+        ...settings,
+        project,
+        page: 1,
+        items: [],
+        loading: true,
+        error: '',
+        hasMore: false,
+        authenticated: false,
+
+        async init() {
+            if (syncUrl) {
+                this.readUrl();
+            }
+            this.authenticated = Boolean(await this.$store.auth.loadUser(project));
+            if (!this.authenticated && 'track' in settings) {
+                this.track = settings.track;
+            }
+            await this.load();
+        },
+
+        readUrl() {
+            const parameters = new URLSearchParams(window.location.search);
+            for (const name of Object.keys(settings)) {
+                const value = parameters.get(name);
+                const select = this.$root.querySelector(`select[name="${name}"]`);
+                if (value !== null && (!select || [...select.options].some((option) => option.value === value))) {
+                    this[name] = value;
+                }
+            }
+            const page = Number.parseInt(parameters.get('page'), 10);
+            this.page = Number.isSafeInteger(page) && page > 0 ? page : 1;
+        },
+
+        writeUrl() {
+            const url = new URL(window.location.href);
+            const defaults = {...settings, page: 1};
+            for (const name of Object.keys(defaults)) {
+                const value = typeof this[name] === 'string' ? this[name].trim() : this[name];
+                if (value === defaults[name]) {
+                    url.searchParams.delete(name);
+                } else {
+                    url.searchParams.set(name, value);
+                }
+            }
+            window.history.replaceState(null, '', url);
+        },
+
+        changeSetting() {
+            this.page = 1;
+            this.load();
+        },
+
+        goToPage(page) {
+            this.page = page;
+            this.load();
+            this.$root.scrollIntoView({block: 'start'});
+        },
+
+        async load() {
+            const version = ++loadVersion;
+            this.loading = true;
+            this.error = '';
+            if (syncUrl) {
+                this.writeUrl();
+            }
+
+            const url = new URL(endpoint, window.location.origin);
+            const parameters = {
+                ...query.call(this),
+                limit: this.limit,
+                offset: (this.page - 1) * Number(this.limit),
+            };
+            for (const [name, value] of Object.entries(parameters)) {
+                if (value !== undefined && value !== '') {
+                    url.searchParams.set(name, value);
+                }
+            }
+
+            try {
+                const data = await fetchJson(url, {errorMessage: 'Unable to load list'});
+                if (version !== loadVersion) return;
+                this.items = data[itemsKey];
+                this.hasMore = data.has_more;
+            } catch (error) {
+                if (version === loadVersion) {
+                    this.error = error.message;
+                    this.items = [];
+                    this.hasMore = false;
+                }
+            } finally {
+                if (version === loadVersion) {
+                    this.loading = false;
+                }
+            }
+        },
+
+        itemUrl,
+
+        removeItem(id) {
+            this.items = this.items.filter((item) => item[idName] !== id);
+        },
+    };
+}
+
 document.addEventListener('alpine:init', () => {
-    Alpine.data('libraryBrowser', () => {
-        let loadVersion = 0;
-
-        return {
-            project: '',
-            track: 'all',
-            sort: 'recommendations',
-            descending: 'true',
-            limit: '8',
-            page: 1,
-            search: '',
-            authenticated: false,
-            contents: [],
-            loading: true,
-            error: '',
-            hasMore: false,
-
-            async init() {
-                const parameters = new URLSearchParams(window.location.search);
-                for (const select of this.$el.querySelectorAll('select')) {
-                    const value = parameters.get(select.name);
-                    this[select.name] = [...select.options].some((option) => option.value === value)
-                        ? value : select.value;
-                }
-                const page = Number.parseInt(parameters.get('page'), 10);
-                this.page = Number.isSafeInteger(page) && page > 0 ? page : 1;
-                this.search = parameters.get('search') || '';
-
-                this.authenticated = Boolean(await this.$store.auth.loadUser(this.project));
-
-                if (!this.authenticated && this.track !== 'all') {
-                    this.navigate({track: 'all', page: 1});
-                    return;
-                }
-                await this.loadContent();
+    // filters are fixed API parameters, e.g., the author on a user page.
+    Alpine.data('contentList', (project, filters = {}) => ({
+        ...pagedList({
+            project,
+            endpoint: sitePath('v3', 'content', project),
+            itemsKey: 'contents',
+            idName: 'content_id',
+            itemUrl: (id) => sitePath(project, id),
+            settings: {track: 'all', sort: 'recommendations', descending: 'true', limit: '8', search: ''},
+            query() {
+                return {
+                    ...filters,
+                    author_id: this.track === 'submissions' ? 'me' : filters.author_id,
+                    liked_by: this.track === 'likes' ? 'me' : filters.liked_by,
+                    order: this.sort,
+                    descending: this.descending,
+                    q: this.search.trim(),
+                };
             },
+        }),
 
-            urlWith(parameters) {
-                const url = new URL(window.location.href);
-                for (const [name, value] of Object.entries(parameters)) {
-                    if (value === '') {
-                        url.searchParams.delete(name);
-                    } else {
-                        url.searchParams.set(name, value);
-                    }
-                }
-                return url;
-            },
+        likeChanged({contentId, liked}) {
+            if (this.track === 'likes' && !liked) {
+                this.removeItem(contentId);
+            }
+        },
+    }));
 
-            navigate(parameters) {
-                window.location.assign(this.urlWith(parameters));
-            },
+    Alpine.data('userList', (project) => pagedList({
+        project,
+        endpoint: sitePath('v3', 'user', project),
+        itemsKey: 'users',
+        idName: 'user_id',
+        itemUrl: (id) => sitePath(project, 'users', id),
+        settings: {sort: 'likes_received', descending: 'true', limit: '24'},
+        query() {
+            return {order: this.sort, descending: this.descending};
+        },
+    }));
 
-            changeSetting(name) {
-                this.navigate({[name]: this[name], page: 1});
-            },
+    Alpine.data('collectionList', (project, filters = {}, syncUrl = true) => pagedList({
+        project,
+        syncUrl,
+        endpoint: sitePath('v1', 'collection', project),
+        itemsKey: 'collections',
+        idName: 'collection_id',
+        itemUrl: (id) => sitePath(project, 'collections', id),
+        settings: {track: 'all', limit: '24', search: ''},
+        query() {
+            return {
+                ...filters,
+                user_id: this.track === 'mine' ? 'me' : filters.user_id,
+                q: this.search.trim(),
+            };
+        },
+    }));
 
-            searchContent() {
-                this.page = 1;
-                window.history.replaceState(null, '', this.urlWith({search: this.search.trim(), page: 1}));
-                this.loadContent();
-            },
+    Alpine.data('collectionDetail', (project, collectionId) => ({
+        project,
+        collection: null,
+        error: '',
 
-            async loadContent() {
-                const version = ++loadVersion;
-                this.loading = true;
-                this.contents = [];
-                this.error = '';
-                this.hasMore = false;
-
-                const url = new URL(`/v3/content/${encodeURIComponent(this.project)}`, window.location.origin);
-                if (this.track === 'likes') {
-                    url.searchParams.set('liked_by', 'me');
-                } else if (this.track === 'submissions') {
-                    url.searchParams.set('author_id', 'me');
-                }
-                url.searchParams.set('order', this.sort);
-                url.searchParams.set('descending', this.descending);
-                url.searchParams.set('limit', this.limit);
-                url.searchParams.set('offset', (this.page - 1) * Number(this.limit));
-                if (this.search.trim()) {
-                    url.searchParams.set('q', this.search.trim());
-                }
-
-                try {
-                    const data = await fetchJson(url, {errorMessage: 'Unable to load content'});
-                    if (version !== loadVersion) return;
-                    this.contents = data.contents;
-                    this.hasMore = data.has_more;
-                } catch (error) {
-                    if (version === loadVersion) {
-                        this.error = error.message;
-                    }
-                } finally {
-                    if (version === loadVersion) {
-                        this.loading = false;
-                    }
-                }
-            },
-
-            openContent(contentId) {
-                window.location.assign(`/${encodeURIComponent(this.project)}/${contentId}`);
-            },
-
-            removeContent(contentId) {
-                this.contents = this.contents.filter((content) => content.content_id !== contentId);
-            },
-
-            likeChanged({contentId, liked}) {
-                if (this.track === 'likes' && !liked) {
-                    this.removeContent(contentId);
-                }
-            },
-        };
-    });
+        async init() {
+            try {
+                await this.$store.auth.loadUser(project);
+                const data = await fetchJson(sitePath('v1', 'collection', project, collectionId), {
+                    errorMessage: 'Unable to load collection',
+                });
+                this.collection = data.collection;
+                document.title = this.collection.title;
+            } catch (error) {
+                this.error = error.message;
+            }
+        },
+    }));
 
     // initialContent is a content id, a content summary, or a full content object.
     Alpine.data('contentPreview', (project, initialContent, mode = 'card') => {
@@ -138,13 +215,13 @@ document.addEventListener('alpine:init', () => {
             pending: false,
             isDetail: mode === 'detail',
             showActions: mode !== 'preview',
-            backUrl: '/',
+            backUrl: sitePath(project),
 
             async init() {
                 try {
                     if (this.isDetail && document.referrer) {
                         const previous = new URL(document.referrer);
-                        if (previous.origin === window.location.origin && previous.pathname === '/') {
+                        if (previous.origin === window.location.origin && previous.href !== window.location.href) {
                             this.backUrl = previous.href;
                         }
                     }
@@ -178,7 +255,7 @@ document.addEventListener('alpine:init', () => {
             },
 
             async fetchContent(refresh = false) {
-                const data = await fetchJson(`/v3/content/${encodeURIComponent(project)}/${contentId}`, {
+                const data = await fetchJson(sitePath('v3', 'content', project, contentId), {
                     signal: controller.signal,
                     headers: refresh ? {'Cache-Control': 'no-cache'} : {},
                     errorMessage: 'Unable to load content',
@@ -196,7 +273,7 @@ document.addEventListener('alpine:init', () => {
                 this.pending = true;
                 const liked = this.content.is_liked;
                 try {
-                    await fetchJson(`/v1/like/${encodeURIComponent(project)}/${contentId}`, {
+                    await fetchJson(sitePath('v1', 'like', project, contentId), {
                         method: liked ? 'DELETE' : 'POST',
                         errorMessage: 'Unable to update like',
                         // A repeated request can already be in the desired state.
@@ -223,7 +300,7 @@ document.addEventListener('alpine:init', () => {
 
                 this.pending = true;
                 try {
-                    await fetchJson(`/v1/content/${encodeURIComponent(project)}/${contentId}`, {
+                    await fetchJson(sitePath('v1', 'content', project, contentId), {
                         method: 'DELETE',
                         errorMessage: 'Delete failed',
                     });
@@ -244,10 +321,11 @@ document.addEventListener('alpine:init', () => {
             },
 
             searchUrl(search) {
-                const url = new URL('/', window.location.origin);
-                url.searchParams.set('project', project);
-                url.searchParams.set('search', search);
-                return url.href;
+                return `${sitePath(project)}?${new URLSearchParams({search})}`;
+            },
+
+            userUrl() {
+                return sitePath(project, 'users', this.content.user_id);
             },
 
             destroy() {

@@ -5,7 +5,7 @@
         <div class="title" :title="content.title" x-text="content.title"></div>
         {% if search_links %}
             <div class="author">
-                <a class="search-link" :href="searchUrl(`@${content.username}`)" x-text="content.username"></a>
+                <a class="search-link" :href="userUrl()" x-text="content.username"></a>
             </div>
         {% else %}
             <div class="author" x-text="content.username"></div>

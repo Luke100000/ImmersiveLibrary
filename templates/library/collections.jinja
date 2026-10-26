@@ -1,0 +1,21 @@
+{% extends "library/base.jinja" %}
+{% from "components/macros.jinja" import select_control, search_control, limit_control %}
+
+{% block title %}Collections – {{ project_info.title or project }}{% endblock %}
+
+{% block library %}
+<section class="list-section" x-data='collectionList({{ project | tojson }})'>
+    <div class="controls">
+        {{ select_control("track", "Show", [("all", "All collections"), ("mine", "My collections")], show="authenticated") }}
+        {{ limit_control(["24", "48", "96"]) }}
+        {{ search_control("Search titles, descriptions, and owners") }}
+    </div>
+
+    <div class="grid">
+        {% include "components/list-status.jinja" %}
+        {% include "components/collection-cards.jinja" %}
+    </div>
+
+    {% include "components/pagination.jinja" %}
+</section>
+{% endblock %}

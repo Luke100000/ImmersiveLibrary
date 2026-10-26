@@ -9,7 +9,9 @@ templates = Jinja2Templates(directory="templates")
 class Project:
     validators: list[Validator]
 
-    def __init__(self) -> None:
+    def __init__(self, title: str = "", description: str = "") -> None:
+        self.title = title
+        self.description = description
         self.validators = []
 
     async def validate(self, callback: str, *args) -> None:

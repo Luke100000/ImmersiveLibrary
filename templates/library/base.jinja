@@ -1,0 +1,21 @@
+{% extends "base.jinja" %}
+
+{% block title %}{{ project_info.title or project }} – Immersive Library{% endblock %}
+
+{% block head %}
+    {% include "components/preview-scripts.jinja" %}
+    {% include "components/alpine.jinja" %}
+{% endblock %}
+
+{% block header %}
+    {% include "components/nav.jinja" %}
+{% endblock %}
+
+{% block content %}
+<canvas id="multiview-canvas" class="multiview-canvas"></canvas>
+<main class="content-wrapper">
+    <div class="browser-container">
+        {% block library %}{% endblock %}
+    </div>
+</main>
+{% endblock %}

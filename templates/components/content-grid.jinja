@@ -1,0 +1,40 @@
+{# Expects project; optional filters (fixed API parameters) and show_track. #}
+{% from "components/macros.jinja" import select_control, search_control, limit_control, order_control %}
+<section class="list-section" x-data='contentList({{ project | tojson }}, {{ (filters or {}) | tojson }})'
+         @content-deleted="removeItem($event.detail)" @content-like-changed="likeChanged($event.detail)">
+    <div class="controls">
+        {% if show_track %}
+            {{ select_control("track", "Track", [
+                ("all", "All content"),
+                ("submissions", "My submissions"),
+                ("likes", "My likes"),
+            ], show="authenticated") }}
+        {% endif %}
+        {{ select_control("sort", "Sort by", [
+            ("recommendations", "Recommendations"),
+            ("date", "Date"),
+            ("likes", "Likes"),
+            ("title", "Title"),
+            ("reports", "Reports"),
+        ]) }}
+        {{ order_control() }}
+        {{ limit_control(["8", "16", "32"]) }}
+        {{ search_control("Search: @user, #tag, ~title, -exclude") }}
+    </div>
+
+    <div class="grid content-grid">
+        {% include "components/list-status.jinja" %}
+        <template x-for="item in items" :key="item.content_id">
+            <div class="card card-interactive" role="button" tabindex="0" :title="`Open content #${item.content_id}`"
+                 @click="window.location.assign(itemUrl(item.content_id))"
+                 @keydown.enter.self.prevent="window.location.assign(itemUrl(item.content_id))"
+                 @keydown.space.self.prevent="window.location.assign(itemUrl(item.content_id))">
+                <div class="content-preview" x-data="contentPreview(project, item)">
+                    {% include "components/content.jinja" %}
+                </div>
+            </div>
+        </template>
+    </div>
+
+    {% include "components/pagination.jinja" %}
+</section>

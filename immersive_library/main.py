@@ -28,7 +28,10 @@ class MetaSchema(BaseModel):
 
 
 # Add MCA specific validators
-projects["mca"] = Project()
+projects["mca"] = Project(
+    "MCA Reborn",
+    "Clothing and hair for the villagers of Minecraft Comes Alive Reborn.",
+)
 projects["mca"].validators = [
     TitleLengthValidator(),
     MaxSizeValidator(65536),
@@ -38,7 +41,10 @@ projects["mca"].validators = [
 ]
 
 # Add Immersive Furniture specific validators
-projects["furniture"] = Project()
+projects["furniture"] = Project(
+    "Immersive Furniture",
+    "Furniture models built in-game with Immersive Furniture.",
+)
 projects["furniture"].validators = [
     TitleLengthValidator(),
     MaxSizeValidator(262144),

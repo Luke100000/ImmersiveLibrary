@@ -1,0 +1,5 @@
+<div class="pagination" x-show="page > 1 || hasMore">
+    <button class="btn" type="button" :disabled="page === 1" @click="goToPage(page - 1)">&laquo; Previous</button>
+    <div class="current-page" x-text="`Page ${page}`">Page 1</div>
+    <button class="btn" type="button" :disabled="loading || !hasMore" @click="goToPage(page + 1)">Next &raquo;</button>
+</div>

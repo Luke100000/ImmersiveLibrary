@@ -1,0 +1,27 @@
+{% extends "library/base.jinja" %}
+
+{% block title %}Collection – {{ project_info.title or project }}{% endblock %}
+
+{% block library %}
+<div x-data='collectionDetail({{ project | tojson }}, {{ collection_id }})'>
+    <p x-show="!collection && !error">Loading...</p>
+    <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
+    <template x-if="collection">
+        <div>
+            <section class="panel detail-header">
+                <div class="detail-heading">
+                    <h1 x-text="collection.title"></h1>
+                    <span class="badge" x-show="!collection.is_public">Private</span>
+                </div>
+                <div class="detail-meta">
+                    by <a :href="sitePath(project, 'users', collection.user_id)" x-text="collection.username"></a>
+                    • <span x-text="plural(collection.content_count, 'item')"></span>
+                </div>
+                <p class="description" x-show="collection.description" x-text="collection.description"></p>
+            </section>
+            {% set filters = {"collection_id": collection_id} %}
+            {% include "components/content-grid.jinja" %}
+        </div>
+    </template>
+</div>
+{% endblock %}
