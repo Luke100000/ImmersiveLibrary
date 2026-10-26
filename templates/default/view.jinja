@@ -7,7 +7,7 @@
     {% include "components/alpine.jinja" %}
     {% set page_title = content.title %}
     {% set page_url = request.url %}
-    {% set thumb_url = request.url_for('render_content_png', project=project, content_id=content.content_id) %}
+    {% set thumb_url = request.url_for('render_content', project=project, content_id=content.content_id) %}
     {% set page_description = content.title ~ " by " ~ content.username %}
 
     <meta property="og:title" content="{{ page_title }}">

@@ -30,7 +30,6 @@ async def run_post_upload_callbacks(
             "post_upload", database, user_id, record["oid"]
         ):
             if message is not None:
-                print(message)
                 log.append(message)
 
     await update_precomputation(database)
@@ -55,7 +54,6 @@ async def run_post_upload_callbacks_content_id(
         "post_upload", database, user_id, content_id
     ):
         if message is not None:
-            print(message)
             log.append(message)
 
     await update_precomputation(database, content_id)

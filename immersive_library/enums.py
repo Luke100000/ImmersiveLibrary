@@ -21,7 +21,6 @@ class RenderPreset(str, Enum):
     EMBED = "embed"
     ICON = "icon"
     THUMBNAIL = "thumbnail"
-    SQUARE = "square"
 
 
 class ContentTrack(str, Enum):

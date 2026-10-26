@@ -13,5 +13,6 @@ services:
 
   redis:
     image: redis:latest
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - ./redis_data:/data
