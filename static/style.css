@@ -1,3 +1,7 @@
+[x-cloak] {
+    display: none !important;
+}
+
 /* ========== Color Theme Variables ========== */
 :root {
     /* Blue-tinted backgrounds for cards and elements */
@@ -125,10 +129,6 @@ label {
     margin-bottom: 10px;
     display: flex;
     flex-direction: column;
-}
-
-.control-item[hidden] {
-    display: none;
 }
 
 .control-item label {
@@ -261,6 +261,15 @@ label {
     cursor: pointer;
     transition: transform .12s ease, box-shadow .12s ease, border-color .2s ease;
     box-shadow: 0 6px 12px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(93, 152, 207, .08);
+}
+
+.card-interactive .content-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    padding: 6px 10px;
+    font-size: 12px;
 }
 
 .card-interactive:hover {

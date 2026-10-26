@@ -2,12 +2,12 @@
 <html lang="en_us">
 <head>
     <title>Project</title>
-    <script src="/static/three.js"></script>
-    <script src="/static/pnbt.js"></script>
+    <script src="/static/vendor/three.js"></script>
+    <script src="/static/vendor/pnbt.js"></script>
     <script src="/static/embed.js"></script>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/default/style.css">
-    <script src="/static/auth.js"></script>
+    {% include "components/alpine.jinja" %}
 </head>
 
 <body>
@@ -24,14 +24,12 @@
         </div>
         <div class="card renderers-box" id="skin-box">
             <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
-            <div id="skin-body"></div>
+            <div id="skin-body" x-data='contentPreview({{ project | tojson }}, {{ statistics.oid | tojson }})'>
+                {% set search_links = false %}
+                {% include "components/content.jinja" %}
+            </div>
         </div>
     </div>
-
-    <script type="module">
-        await embedContent('skin-body', {{ project | tojson }}, {{ statistics.oid }});
-    </script>
-
 </div>
 <footer>
     <a href="/privacy">Privacy Notice</a> •

@@ -2,14 +2,14 @@
 <html lang="en_us">
 <head>
     <title>{{ content.title | e }}</title>
-    <script src="/static/three.js"></script>
-    <script src="/static/pnbt.js"></script>
+    <script src="/static/vendor/three.js"></script>
+    <script src="/static/vendor/pnbt.js"></script>
     <script src="/static/embed.js"></script>
 
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/default/style.css">
 
-    <script src="/static/auth.js"></script>
+    {% include "components/alpine.jinja" %}
 
     {% set page_title = content.title %}
     {% set page_url = request.url %}
@@ -31,13 +31,12 @@
 <div class="content-wrapper">
     <div class="card view-box" id="view-box">
         <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
-        <div id="view-body"></div>
+        <div id="view-body" x-data='contentPreview({{ project | tojson }}, {{ content.model_dump() | tojson }})'>
+            {% set search_links = true %}
+            {% include "components/content.jinja" %}
+        </div>
     </div>
 </div>
-
-<script type="module">
-    embedContent('view-body', {{ project | tojson }}, {{ content.model_dump() | tojson }}, {searchLinks: true});
-</script>
 
 <footer>
     <a href="/privacy">Privacy Notice</a> •

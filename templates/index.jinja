@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!--suppress JSUnresolvedReference -->
 <html lang="en_us">
 <head>
     <title>Immersive Library</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/three.js"></script>
-    <script src="/static/pnbt.js"></script>
+    <script src="/static/vendor/three.js"></script>
+    <script src="/static/vendor/pnbt.js"></script>
     <script src="/static/embed.js"></script>
+    {% include "components/alpine.jinja" %}
     <style>
         .grid {
             display: grid;
@@ -34,12 +34,12 @@
 <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
 
 <div class="content-wrapper">
-    <div class="browser-container">
+    <div class="browser-container" x-data="libraryBrowser">
         <div class="controls">
             <div class="control-item">
                 <label for="project">Project:</label>
                 <div class="select-wrap">
-                    <select id="project">
+                    <select id="project" name="project" x-model="project" @change="navigate({project, page: 1})">
                         {% for project in projects %}
                             <option value="{{ project }}">{{ project }}</option>
                         {% endfor %}
@@ -47,10 +47,10 @@
                 </div>
             </div>
 
-            <div id="track-control" class="control-item" hidden>
+            <div id="track-control" class="control-item" x-show="authenticated" x-cloak>
                 <label for="track">Track:</label>
                 <div class="select-wrap">
-                    <select id="track">
+                    <select id="track" name="track" x-model="track" @change="navigate({track, page: 1})">
                         <option value="all">All content</option>
                         <option value="submissions">My submissions</option>
                         <option value="likes">My likes</option>
@@ -61,7 +61,7 @@
             <div class="control-item">
                 <label for="sort">Sort by:</label>
                 <div class="select-wrap">
-                    <select id="sort">
+                    <select id="sort" name="sort" x-model="sort" @change="navigate({sort})">
                         <option value="recommendations">Recommendations</option>
                         <option value="date">Date</option>
                         <option value="likes">Likes</option>
@@ -74,7 +74,7 @@
             <div class="control-item">
                 <label for="order">Order:</label>
                 <div class="select-wrap">
-                    <select id="order">
+                    <select id="order" name="descending" x-model="descending" @change="navigate({descending})">
                         <option value="true">Descending</option>
                         <option value="false">Ascending</option>
                     </select>
@@ -84,7 +84,7 @@
             <div class="control-item">
                 <label for="limit">Items per page:</label>
                 <div class="select-wrap">
-                    <select id="limit">
+                    <select id="limit" name="limit" x-model="limit" @change="navigate({limit, page: 1})">
                         <option value="8">8</option>
                         <option value="16">16</option>
                         <option value="32">32</option>
@@ -94,292 +94,54 @@
 
             <div class="control-item">
                 <label for="search">Search:</label>
-                <input type="text" id="search" placeholder="Search: @user, #tag, ~title, -exclude">
+                <input type="text" id="search" placeholder="Search: @user, #tag, ~title, -exclude"
+                       x-model="search" @input.debounce.500ms="searchContent()">
             </div>
 
             <div class="spacer"></div>
             <div class="control-item right">
                 <label>&nbsp;</label>
-                <button id="login-btn" class="btn">
+                <button id="login-btn" class="btn" :class="{secondary: $store.auth.hasToken}"
+                        :title="$store.auth.hasToken ? 'Sign out' : 'Sign in with Google'"
+                        @click="$store.auth.hasToken ? $store.auth.logout() : $store.auth.login()">
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M10 17l5-5-5-5v3H3v4h7v3z"></path>
                         <path d="M19 3h-6v2h6v14h-6v2h6a2 2 0 002-2V5a2 2 0 00-2-2z"></path>
                     </svg>
-                    <span>Login</span></button>
+                    <span x-text="$store.auth.hasToken ? 'Log out' : 'Login'">Login</span>
+                </button>
             </div>
         </div>
 
         <div id="content-grid" class="grid">
-            <!-- Content will be loaded here -->
+            <p x-show="loading">Loading...</p>
+            <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
+            <p x-show="!loading && !error && contents.length === 0" x-cloak>No content found</p>
+            <template x-for="item in contents" :key="item.content_id">
+                <div class="card-interactive" role="button" tabindex="0" :title="`Open project ${item.content_id}`"
+                     @click="window.location.assign(contentUrl(item.content_id))"
+                     @keydown.enter.self.prevent="window.location.assign(contentUrl(item.content_id))"
+                     @keydown.space.self.prevent="window.location.assign(contentUrl(item.content_id))">
+                    <div x-data="contentPreview(project, item.content_id)">
+                        {% set search_links = false %}
+                        {% include "components/content.jinja" %}
+                    </div>
+                    <button class="btn content-delete" x-show="$store.auth.hasToken" x-cloak
+                            :title="`Delete content #${item.content_id}`"
+                            @click.stop.prevent="deleteContent(item.content_id)">Delete</button>
+                </div>
+            </template>
         </div>
 
         <div class="pagination">
-            <button id="prev-page">&laquo; Previous</button>
-            <div id="current-page" class="current-page">Page 1</div>
-            <button id="next-page">Next &raquo;</button>
+            <button id="prev-page" :disabled="page === 1" @click="navigate({page: page - 1})">&laquo; Previous</button>
+            <div id="current-page" class="current-page" x-text="`Page ${page}`">Page 1</div>
+            <button id="next-page" :disabled="loading || !hasMore" @click="navigate({page: page + 1})">Next &raquo;</button>
         </div>
     </div>
-
-    <script src="/static/auth.js"></script>
-
-    <!--suppress ES6MissingAwait -->
-    <script>
-        const projectSelect = document.getElementById('project');
-        const trackControl = document.getElementById('track-control');
-        const trackSelect = document.getElementById('track');
-        const sortSelect = document.getElementById('sort');
-        const orderSelect = document.getElementById('order');
-        const limitSelect = document.getElementById('limit');
-        const searchInput = document.getElementById('search');
-        const previousPageButton = document.getElementById('prev-page');
-        const nextPageButton = document.getElementById('next-page');
-
-        function selectUrlValue(select, parameter) {
-            const value = new URLSearchParams(window.location.search).get(parameter);
-            if (value && [...select.options].some((option) => option.value === value)) {
-                select.value = value;
-            }
-            return select.value;
-        }
-
-        function pageFromUrl() {
-            const page = Number.parseInt(new URLSearchParams(window.location.search).get('page'), 10);
-            return Number.isSafeInteger(page) && page > 0 ? page : 1;
-        }
-
-        function searchFromUrl() {
-            return new URLSearchParams(window.location.search).get('search') || '';
-        }
-
-        function urlWith(parameters) {
-            const url = new URL(window.location.href);
-            for (const [name, value] of Object.entries(parameters)) {
-                if (value === '') {
-                    url.searchParams.delete(name);
-                } else {
-                    url.searchParams.set(name, value);
-                }
-            }
-            return url;
-        }
-
-        function navigate(parameters) {
-            const url = urlWith(parameters);
-            window.location.assign(url);
-        }
-
-        selectUrlValue(projectSelect, 'project');
-        selectUrlValue(trackSelect, 'track');
-        selectUrlValue(sortSelect, 'sort');
-        selectUrlValue(orderSelect, 'descending');
-        selectUrlValue(limitSelect, 'limit');
-        searchInput.value = searchFromUrl();
-
-        async function configureTracks() {
-            let authenticated;
-            try {
-                const response = await fetch('/v1/auth');
-                authenticated = response.ok && (await response.json()).authenticated === true;
-            } catch (_) {
-                authenticated = false;
-            }
-
-            trackControl.hidden = !authenticated;
-
-            if (!authenticated && trackSelect.value !== 'all') {
-                navigate({track: 'all', page: 1});
-                return false;
-            }
-            return true;
-        }
-
-        let contentLoadVersion = 0;
-
-        function setContentGridMessage(contentGrid, message) {
-            const paragraph = document.createElement('p');
-            paragraph.textContent = message;
-            contentGrid.replaceChildren(paragraph);
-        }
-
-        // Load content
-        async function loadContent() {
-            const loadVersion = ++contentLoadVersion;
-            const contentGrid = document.getElementById('content-grid');
-            const project = selectUrlValue(projectSelect, 'project');
-            const track = selectUrlValue(trackSelect, 'track');
-            const sort = selectUrlValue(sortSelect, 'sort');
-            const descending = selectUrlValue(orderSelect, 'descending');
-            const limit = Number.parseInt(selectUrlValue(limitSelect, 'limit'), 10);
-            const page = pageFromUrl();
-            const search = searchFromUrl().trim();
-
-            document.getElementById('current-page').textContent = `Page ${page}`;
-            previousPageButton.disabled = page === 1;
-            nextPageButton.disabled = true;
-            setContentGridMessage(contentGrid, 'Loading...');
-
-            try {
-                const url = new URL(`/v3/content/${encodeURIComponent(project)}`, window.location.origin);
-                if (track === 'likes') {
-                    url.searchParams.set('liked_by', 'me');
-                } else if (track === 'submissions') {
-                    url.searchParams.set('author_id', 'me');
-                }
-                url.searchParams.set('order', sort);
-                url.searchParams.set('descending', descending);
-                url.searchParams.set('limit', limit);
-                url.searchParams.set('offset', (page - 1) * limit);
-
-                // Add search terms if provided
-                if (search) {
-                    url.searchParams.set('q', search);
-                }
-
-                // Fetch content list
-                const response = await fetch(url);
-                const data = await response.json();
-                if (loadVersion !== contentLoadVersion) return;
-                if (!response.ok) {
-                    throw new Error(data.message || 'Unable to load content');
-                }
-                nextPageButton.disabled = !data.has_more;
-
-                if (data.contents && data.contents.length > 0) {
-                    contentGrid.replaceChildren();
-
-                    // Process each content item
-                    for (const content of data.contents) {
-                        const contentItem = document.createElement('div');
-                        contentItem.className = 'card-interactive';
-                        contentItem.setAttribute('role', 'button');
-                        contentItem.setAttribute('tabindex', '0');
-                        contentItem.title = `Open project ${content.content_id}`;
-                        contentItem.style.position = 'relative';
-
-                        const contentBody = document.createElement('div');
-                        const loading = document.createElement('p');
-                        loading.textContent = `Loading #${content.content_id}...`;
-                        contentBody.appendChild(loading);
-                        contentItem.appendChild(contentBody);
-                        contentGrid.appendChild(contentItem);
-
-                        // make the whole card clickable
-                        const targetUrl = `/${encodeURIComponent(project)}/${content.content_id}`;
-                        contentItem.addEventListener('click', () => {
-                            window.location.href = targetUrl;
-                        });
-                        contentItem.addEventListener('keydown', (e) => {
-                            if (e.target !== contentItem) return;
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                window.location.href = targetUrl;
-                            }
-                        });
-
-                        if (window.ImmersiveAuth && typeof window.ImmersiveAuth.getToken === 'function' && window.ImmersiveAuth.getToken()) {
-                            const delBtn = document.createElement('button');
-                            delBtn.textContent = 'Delete';
-                            delBtn.className = 'btn';
-                            delBtn.title = `Delete content #${content.content_id}`;
-                            delBtn.style.position = 'absolute';
-                            delBtn.style.top = '8px';
-                            delBtn.style.right = '8px';
-                            delBtn.style.zIndex = '2';
-                            delBtn.style.padding = '6px 10px';
-                            delBtn.style.fontSize = '12px';
-
-                            delBtn.addEventListener('click', async (e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                const ok = window.confirm(`Are you sure you want to delete content #${content.content_id}?`);
-                                if (!ok) return;
-                                try {
-                                    const resp = await fetch(`/v1/content/${encodeURIComponent(project)}/${content.content_id}`, {method: 'DELETE'});
-                                    if (resp.ok) {
-                                        // remove the card from the grid
-                                        contentItem.remove();
-                                    } else if (resp.status === 401 || resp.status === 403) {
-                                        alert('Not allowed to delete this content.');
-                                    } else if (resp.status === 404) {
-                                        alert('Content not found.');
-                                    } else {
-                                        alert('Delete failed (' + resp.status + ').');
-                                    }
-                                } catch (err) {
-                                    alert('Network error while deleting.');
-                                }
-                            });
-
-                            contentItem.appendChild(delBtn);
-                        }
-
-                        embedContent(contentBody, project, content.content_id);
-                    }
-
-                } else {
-                    setContentGridMessage(contentGrid, 'No content found');
-                }
-            } catch (error) {
-                if (loadVersion === contentLoadVersion) {
-                    setContentGridMessage(contentGrid, `Error: ${error.message}`);
-                }
-            }
-        }
-
-        // Event listeners for all controls
-        document.getElementById('project').addEventListener('change', (e) => {
-            navigate({project: e.target.value, page: 1});
-        });
-
-        trackSelect.addEventListener('change', (e) => {
-            navigate({track: e.target.value, page: 1});
-        });
-
-        document.getElementById('sort').addEventListener('change', (e) => {
-            navigate({sort: e.target.value});
-        });
-
-        document.getElementById('order').addEventListener('change', (e) => {
-            navigate({descending: e.target.value});
-        });
-
-        document.getElementById('limit').addEventListener('change', (e) => {
-            navigate({limit: e.target.value, page: 1});
-        });
-
-        searchInput.addEventListener('input', debounce((e) => {
-            window.history.replaceState(null, '', urlWith({search: e.target.value.trim(), page: 1}));
-            loadContent();
-        }, 500));
-
-        previousPageButton.addEventListener('click', () => {
-            const page = pageFromUrl();
-            if (page > 1) {
-                navigate({page: page - 1});
-            }
-        });
-
-        nextPageButton.addEventListener('click', () => {
-            navigate({page: pageFromUrl() + 1});
-        });
-
-        // Debounce function to limit the rate of function calls
-        function debounce(func, wait) {
-            let timeout;
-            return function (...args) {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(this, args), wait);
-            };
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (await configureTracks()) {
-                loadContent();
-            }
-        });
-
-    </script>
 </div>
+
+{% include "components/consent.jinja" %}
 
 <footer>
     <a href="/privacy">Privacy Notice</a> •

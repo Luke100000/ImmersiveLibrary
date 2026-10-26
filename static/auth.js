@@ -29,36 +29,6 @@
         setCookie(name, "", -1);
     }
 
-    function requestCookieConsent() {
-        return new Promise((resolve) => {
-            const dialog = document.createElement('div');
-            dialog.className = 'consent-dialog';
-            dialog.setAttribute('role', 'dialog');
-            dialog.setAttribute('aria-modal', 'true');
-            dialog.innerHTML = `
-                <div class="consent-dialog__content">
-                    <h2>Cookies and sign-in</h2>
-                    <p>We use a necessary cookie to keep you signed in and Google Sign-In to authenticate you.</p>
-                    <p>Read our <a href="/privacy">Privacy Notice</a> before continuing.</p>
-                    <div class="consent-dialog__actions">
-                        <button type="button" class="btn" data-consent="no">Leave</button>
-                        <button type="button" class="btn" data-consent="yes">Accept and continue</button>
-                    </div>
-                </div>
-            `;
-            dialog.querySelector('[data-consent="yes"]').addEventListener('click', () => {
-                setCookie(CONSENT_COOKIE, 'yes', 365);
-                dialog.remove();
-                resolve(true);
-            });
-            dialog.querySelector('[data-consent="no"]').addEventListener('click', () => {
-                dialog.remove();
-                resolve(false);
-            });
-            document.body.appendChild(dialog);
-        });
-    }
-
     function encodeBase64(value) {
         const bytes = new TextEncoder().encode(value);
         return btoa(String.fromCharCode(...bytes));
@@ -74,47 +44,66 @@
         return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
     }
 
-    async function login() {
-        if (!window.isSecureContext || !crypto.subtle) {
-            alert('Google sign-in requires a secure connection.');
-            return;
-        }
+    document.addEventListener('alpine:init', () => {
+        Alpine.store('auth', {
+            hasToken: Boolean(getCookie(TOKEN_COOKIE)),
+            consentRequired: false,
 
-        if (getCookie(CONSENT_COOKIE) !== 'yes') {
-            if (!await requestCookieConsent()) {
+            rememberConsent() {
+                setCookie(CONSENT_COOKIE, 'yes', 365);
+            },
+
+            acceptConsent() {
+                this.rememberConsent();
+                this.consentRequired = false;
+                this.login();
+            },
+
+            declineConsent() {
+                this.consentRequired = false;
                 window.location.replace('/');
-                return;
-            }
-        }
+            },
 
-        let username = getCookie(USERNAME_COOKIE);
-        if (!username) {
-            username = window.prompt('Choose a display name');
-            if (!username || !username.trim()) {
-                return;
-            }
-            username = username.trim();
-            setCookie(USERNAME_COOKIE, username, 365);
-        }
+            async login() {
+                if (!window.isSecureContext || !crypto.subtle) {
+                    alert('Google sign-in requires a secure connection.');
+                    return;
+                }
 
-        let token = getCookie(TOKEN_COOKIE);
-        if (!token) {
-            token = createToken();
-            setCookie(TOKEN_COOKIE, token, 365);
-        }
+                if (getCookie(CONSENT_COOKIE) !== 'yes') {
+                    this.consentRequired = true;
+                    return;
+                }
 
-        const state = {
-            username: encodeBase64(username),
-            token: encodeBase64(await hashToken(token)),
-            return_to: window.location.pathname + window.location.search + window.location.hash,
-        };
-        window.location.assign('/v1/login?state=' + encodeURIComponent(encodeBase64(JSON.stringify(state))));
-    }
+                let username = getCookie(USERNAME_COOKIE);
+                if (!username) {
+                    username = window.prompt('Choose a display name');
+                    if (!username || !username.trim()) return;
+                    username = username.trim();
+                    setCookie(USERNAME_COOKIE, username, 365);
+                }
 
-    function logout() {
-        eraseCookie(TOKEN_COOKIE);
-        window.location.reload();
-    }
+                let token = getCookie(TOKEN_COOKIE);
+                if (!token) {
+                    token = createToken();
+                    setCookie(TOKEN_COOKIE, token, 365);
+                    this.hasToken = true;
+                }
+
+                const state = {
+                    username: encodeBase64(username),
+                    token: encodeBase64(await hashToken(token)),
+                    return_to: window.location.pathname + window.location.search + window.location.hash,
+                };
+                window.location.assign('/v1/login?state=' + encodeURIComponent(encodeBase64(JSON.stringify(state))));
+            },
+
+            logout() {
+                eraseCookie(TOKEN_COOKIE);
+                window.location.reload();
+            },
+        });
+    });
 
     const originalFetch = window.fetch;
     window.fetch = function (input, init) {
@@ -132,33 +121,4 @@
         init.headers = headers;
         return originalFetch(input, init);
     };
-
-    window.ImmersiveAuth = {login, logout, getToken: () => getCookie(TOKEN_COOKIE)};
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const button = document.getElementById('login-btn');
-        if (!button) {
-            return;
-        }
-
-        function updateButton() {
-            const hasToken = !!getCookie(TOKEN_COOKIE);
-            const label = button.querySelector('span');
-            if (label) {
-                label.textContent = hasToken ? 'Log out' : 'Login';
-            }
-            button.classList.toggle('secondary', hasToken);
-            button.title = hasToken ? 'Sign out' : 'Sign in with Google';
-        }
-
-        button.addEventListener('click', function () {
-            if (getCookie(TOKEN_COOKIE)) {
-                logout();
-                updateButton();
-            } else {
-                login();
-            }
-        });
-        updateButton();
-    });
 })();

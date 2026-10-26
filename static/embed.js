@@ -1,74 +1,4 @@
-// noinspection JSUnusedGlobalSymbols
-function getContainerElement(container) {
-    return typeof container === 'string' ? document.getElementById(container) : container;
-}
-
-async function embedContent(container, project, content, options = {}) {
-    if (typeof content === 'number') {
-        const res = await fetch(`/v3/content/${encodeURIComponent(project)}/${content}`);
-        const response = await res.json();
-        if (!res.ok) {
-            throw new Error(response.message || 'Unable to load content');
-        }
-        content = response.content;
-    }
-
-    // General layout
-    const parentDiv = getContainerElement(container);
-    if (!parentDiv) {
-        throw new Error('Embed container not found');
-    }
-
-    const title = document.createElement('div');
-    title.className = 'title';
-    title.textContent = content.title;
-
-    const author = document.createElement('div');
-    author.className = 'author';
-
-    const contentElement = document.createElement('div');
-    contentElement.className = 'content';
-
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'tags-container';
-
-    parentDiv.replaceChildren(title, author, contentElement, tagsContainer);
-
-    if (options.searchLinks) {
-        author.appendChild(createSearchLink(project, `@${content.username}`, content.username));
-    } else {
-        author.textContent = content.username;
-    }
-
-    // Tags
-    if (content.tags && content.tags.length > 0) {
-        content.tags.forEach(tag => {
-            const tagElement = options.searchLinks
-                ? createSearchLink(project, `#${tag}`, tag)
-                : document.createElement('span');
-            tagElement.textContent = tag;
-            tagElement.className = options.searchLinks ? 'tag search-link' : 'tag';
-            tagsContainer.appendChild(tagElement);
-        });
-    }
-
-    await embedContentPreview(contentElement, project, content, options)
-}
-
-function createSearchLink(project, search, label) {
-    const url = new URL('/', window.location.origin);
-    url.searchParams.set('project', project);
-    url.searchParams.set('search', search);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.className = 'search-link';
-    link.textContent = label;
-    return link;
-}
-
-async function embedContentPreview(container, project, content, options = {}) {
-    const contentElement = getContainerElement(container);
+async function embedContentPreview(contentElement, project, content, options = {}) {
     if (!contentElement) {
         throw new Error('Embed preview container not found');
     }
@@ -91,8 +21,9 @@ async function embedContentPreview(container, project, content, options = {}) {
         multiView,
     };
     const view = await embed(contentElement, content, embedOptions);
+    let unregister;
     if (view) {
-        multiView.registerScene({
+        unregister = multiView.registerScene({
             scene: view.scene,
             camera: view.camera,
             element: contentElement,
@@ -103,6 +34,7 @@ async function embedContentPreview(container, project, content, options = {}) {
     if (options.animate === false) {
         multiView.render(0);
     }
+    return unregister;
 }
 
 function createMultiViewRenderer(canvas, animate) {
@@ -248,6 +180,5 @@ function getSharedMultiView(animate) {
     return window.ImmersiveMultiView.shared;
 }
 
-window.embedContent = embedContent;
 window.ImmersiveMultiView = window.ImmersiveMultiView || {};
 window.ImmersiveMultiView.createRenderer = createMultiViewRenderer;
