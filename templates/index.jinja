@@ -9,7 +9,8 @@
 <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
 
 <main class="content-wrapper">
-    <div class="browser-container" x-data="libraryBrowser">
+    <div class="browser-container" x-data="libraryBrowser"
+         @content-deleted="removeContent($event.detail)" @content-like-changed="likeChanged($event.detail)">
         <div class="controls">
             <div class="control-item">
                 <label for="project">Project:</label>
@@ -95,13 +96,10 @@
                      @click="window.location.assign(contentUrl(item.content_id))"
                      @keydown.enter.self.prevent="window.location.assign(contentUrl(item.content_id))"
                      @keydown.space.self.prevent="window.location.assign(contentUrl(item.content_id))">
-                    <div x-data="contentPreview(project, item.content_id)">
+                    <div class="content-preview" x-data="contentPreview(project, item.content_id)">
                         {% set search_links = false %}
                         {% include "components/content.jinja" %}
                     </div>
-                    <button class="btn content-delete" x-show="$store.auth.hasToken" x-cloak
-                            :title="`Delete content #${item.content_id}`"
-                            @click.stop.prevent="deleteContent(item.content_id)">Delete</button>
                 </div>
             </template>
         </div>

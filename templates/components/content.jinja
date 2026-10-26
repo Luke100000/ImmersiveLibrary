@@ -1,7 +1,7 @@
 <p x-show="loading" x-text="loadingLabel"></p>
 <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
 <template x-if="content">
-    <div>
+    <div class="content-body">
         <div class="title" x-text="content.title"></div>
         {% if search_links %}
             <div class="author">
@@ -20,5 +20,6 @@
                 {% endif %}
             </template>
         </div>
+        {% include "components/content-actions.jinja" %}
     </div>
 </template>

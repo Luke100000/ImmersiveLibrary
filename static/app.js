@@ -27,12 +27,7 @@ document.addEventListener('alpine:init', () => {
                 this.page = Number.isSafeInteger(page) && page > 0 ? page : 1;
                 this.search = parameters.get('search') || '';
 
-                try {
-                    const response = await fetch('/v1/auth');
-                    this.authenticated = response.ok && (await response.json()).authenticated === true;
-                } catch {
-                    this.authenticated = false;
-                }
+                this.authenticated = Boolean(await this.$store.auth.loadUser(this.project));
 
                 if (!this.authenticated && this.track !== 'all') {
                     this.navigate({track: 'all', page: 1});
@@ -108,49 +103,47 @@ document.addEventListener('alpine:init', () => {
                 return `/${encodeURIComponent(this.project)}/${contentId}`;
             },
 
-            async deleteContent(contentId) {
-                if (!window.confirm(`Are you sure you want to delete content #${contentId}?`)) return;
+            removeContent(contentId) {
+                this.contents = this.contents.filter((content) => content.content_id !== contentId);
+            },
 
-                try {
-                    const response = await fetch(`/v1/content/${encodeURIComponent(this.project)}/${contentId}`, {method: 'DELETE'});
-                    if (response.ok) {
-                        this.contents = this.contents.filter((content) => content.content_id !== contentId);
-                    } else if (response.status === 401 || response.status === 403) {
-                        alert('Not allowed to delete this content.');
-                    } else if (response.status === 404) {
-                        alert('Content not found.');
-                    } else {
-                        alert(`Delete failed (${response.status}).`);
-                    }
-                } catch {
-                    alert('Network error while deleting.');
+            likeChanged({contentId, liked}) {
+                if (this.track === 'likes' && !liked) {
+                    this.removeContent(contentId);
                 }
             },
         };
     });
 
-    Alpine.data('contentPreview', (project, initialContent) => {
+    Alpine.data('contentPreview', (project, initialContent, mode = 'card') => {
         const controller = new AbortController();
         let unregister;
+        const contentId = typeof initialContent === 'number' ? initialContent : initialContent.content_id;
 
         return {
             content: null,
             loading: true,
             error: '',
+            pending: false,
+            isDetail: mode === 'detail',
+            showActions: mode !== 'preview',
+            backUrl: '/',
             loadingLabel: typeof initialContent === 'number' ? `Loading #${initialContent}...` : 'Loading...',
 
             async init() {
                 try {
-                    if (typeof initialContent === 'number') {
-                        const response = await fetch(`/v3/content/${encodeURIComponent(project)}/${initialContent}`, {signal: controller.signal});
-                        const data = await response.json();
-                        if (!response.ok) {
-                            throw new Error(data.message || 'Unable to load content');
+                    if (this.isDetail && document.referrer) {
+                        const previous = new URL(document.referrer);
+                        if (previous.origin === window.location.origin && previous.pathname === '/') {
+                            this.backUrl = previous.href;
                         }
-                        this.content = data.content;
-                    } else {
-                        this.content = initialContent;
                     }
+                    if (this.showActions) {
+                        await this.$store.auth.loadUser(project);
+                    }
+                    this.content = typeof initialContent === 'number' || (this.isDetail && this.$store.auth.user)
+                        ? await this.fetchContent() : initialContent;
+                    this.$dispatch('content-like-changed', {contentId, liked: this.content.is_liked});
                     this.loading = false;
                     await this.$nextTick();
                     if (controller.signal.aborted) return;
@@ -164,6 +157,78 @@ document.addEventListener('alpine:init', () => {
                         this.error = error.message;
                         this.loading = false;
                     }
+                }
+            },
+
+            get canDelete() {
+                const user = this.$store.auth.user;
+                return Boolean(user && (user.moderator || user.user_id === this.content?.user_id));
+            },
+
+            async fetchContent(refresh = false) {
+                const response = await fetch(`/v3/content/${encodeURIComponent(project)}/${contentId}`, {
+                    signal: controller.signal,
+                    headers: refresh ? {'Cache-Control': 'no-cache'} : {},
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to load content');
+                }
+                return data.content;
+            },
+
+            async toggleLike() {
+                if (this.pending) return;
+                if (!this.$store.auth.user) {
+                    this.$store.auth.login();
+                    return;
+                }
+
+                this.pending = true;
+                const liked = this.content.is_liked;
+                try {
+                    const response = await fetch(`/v1/like/${encodeURIComponent(project)}/${contentId}`, {
+                        method: liked ? 'DELETE' : 'POST',
+                    });
+                    // A repeated request can already be in the desired state.
+                    if (!response.ok && response.status !== 428) {
+                        const data = await response.json();
+                        throw new Error(data.message || 'Unable to update like');
+                    }
+                    this.content.is_liked = !liked;
+                    // Revalidate this item's cached viewer state after the mutation.
+                    const refreshed = await this.fetchContent(true);
+                    this.content.is_liked = refreshed.is_liked;
+                    this.content.likes = refreshed.likes;
+                    this.$dispatch('content-like-changed', {contentId, liked: this.content.is_liked});
+                } catch (error) {
+                    if (!controller.signal.aborted) {
+                        alert(error.message);
+                    }
+                } finally {
+                    this.pending = false;
+                }
+            },
+
+            async deleteContent() {
+                if (this.pending || !this.canDelete) return;
+                if (!window.confirm(`Are you sure you want to delete content #${contentId}?`)) return;
+
+                this.pending = true;
+                try {
+                    const response = await fetch(`/v1/content/${encodeURIComponent(project)}/${contentId}`, {method: 'DELETE'});
+                    if (!response.ok) {
+                        const data = await response.json();
+                        throw new Error(data.message || `Delete failed (${response.status})`);
+                    }
+                    this.$dispatch('content-deleted', contentId);
+                    if (this.isDetail) {
+                        window.location.assign(this.backUrl);
+                    }
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    this.pending = false;
                 }
             },
 

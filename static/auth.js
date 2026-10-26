@@ -45,9 +45,29 @@
     }
 
     document.addEventListener('alpine:init', () => {
+        let userRequest;
+
         Alpine.store('auth', {
             hasToken: Boolean(getCookie(TOKEN_COOKIE)),
             consentRequired: false,
+            user: null,
+
+            async loadUser(project) {
+                if (!this.hasToken) return null;
+                if (!userRequest) {
+                    userRequest = fetch(`/v3/user/${encodeURIComponent(project)}/me`).then(async (response) => {
+                        if (!response.ok) return null;
+                        return (await response.json()).user;
+                    });
+                }
+
+                try {
+                    this.user = await userRequest;
+                } catch {
+                    this.user = null;
+                }
+                return this.user;
+            },
 
             rememberConsent() {
                 setCookie(CONSENT_COOKIE, 'yes', 365);

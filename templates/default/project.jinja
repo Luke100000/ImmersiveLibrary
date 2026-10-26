@@ -21,7 +21,7 @@
         </div>
         <div class="card renderers-box" id="skin-box">
             <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
-            <div id="skin-body" x-data='contentPreview({{ project | tojson }}, {{ statistics.oid | tojson }})'>
+            <div id="skin-body" class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ statistics.oid | tojson }}, "preview")'>
                 {% set search_links = false %}
                 {% include "components/content.jinja" %}
             </div>
