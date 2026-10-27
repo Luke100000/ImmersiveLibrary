@@ -210,6 +210,11 @@ a:hover {
     flex: 2 1 220px;
 }
 
+.control-action {
+    display: flex;
+    align-items: flex-end;
+}
+
 .control-item label {
     font-size: 12px;
     color: var(--text-secondary);

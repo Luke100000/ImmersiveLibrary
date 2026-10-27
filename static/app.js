@@ -31,6 +31,36 @@ function pageConfig() {
     return element ? JSON.parse(element.textContent) : {};
 }
 
+// Dialog state for creating or editing a collection.
+function collectionForm(submit, onSaved) {
+    return {
+        formOpen: false,
+        form: {},
+        formError: '',
+        pending: false,
+
+        openForm(form = {title: '', description: '', is_public: false}) {
+            this.form = form;
+            this.formError = '';
+            this.formOpen = true;
+        },
+
+        async submitForm() {
+            this.pending = true;
+            this.formError = '';
+            try {
+                const {collection} = await submit(this.form);
+                this.formOpen = false;
+                onSaved.call(this, collection);
+            } catch (error) {
+                this.formError = error.message;
+            } finally {
+                this.pending = false;
+            }
+        },
+    };
+}
+
 // Shared state for a paged API list. Settings mirror the controls and, with syncUrl, the query string.
 function pagedList({project, endpoint, itemsKey, idName, itemUrl, settings, query, syncUrl = true}) {
     let loadVersion = 0;
@@ -306,6 +336,11 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    Alpine.data('collectionCreate', (project) => collectionForm(
+        (form) => sendJson(sitePath('v1', 'collection', project), 'POST', form, 'Unable to create collection'),
+        (collection) => window.location.assign(sitePath(project, 'collections', collection.collection_id)),
+    ));
+
     Alpine.data('collectionDetail', (project, collectionId) => {
         const collectionUrl = sitePath('v1', 'collection', project, collectionId);
 
@@ -313,10 +348,10 @@ document.addEventListener('alpine:init', () => {
             project,
             collection: null,
             error: '',
-            editing: false,
-            form: {},
-            formError: '',
-            pending: false,
+            ...collectionForm((form) => sendJson(collectionUrl, 'PATCH', form, 'Unable to save collection'), function (collection) {
+                this.collection = collection;
+                document.title = collection.title;
+            }),
 
             async init() {
                 try {
@@ -331,24 +366,7 @@ document.addEventListener('alpine:init', () => {
 
             openEdit() {
                 const {title, description, is_public} = this.collection;
-                this.form = {title, description, is_public};
-                this.formError = '';
-                this.editing = true;
-            },
-
-            async saveEdit() {
-                this.pending = true;
-                this.formError = '';
-                try {
-                    const data = await sendJson(collectionUrl, 'PATCH', this.form, 'Unable to save collection');
-                    this.collection = data.collection;
-                    document.title = this.collection.title;
-                    this.editing = false;
-                } catch (error) {
-                    this.formError = error.message;
-                } finally {
-                    this.pending = false;
-                }
+                this.openForm({title, description, is_public});
             },
 
             async deleteCollection() {
