@@ -10,6 +10,7 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS content_project ON content (project)",
     "CREATE INDEX IF NOT EXISTS content_project_title ON content (project, title)",
     "CREATE INDEX IF NOT EXISTS content_project_user_id ON content (project, user_id)",
+    "CREATE INDEX IF NOT EXISTS content_project_length ON content (project, length(data))",
     "CREATE INDEX IF NOT EXISTS collections_user_id_project ON collections (user_id, project)",
     "CREATE INDEX IF NOT EXISTS collection_items_content_id ON collection_items (content_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS reports_unique ON reports (user_id, content_id, reason)",

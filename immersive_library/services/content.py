@@ -228,7 +228,8 @@ async def create_content(project: str, content: ContentUpload, user_id: int) -> 
             INSERT INTO content (user_id, project, title, meta, data)
             SELECT :user_id, :project, :title, :meta, :data
             WHERE NOT EXISTS (
-                SELECT 1 FROM content WHERE project=:project AND data=:data
+                SELECT 1 FROM content
+                WHERE project=:project AND length(data)=length(:data) AND data=:data
             ) RETURNING oid
             """,
             {
