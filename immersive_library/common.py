@@ -28,10 +28,10 @@ class Project:
                 raise HTTPException(400, error)
 
     async def call(self, callback: str, *args, **kwargs) -> list[str | None]:
-        log = []
-        for validator in self.validators:
-            log.append(await getattr(validator, callback)(*args, **kwargs))
-        return log
+        return [
+            await getattr(validator, callback)(*args, **kwargs)
+            for validator in self.validators
+        ]
 
 
 default_project = Project()

@@ -26,18 +26,14 @@ async def run_post_upload_callbacks(
 
     log = []
     for record in content:
-        for message in await get_project(project).call(
+        log += await get_project(project).call(
             "post_upload", database, user_id, record["oid"]
-        ):
-            if message is not None:
-                log.append(message)
+        )
 
     await update_precomputation(database)
 
     return PlainTextResponse(
-        content="\n".join(log),
-        media_type="text/plain",
-        status_code=200,
+        "\n".join(message for message in log if message is not None)
     )
 
 
@@ -49,17 +45,10 @@ async def run_post_upload_callbacks_content_id(
 ) -> PlainTextResponse:
     await content_guard(project, content_id)
 
-    log = []
-    for message in await get_project(project).call(
-        "post_upload", database, user_id, content_id
-    ):
-        if message is not None:
-            log.append(message)
+    log = await get_project(project).call("post_upload", database, user_id, content_id)
 
     await update_precomputation(database, content_id)
 
     return PlainTextResponse(
-        content="\n".join(log),
-        media_type="text/plain",
-        status_code=200,
+        "\n".join(message for message in log if message is not None)
     )

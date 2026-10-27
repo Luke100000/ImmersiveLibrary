@@ -3,11 +3,11 @@ import json
 import os
 from typing import Annotated
 
+import orjson
 from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from google.auth.exceptions import GoogleAuthError, TransportError
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from orjson import orjson
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 

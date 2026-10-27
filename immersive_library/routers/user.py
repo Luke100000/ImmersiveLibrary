@@ -31,7 +31,7 @@ from immersive_library.utils import (
 router = APIRouter(tags=["Users"])
 
 
-@router.get("/v1/bans", tags=["Users"], dependencies=[Depends(moderator_guard)])
+@router.get("/v1/bans", dependencies=[Depends(moderator_guard)])
 async def get_banned() -> list[BanEntry]:
     content = await database.fetch_all(
         """
@@ -91,7 +91,6 @@ async def get_user_v3(
 
 @router.put(
     "/v1/user/{user_id}",
-    tags=["Users"],
     dependencies=[Depends(moderator_guard)],
     responses={401: {"model": Error}, 403: {"model": Error}, 404: {"model": Error}},
 )

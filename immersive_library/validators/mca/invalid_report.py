@@ -7,10 +7,10 @@ from immersive_library.validators.validator import Validator
 class InvalidReportValidator(Validator):
     async def post_report(
         self, database: Database, user_id: int, content_id: int, reason: str
-    ):
+    ) -> str | None:
         content = await database.fetch_one(
             """
-            SELECT *
+            SELECT 1
             FROM content
                      INNER JOIN users ON content.user_id = users.oid
                      INNER JOIN precomputation ON content.oid = precomputation.content_id
@@ -35,3 +35,4 @@ class InvalidReportValidator(Validator):
             )
 
             await update_precomputation(database, content_id)
+        return None

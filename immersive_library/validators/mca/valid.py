@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 
 import numpy as np
 from databases import Database
@@ -8,14 +9,16 @@ from immersive_library.models import ContentUpload
 from immersive_library.utils import has_tag
 from immersive_library.validators.validator import Validator
 
+DATA_DIRECTORY = Path(__file__).parent / "data"
 
-def get_mask(path: str):
+
+def get_mask(path: Path) -> np.ndarray:
     with Image.open(path) as image:
         return np.asarray(image.convert("L")) > 0
 
 
-clothing_mask = get_mask("immersive_library/validators/mca/data/clothing.png")
-head_mask = get_mask("immersive_library/validators/mca/data/head.png")
+clothing_mask = get_mask(DATA_DIRECTORY / "clothing.png")
+head_mask = get_mask(DATA_DIRECTORY / "head.png")
 
 clothing_threshold = 0
 hair_threshold = 6

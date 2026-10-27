@@ -25,11 +25,11 @@ async def update_precomputation(
         INSERT OR REPLACE
         INTO precomputation (content_id, tags, likes, reports)
         SELECT content.oid,
-               CASE WHEN tagged_content.c_tags is NULL THEN '' ELSE tagged_content.c_tags END as tags,
-               CASE WHEN liked_content.c_likes is NULL THEN 0 ELSE liked_content.c_likes END  as likes,
-               CASE WHEN reported_c.reports is NULL THEN 0 ELSE reported_c.reports END        as reports 
+               COALESCE(tagged_content.c_tags, '') as tags,
+               COALESCE(liked_content.c_likes, 0) as likes,
+               COALESCE(reported_c.reports, 0) as reports
         FROM content
-        
+
          LEFT JOIN (SELECT likes.content_id, COUNT(*) as c_likes
                     FROM likes
                     {"" if content_id is None else "WHERE likes.content_id = :content_id"}
@@ -45,7 +45,7 @@ async def update_precomputation(
                     WHERE reports.reason = 'DEFAULT'
                     {"" if content_id is None else "AND reports.content_id = :content_id"}
                     GROUP BY reports.content_id) reported_c on reported_c.content_id = content.oid
-                    
+
         {"" if content_id is None else "WHERE content.oid = :content_id"}
     """,
         {} if content_id is None else {"content_id": content_id},
@@ -62,7 +62,7 @@ async def token_to_user_id(
     """
     Return the user_id for a given token, or None if the token is invalid
     """
-    if authorization is not None and str(authorization).startswith("Bearer "):
+    if authorization is not None and authorization.startswith("Bearer "):
         token = sha256(authorization[7:])
     if not token:
         return None

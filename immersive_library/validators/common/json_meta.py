@@ -16,7 +16,7 @@ class JsonMetaValidator(Validator):
         self, database: Database, user_id: int, content: ContentUpload
     ) -> str | None:
         try:
-            self.schema.model_validate(content.meta)
+            self.schema.model_validate_json(content.meta)
         except ValidationError as exc:
             return str(exc)
         return None

@@ -1,6 +1,4 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -22,7 +20,6 @@ router = APIRouter(tags=["Users"], deprecated=True)
 
 @router.get(
     "/v1/user/{project}/me",
-    tags=["Users"],
     responses={401: {"model": Error}},
     response_model_exclude_none=True,
     response_model=UserSuccess,
@@ -35,8 +32,7 @@ async def get_me(project: str, user_id: int = Depends(logged_in_guard)) -> UserS
 
 
 @router.get(
-    "/v1/user/{project}/{userid}",
-    tags=["Users"],
+    "/v1/user/{project}/{user_id}",
     responses={404: {"model": Error}},
     response_model_exclude_none=True,
     response_model=UserSuccess,
@@ -46,7 +42,7 @@ async def get_me(project: str, user_id: int = Depends(logged_in_guard)) -> UserS
 @cache(expire=60)
 async def get_user(
     project: str,
-    user_id: Annotated[int, Path(alias="userid")],
+    user_id: int,
 ) -> UserSuccess:
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:user_id",
@@ -82,7 +78,7 @@ async def get_user(
     )
 
 
-@router.get("/v1/user/{project}", tags=["Users"], response_model=UserListSuccess)
+@router.get("/v1/user/{project}", response_model=UserListSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_users(
@@ -99,16 +95,13 @@ async def get_users(
 
 
 @router.get(
-    "/v2/user/{project}/{userid}",
-    tags=["Users"],
+    "/v2/user/{project}/{user_id}",
     responses={404: {"model": Error}},
     response_model=LiteUserSuccess,
 )
 @public_cache()
 @cache(expire=60)
-async def get_user_v2(
-    project: str, user_id: Annotated[int, Path(alias="userid")]
-) -> LiteUserSuccess:
+async def get_user_v2(project: str, user_id: int) -> LiteUserSuccess:
     content = await user_service.list_users(
         project, 1, 0, UserOrder.OID, False, user_id
     )

@@ -1,7 +1,3 @@
-from typing import Annotated
-
-from pydantic import BaseModel, StringConstraints
-
 from immersive_library.api import app
 from immersive_library.common import Project, default_project, projects
 from immersive_library.validators.common import (
@@ -17,14 +13,6 @@ from immersive_library.validators.mca import (
 
 # Block the default project from being uploaded to
 default_project.validators.append(ReadOnlyValidator())
-
-
-class MetaSchema(BaseModel):
-    gender: int
-    chance: float
-    profession: Annotated[str, StringConstraints(min_length=1, max_length=256)]
-    exclude: bool
-    temperature: float
 
 
 # Add MCA specific validators
@@ -54,4 +42,4 @@ projects["furniture"].validators = [
     MaxSizeValidator(262144),
 ]
 
-assert app
+__all__ = ["app"]

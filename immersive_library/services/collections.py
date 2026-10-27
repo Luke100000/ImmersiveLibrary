@@ -5,7 +5,6 @@ from immersive_library.database import database
 from immersive_library.models import Collection, CollectionCreate, CollectionUpdate
 from immersive_library.utils import content_guard
 
-
 COLLECTION_SELECT = """
     SELECT collections.oid AS collection_id, collections.user_id, users.username,
            collections.project, collections.title, collections.description,

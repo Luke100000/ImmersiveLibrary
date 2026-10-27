@@ -1,6 +1,4 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Header, Path, Query
+from fastapi import APIRouter, Header, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -121,18 +119,16 @@ async def list_content_v2(
     )
 
 
-@router.get("/v1/content/{project}/{contentid}", response_model=ContentSuccess)
+@router.get("/v1/content/{project}/{content_id}", response_model=ContentSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_content(
     project: str,
-    content_id: Annotated[int, Path(alias="contentid")],
+    content_id: int,
     parse_meta: bool = False,
     version: int = 0,
 ) -> ContentSuccess:
-    assert project
-    assert version is not None
-
+    # version is accepted for compatibility but ignored.
     record = await content_service.get_record(project, content_id, include_data=True)
     content = legacy_content.get_content_class(record, parse_meta)
 
