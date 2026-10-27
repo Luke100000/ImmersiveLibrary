@@ -35,7 +35,7 @@ async def update_precomputation(
                     {"" if content_id is None else "WHERE likes.content_id = :content_id"}
                     GROUP BY likes.content_id) liked_content ON liked_content.content_id = content.oid
 
-         LEFT JOIN (SELECT tags.content_id, GROUP_CONCAT(tag, ',') as c_tags
+         LEFT JOIN (SELECT tags.content_id, GROUP_CONCAT(tag, ',' ORDER BY rowid) as c_tags
                     FROM tags
                     {"" if content_id is None else "WHERE tags.content_id = :content_id"}
                     GROUP BY tags.content_id) tagged_content on tagged_content.content_id = content.oid

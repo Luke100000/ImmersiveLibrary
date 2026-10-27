@@ -39,7 +39,8 @@ async def list_project_tags_v3(
 async def list_content_tags(project: str, content_id: int) -> TagListSuccess:
     await content_guard(project, content_id)
     tags = await database.fetch_all(
-        "SELECT tag FROM tags WHERE content_id=:content_id", {"content_id": content_id}
+        "SELECT tag FROM tags WHERE content_id=:content_id ORDER BY rowid",
+        {"content_id": content_id},
     )
     return TagListSuccess(tags=[t[0] for t in tags])
 

@@ -3,26 +3,27 @@ LEGACY_TIMESTAMP = 0
 TABLES = {
     "users": """(
         oid INTEGER PRIMARY KEY AUTOINCREMENT,
-        google_user_id CHAR,
-        username CHAR,
-        moderator INTEGER,
-        banned INTEGER,
+        google_user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        moderator INTEGER NOT NULL DEFAULT 0 CHECK(moderator IN (0, 1)),
+        banned INTEGER NOT NULL DEFAULT 0 CHECK(banned IN (0, 1)),
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
     "user_tokens": """(
         oid INTEGER PRIMARY KEY AUTOINCREMENT,
-        token CHAR NOT NULL UNIQUE,
-        user_id INTEGER NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL REFERENCES users(oid) ON DELETE CASCADE,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
+    # Content outlives bans, so deleting its author must be explicit.
     "content": """(
         oid INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        project CHAR,
-        title CHAR,
-        version int DEFAULT 0,
-        meta TEXT,
-        data BLOB,
+        user_id INTEGER NOT NULL REFERENCES users(oid),
+        project TEXT NOT NULL,
+        title TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 0,
+        meta TEXT NOT NULL,
+        data BLOB NOT NULL,
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
         updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
@@ -44,26 +45,26 @@ TABLES = {
         PRIMARY KEY (collection_id, content_id)
     ) WITHOUT ROWID""",
     "reports": """(
-        user_id INTEGER,
-        content_id INTEGER REFERENCES content(oid) ON DELETE CASCADE,
-        reason CHAR,
+        user_id INTEGER NOT NULL REFERENCES users(oid) ON DELETE CASCADE,
+        content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
+        reason TEXT NOT NULL,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
     "likes": """(
-        user_id INTEGER,
-        content_id INTEGER REFERENCES content(oid) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(oid) ON DELETE CASCADE,
+        content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
     "tags": """(
-        content_id INTEGER REFERENCES content(oid) ON DELETE CASCADE,
-        tag CHAR,
+        content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
+        tag TEXT NOT NULL,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
     "precomputation": """(
         content_id INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
-        tags CHAR,
-        likes INTEGER,
-        reports INTEGER
+        tags TEXT NOT NULL,
+        likes INTEGER NOT NULL,
+        reports INTEGER NOT NULL
     ) WITHOUT ROWID""",
 }
 
