@@ -34,7 +34,10 @@ function createMultiViewRenderer(canvas, animate) {
     function updateSize() {
         const isFullPage = canvas.parentElement === document.body || canvas.parentElement === document.documentElement;
         const width = isFullPage ? document.documentElement.clientWidth : canvas.clientWidth;
-        const height = isFullPage ? document.documentElement.scrollHeight : canvas.clientHeight;
+        const height = isFullPage ? window.innerHeight : canvas.clientHeight;
+        if (isFullPage) {
+            canvas.style.transform = `translate(${window.scrollX}px, ${window.scrollY}px)`;
+        }
         const size = renderer.getSize(new THREE.Vector2());
         if (size.width !== width || size.height !== height) {
             if (isFullPage) {
