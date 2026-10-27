@@ -1,4 +1,5 @@
 import hashlib
+import json
 from typing import Any
 
 from databases import Database
@@ -207,9 +208,11 @@ async def set_tags(database: Database, content_id: int, tags: list[str]) -> None
     """
     Replaces the tags for a given content
     """
+    # Keep unchanged tags so their creation times survive content updates.
     await database.execute(
-        "DELETE FROM tags WHERE content_id=:content_id",
-        {"content_id": content_id},
+        "DELETE FROM tags WHERE content_id=:content_id "
+        "AND tag NOT IN (SELECT value FROM json_each(:tags))",
+        {"content_id": content_id, "tags": json.dumps(tags)},
     )
 
     for tag in tags:

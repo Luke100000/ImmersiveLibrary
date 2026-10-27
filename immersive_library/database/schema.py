@@ -2,28 +2,15 @@ from databases import Database
 
 from immersive_library.database.migrations import run_migrations
 from immersive_library.database.migrations.snake_case import migrate_snake_case
+from immersive_library.database.tables import create_table_sql
 
 
 async def create_user_tables(database: Database) -> None:
     async with database.connection() as connection:
         await connection.execute("BEGIN IMMEDIATE")
         try:
-            await connection.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    oid INTEGER PRIMARY KEY AUTOINCREMENT,
-                    google_user_id CHAR,
-                    username CHAR,
-                    moderator INTEGER,
-                    banned INTEGER
-                )
-            """)
-            await connection.execute("""
-                CREATE TABLE IF NOT EXISTS user_tokens (
-                    oid INTEGER PRIMARY KEY AUTOINCREMENT,
-                    token CHAR NOT NULL UNIQUE,
-                    user_id INTEGER NOT NULL
-                )
-            """)
+            await connection.execute(create_table_sql("users"))
+            await connection.execute(create_table_sql("user_tokens"))
 
             await connection.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS users_google_user_id on users (google_user_id)"
@@ -44,17 +31,7 @@ async def initialize_database(database: Database) -> None:
     await create_user_tables(database)
 
     # Content
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS content (
-            oid INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            project CHAR,
-            title CHAR,
-            version int DEFAULT 0,
-            meta TEXT,
-            data BLOB
-        )
-    """)
+    await database.execute(create_table_sql("content"))
     await database.execute(
         "CREATE INDEX IF NOT EXISTS content_user_id on content (user_id)"
     )
@@ -68,41 +45,18 @@ async def initialize_database(database: Database) -> None:
         "CREATE INDEX IF NOT EXISTS content_project_user_id ON content (project, user_id)"
     )
 
-    # Collections reference shared assets without changing their ownership.
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS collections (
-            oid INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL REFERENCES users(oid) ON DELETE CASCADE,
-            project TEXT NOT NULL,
-            title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 100),
-            description TEXT NOT NULL DEFAULT '' CHECK(length(description) <= 2000),
-            is_public INTEGER NOT NULL DEFAULT 0 CHECK(is_public IN (0, 1)),
-            created_at INTEGER NOT NULL DEFAULT (unixepoch())
-        )
-    """)
+    # Collections
+    await database.execute(create_table_sql("collections"))
     await database.execute(
         "CREATE INDEX IF NOT EXISTS collections_user_id_project ON collections (user_id, project)"
     )
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS collection_items (
-            collection_id INTEGER NOT NULL REFERENCES collections(oid) ON DELETE CASCADE,
-            content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
-            added_at INTEGER NOT NULL DEFAULT (unixepoch()),
-            PRIMARY KEY (collection_id, content_id)
-        ) WITHOUT ROWID
-    """)
+    await database.execute(create_table_sql("collection_items"))
     await database.execute(
         "CREATE INDEX IF NOT EXISTS collection_items_content_id ON collection_items (content_id)"
     )
 
     # Reports
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS reports (
-            user_id INTEGER,
-            content_id INTEGER REFERENCES content(oid) ON DELETE CASCADE,
-            reason CHAR
-        )
-    """)
+    await database.execute(create_table_sql("reports"))
     await database.execute(
         "CREATE INDEX IF NOT EXISTS reports_user_id on reports (user_id)"
     )
@@ -111,9 +65,7 @@ async def initialize_database(database: Database) -> None:
     )
 
     # Likes
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS likes (user_id INTEGER, content_id INTEGER REFERENCES content(oid) ON DELETE CASCADE)"
-    )
+    await database.execute(create_table_sql("likes"))
     await database.execute(
         "CREATE INDEX IF NOT EXISTS likes_user_id on likes (user_id)"
     )
@@ -122,21 +74,12 @@ async def initialize_database(database: Database) -> None:
     )
 
     # Tags
-    await database.execute(
-        "CREATE TABLE IF NOT EXISTS tags (content_id INTEGER REFERENCES content(oid) ON DELETE CASCADE, tag CHAR)"
-    )
+    await database.execute(create_table_sql("tags"))
     await database.execute(
         "CREATE INDEX IF NOT EXISTS tags_content_id on tags (content_id)"
     )
 
     # Precomputation
-    await database.execute("""
-        CREATE TABLE IF NOT EXISTS precomputation (
-            content_id INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
-            tags CHAR,
-            likes INTEGER,
-            reports INTEGER
-        ) WITHOUT ROWID
-    """)
+    await database.execute(create_table_sql("precomputation"))
 
     await run_migrations(database)

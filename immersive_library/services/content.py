@@ -129,7 +129,7 @@ async def list_records(
         ) + int(time.time() / 86400)
         values["like_norm"] = 100
     elif order == ContentOrder.ADDED:
-        query += f"\n ORDER BY collection_membership.added_at {direction}"
+        query += f"\n ORDER BY collection_membership.created_at {direction}"
     else:
         sort_column = "c.oid" if order == ContentOrder.DATE else order.name
         query += f"\n ORDER BY {sort_column} {direction}"
@@ -255,7 +255,8 @@ async def update_content(
     async with database.transaction():
         updated = await database.fetch_val(
             """
-            UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1
+            UPDATE content SET title=:title, meta=:meta, data=:data, version=version+1,
+                updated_at=unixepoch()
             WHERE project=:project AND oid=:content_id RETURNING oid
             """,
             {

@@ -118,7 +118,8 @@ async def update_collection(
             UPDATE collections
             SET title=COALESCE(:title, title),
                 description=COALESCE(:description, description),
-                is_public=COALESCE(:is_public, is_public)
+                is_public=COALESCE(:is_public, is_public),
+                updated_at=unixepoch()
             WHERE oid=:collection_id AND project=:project AND user_id=:user_id
             """,
             {
