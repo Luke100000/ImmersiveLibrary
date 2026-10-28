@@ -1,4 +1,4 @@
-{% from "components/macros.jinja" import icon, action_button %}
+{% from "components/macros.jinja" import icon, action_button, action_link %}
 <div class="button-row content-actions" role="group" aria-label="Content actions"
      x-show="showActions" @click.stop @keydown.stop>
     <a class="btn" href="/" :href="backUrl" x-show="isDetail">{{ icon("back") }}<span class="btn-label">Back</span></a>
@@ -9,6 +9,7 @@
         <span class="btn-label" x-text="content.is_liked ? 'Unlike' : 'Like'">Like</span>
     </button>
     {{ action_button("collect", "Collections", "editCollections()", ':disabled="pending || loading"') }}
+    {{ action_link("similar", "Similar", "similarUrl()") }}
     {{ action_button("report", "Report", "report()", ':disabled="pending || loading" :class="{active: content.reports.length > 0}"') }}
     {{ action_button("delete", "Delete", "deleteContent()", 'x-show="canDelete" :disabled="pending || loading" data-danger') }}
 </div>

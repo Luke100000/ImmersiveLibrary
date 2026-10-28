@@ -286,7 +286,10 @@ document.addEventListener('alpine:init', () => {
             itemsKey: 'contents',
             idName: 'content_id',
             itemUrl: (id) => sitePath(project, id),
-            settings: {track: 'all', sort: 'recommendations', descending: 'true', limit: '8', search: ''},
+            settings: {
+                track: 'all', sort: 'recommendations', descending: 'true', limit: '8', search: '',
+                similar_to: '', similar_to_collection: '',
+            },
             query() {
                 return {
                     ...filters,
@@ -295,10 +298,44 @@ document.addEventListener('alpine:init', () => {
                     order: this.sort,
                     descending: this.descending,
                     q: this.search.trim(),
+                    similar_to: this.similar_to,
+                    similar_to_collection: this.similar_to_collection,
                     include_data: true,
                 };
             },
         }),
+
+        similarSource: '',
+
+        similarSourceUrl() {
+            return this.similar_to
+                ? sitePath(project, this.similar_to)
+                : sitePath(project, 'collections', this.similar_to_collection);
+        },
+
+        // Shows the title of what the list is similar to, falling back to a generic label.
+        async loadSimilarSource() {
+            const contentId = this.similar_to;
+            const collectionId = this.similar_to_collection;
+            this.similarSource = contentId ? 'this content' : 'this collection';
+            if (!contentId && !collectionId) return;
+            try {
+                const data = contentId
+                    ? await fetchJson(sitePath('v3', 'content', project, contentId))
+                    : await fetchJson(sitePath('v1', 'collection', project, collectionId));
+                if (contentId === this.similar_to && collectionId === this.similar_to_collection) {
+                    this.similarSource = (data.content ?? data.collection).title;
+                }
+            } catch {
+                // The generic label stays.
+            }
+        },
+
+        clearSimilar() {
+            this.similar_to = '';
+            this.similar_to_collection = '';
+            this.changeSetting();
+        },
 
         likeChanged({contentId, liked}) {
             if (this.track === 'likes' && !liked) {
@@ -367,6 +404,10 @@ document.addEventListener('alpine:init', () => {
             openEdit() {
                 const {title, description, is_public} = this.collection;
                 this.openForm({title, description, is_public});
+            },
+
+            similarUrl() {
+                return `${sitePath(project)}?${new URLSearchParams({similar_to_collection: collectionId})}`;
             },
 
             async deleteCollection() {
@@ -647,6 +688,10 @@ document.addEventListener('alpine:init', () => {
 
             searchUrl(search) {
                 return `${sitePath(project)}?${new URLSearchParams({search})}`;
+            },
+
+            similarUrl() {
+                return `${sitePath(project)}?${new URLSearchParams({similar_to: contentId})}`;
             },
 
             userUrl() {

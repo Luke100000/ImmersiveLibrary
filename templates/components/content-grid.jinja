@@ -22,6 +22,12 @@
         {{ search_control("Search: @user, #tag, ~title, -exclude") }}
     </div>
 
+    <div class="controls similar-notice" x-show="similar_to || similar_to_collection" x-cloak
+         x-effect="loadSimilarSource()">
+        <span>Similar to <a :href="similarSourceUrl()" x-text="similarSource">this</a></span>
+        <button class="btn" type="button" @click="clearSimilar()">Clear</button>
+    </div>
+
     <div class="grid content-grid">
         {% include "components/list-status.jinja" %}
         <template x-for="item in items" :key="item.content_id">

@@ -1,5 +1,5 @@
 {% extends "library/base.jinja" %}
-{% from "components/macros.jinja" import action_button %}
+{% from "components/macros.jinja" import action_button, action_link %}
 
 {% block title %}Collection – {{ project_info.title or project }}{% endblock %}
 
@@ -13,9 +13,10 @@
                 <div class="detail-heading">
                     <h1 x-text="collection.title"></h1>
                     <span class="badge" x-show="!collection.is_public">Private</span>
-                    <div class="button-row detail-actions" x-show="collection.is_owner">
-                        {{ action_button("edit", "Edit", "openEdit()") }}
-                        {{ action_button("delete", "Delete", "deleteCollection()", "data-danger") }}
+                    <div class="button-row detail-actions">
+                        {{ action_link("similar", "Find similar", "similarUrl()") }}
+                        {{ action_button("edit", "Edit", "openEdit()", 'x-show="collection.is_owner"') }}
+                        {{ action_button("delete", "Delete", "deleteCollection()", 'x-show="collection.is_owner" data-danger') }}
                     </div>
                 </div>
                 <div class="detail-meta">
