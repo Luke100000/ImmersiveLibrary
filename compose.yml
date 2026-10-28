@@ -11,6 +11,15 @@ services:
     env_file:
       - .env
 
+  worker:
+    build: .
+    image: immersive-library:latest
+    command: python -m immersive_library.worker
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+
   redis:
     image: redis:latest
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]

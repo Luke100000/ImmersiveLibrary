@@ -71,5 +71,5 @@ WORKDIR /app
 # Switch to non-root user
 USER app
 
-# Prepare the database, start daily backups, and run FastAPI with configurable workers
-CMD python -m immersive_library.database.prepare && { python -m immersive_library.database.backup & } && exec fastapi run --host 0.0.0.0 --workers $FASTAPI_WORKERS /app/immersive_library/main.py
+# Prepare the database and run FastAPI with configurable workers
+CMD python -m immersive_library.database.prepare && exec fastapi run --host 0.0.0.0 --workers $FASTAPI_WORKERS /app/immersive_library/main.py

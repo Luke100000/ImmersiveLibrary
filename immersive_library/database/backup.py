@@ -13,7 +13,6 @@ DATABASE_PATH = Path(
 BACKUP_DIRECTORY = DATABASE_PATH.parent / "backup"
 BACKUP_PREFIX = "database-"
 KEEP_BACKUPS = 5
-CHECK_INTERVAL = 3600
 
 
 def create_backup(target: Path) -> None:
@@ -51,23 +50,12 @@ def prune_backups() -> None:
         logger.info(f"Removed old backup {backup.name}")
 
 
-def run_daily_backups() -> None:
-    # Checking hourly instead of sleeping a day survives restarts and retries failures.
-    while True:
-        # ISO dates sort chronologically, which pruning relies on.
-        target = BACKUP_DIRECTORY / f"{BACKUP_PREFIX}{date.today().isoformat()}.db"
-        try:
-            if not target.exists():
-                start = time.monotonic()
-                create_backup(target)
-                logger.info(
-                    f"Created backup {target.name} in {time.monotonic() - start:.1f} s"
-                )
-                prune_backups()
-        except Exception:  # noqa: BLE001 - the loop must survive any failure
-            logger.opt(exception=True).error("Backup failed")
-        time.sleep(CHECK_INTERVAL)
-
-
-if __name__ == "__main__":
-    run_daily_backups()
+def create_daily_backup() -> None:
+    # ISO dates sort chronologically, which pruning relies on.
+    target = BACKUP_DIRECTORY / f"{BACKUP_PREFIX}{date.today().isoformat()}.db"
+    if target.exists():
+        return
+    start = time.monotonic()
+    create_backup(target)
+    logger.info(f"Created backup {target.name} in {time.monotonic() - start:.1f} s")
+    prune_backups()

@@ -17,7 +17,11 @@ The server is implemented in python using FastAPI.
 ```sh
 python -m immersive_library.database.prepare
 uvicorn --reload immersive_library.main:app
+python -m immersive_library.worker
 ```
+
+The worker runs backups, ranking refreshes and recommendation updates in the
+background.
 
 ```sh
 docker compose up
