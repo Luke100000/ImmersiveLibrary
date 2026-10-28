@@ -69,6 +69,15 @@ TABLES = {
         -- Rank by hot, popular and all-time likes, refreshed hourly.
         quality_rank INTEGER
     ) WITHOUT ROWID""",
+    "content_descriptions": """(
+        content_id INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
+        content_version INTEGER NOT NULL,
+        input_hash TEXT NOT NULL,
+        model TEXT NOT NULL,
+        description TEXT,
+        error TEXT,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    ) WITHOUT ROWID""",
     "content_neighbors": """(
         content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
         neighbor_id INTEGER NOT NULL,

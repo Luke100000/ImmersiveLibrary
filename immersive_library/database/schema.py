@@ -68,6 +68,27 @@ SEARCH_TRIGGERS = {
 }
 
 
+# A description is removed as soon as its asset changes, so stale text is never used.
+DESCRIPTION_TRIGGERS = {
+    "content_descriptions_content_changed": """
+        AFTER UPDATE OF project, title, meta, data, version ON content BEGIN
+            DELETE FROM content_descriptions WHERE content_id=NEW.oid;
+        END""",
+    "content_descriptions_tag_insert": """
+        AFTER INSERT ON tags BEGIN
+            DELETE FROM content_descriptions WHERE content_id IN (NEW.content_id);
+        END""",
+    "content_descriptions_tag_delete": """
+        AFTER DELETE ON tags BEGIN
+            DELETE FROM content_descriptions WHERE content_id IN (OLD.content_id);
+        END""",
+    "content_descriptions_tag_update": """
+        AFTER UPDATE ON tags BEGIN
+            DELETE FROM content_descriptions WHERE content_id IN (OLD.content_id, NEW.content_id);
+        END""",
+}
+
+
 async def initialize_search(database: Database) -> None:
     await database.execute(SEARCH_TABLE)
     for name, trigger in SEARCH_TRIGGERS.items():
@@ -94,3 +115,6 @@ async def initialize_database(database: Database) -> None:
         await database.execute(index)
 
     await initialize_search(database)
+
+    for name, trigger in DESCRIPTION_TRIGGERS.items():
+        await database.execute(f"CREATE TRIGGER IF NOT EXISTS {name} {trigger}")

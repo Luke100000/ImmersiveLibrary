@@ -14,11 +14,15 @@ class Project:
         title: str = "",
         description: str = "",
         report_reasons: dict[str, str] | None = None,
+        description_context: str | None = None,
     ) -> None:
         self.title = title
         self.description = description
         # Maps accepted report reasons to the labels shown in the report dialog.
         self.report_reasons = report_reasons or {"DEFAULT": "Inappropriate or harmful"}
+        # Explains the project's assets and previews to the description model.
+        # Assets are only described when it is set.
+        self.description_context = description_context
         self.validators = []
 
     async def validate(self, callback: str, *args) -> None:

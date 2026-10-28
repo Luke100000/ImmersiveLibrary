@@ -2,6 +2,7 @@ import os
 import sqlite3
 
 from databases import Database
+from dotenv import load_dotenv
 
 
 class Connection(sqlite3.Connection):
@@ -16,6 +17,8 @@ class Connection(sqlite3.Connection):
         self.execute("pragma busy_timeout = 30000")
         self.execute("pragma foreign_keys = ON")
 
+
+load_dotenv()
 
 database = Database(
     os.getenv("DATABASE_URL", "sqlite:///data/database.db"), factory=Connection
