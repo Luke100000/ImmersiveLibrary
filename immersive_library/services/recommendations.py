@@ -5,8 +5,8 @@ from databases import Database
 from immersive_library.database import database
 from immersive_library.utils import DAY, RECENT_DAYS
 
-# A user is described by this many of their most recent likes.
-USER_LIKE_LIMIT = 200
+# Users and collections are described by this many of their most recent items.
+RECENT_ITEM_LIMIT = 200
 
 # A collection counts like this many users liking all its members.
 COLLECTION_WEIGHT = 3
@@ -60,7 +60,7 @@ PREFERENCE_SEEDS = f"""
             SELECT likes.content_id, 1.0 AS weight FROM likes
             JOIN content ON content.oid = likes.content_id AND content.project = :project
             WHERE likes.user_id = :preference_user_id
-            ORDER BY likes.created_at DESC LIMIT {USER_LIKE_LIMIT}
+            ORDER BY likes.created_at DESC LIMIT {RECENT_ITEM_LIMIT}
         )
         UNION ALL
         SELECT * FROM (
@@ -68,14 +68,19 @@ PREFERENCE_SEEDS = f"""
             JOIN collections ON collections.oid = items.collection_id
             WHERE collections.user_id = :preference_user_id
                 AND collections.project = :project
-            ORDER BY items.created_at DESC LIMIT {USER_LIKE_LIMIT}
+            ORDER BY items.created_at DESC LIMIT {RECENT_ITEM_LIMIT}
         )
     ) GROUP BY content_id
 """
 
 
-def neighbor_scores(name: str, seeds: str) -> str:
-    """CTEs scoring content by its summed neighbor scores to the seeds, excluding them."""
+def neighbor_scores(name: str, seeds: str, exclude_seeds: bool) -> str:
+    """CTEs scoring content by its summed neighbor scores to the seeds."""
+    exclusion = (
+        f"WHERE neighbors.neighbor_id NOT IN (SELECT content_id FROM {name}_seeds)"
+        if exclude_seeds
+        else ""
+    )
     return f"""
         {name}_seeds AS ({seeds}),
         {name} AS (
@@ -84,7 +89,7 @@ def neighbor_scores(name: str, seeds: str) -> str:
             FROM {name}_seeds
             JOIN content_neighbors AS neighbors
                 ON neighbors.content_id = {name}_seeds.content_id
-            WHERE neighbors.neighbor_id NOT IN (SELECT content_id FROM {name}_seeds)
+            {exclusion}
             GROUP BY neighbors.neighbor_id
         )"""
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 # bm25 weights of the title, tags and username columns.
 KEYWORD_COLUMNS = "4.0, 3.0, 2.0"
 
-RANKING_JOINS = "\n LEFT JOIN keyword_rank ON keyword_rank.content_id = c.oid"
+RANKING_JOINS = "\n JOIN keyword_rank ON keyword_rank.content_id = c.oid"
 
 
 @dataclass
@@ -44,18 +44,19 @@ def plan_search(q: str | None, rank: bool) -> SearchPlan:
                     WHERE tags.content_id = c.oid AND tags.tag = :{parameter}
                 )"""
             plan.values[parameter] = search_term[1:].strip()
-        elif search_term.startswith("~"):
-            condition = f"title LIKE :{parameter}"
-            plan.values[parameter] = f"%{search_term[1:].strip()}%"
         elif term_words := words(search_term):
             condition = keyword_condition(parameter)
-            plan.values[parameter] = prefix_query(term_words)
+            query = prefix_query(term_words)
+            if search_term.startswith("~"):
+                query = f"title : ({query})"
+            plan.values[parameter] = query
         else:
             condition = "0"
 
         plan.conditions.append(f"{'NOT ' if negated else ''}{condition}")
 
-    # Every positive term ranks, including users and tags.
+    # Every positive term ranks. Each contributes words that every result contains,
+    # which the inner ranking join relies on.
     ranking_words = [
         word for term in terms if not term.startswith("-") for word in words(term)
     ]

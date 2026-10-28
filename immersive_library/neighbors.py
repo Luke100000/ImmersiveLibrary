@@ -11,7 +11,7 @@ from scipy import sparse
 from immersive_library.database import Connection, database
 from immersive_library.services.recommendations import (
     COLLECTION_WEIGHT,
-    USER_LIKE_LIMIT,
+    RECENT_ITEM_LIMIT,
 )
 
 # Damps pairs with few shared users: one counts at 1/6 strength, five at half.
@@ -27,12 +27,23 @@ OWNERSHIP = f"""
             PARTITION BY likes.user_id ORDER BY likes.created_at DESC
         ) AS position
         FROM likes JOIN content ON content.oid = likes.content_id AND content.project = :project
-    ) WHERE position <= {USER_LIKE_LIMIT}
+    ) WHERE position <= {RECENT_ITEM_LIMIT}
     UNION ALL
-    SELECT 'collection ' || collection_id, content_id, {COLLECTION_WEIGHT}.0
-    FROM collection_items
-    JOIN collections ON collections.oid = collection_items.collection_id
-        AND collections.project = :project
+    -- A user's collections weight grows only logarithmically
+    SELECT 'collection ' || collection_id, content_id,
+           {COLLECTION_WEIGHT} * ln(owned + 5) / ln(6) / owned
+    FROM (
+        SELECT items.collection_id, items.content_id, ROW_NUMBER() OVER (
+            PARTITION BY items.collection_id ORDER BY items.created_at DESC
+        ) AS position, (
+            SELECT count(*) FROM collections AS owned_collections
+            WHERE owned_collections.user_id = collections.user_id
+                AND owned_collections.project = :project
+        ) AS owned
+        FROM collection_items AS items
+        JOIN collections ON collections.oid = items.collection_id
+            AND collections.project = :project
+    ) WHERE position <= {RECENT_ITEM_LIMIT}
 """
 
 
