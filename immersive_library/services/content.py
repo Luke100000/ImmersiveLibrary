@@ -62,7 +62,6 @@ async def list_records(
         values["viewer_id"] = viewer_id
 
     ctes = []
-    match_ranks = []
     if personalized:
         ctes.append(
             neighbor_scores("preference", PREFERENCE_SEEDS, exclude_seeds=False)
@@ -73,12 +72,10 @@ async def list_records(
     if search.ranking is not None:
         ctes.append(search.ranking)
         query += RANKING_JOINS
-        match_ranks.append("keyword_rank.rank")
     if similar:
         ctes.append(neighbor_scores("similar", SIMILAR_SEEDS, exclude_seeds=True))
         ctes.append(SIMILAR_RANK)
         query += "\n JOIN similar_rank ON similar_rank.content_id = c.oid"
-        match_ranks.append("similar_rank.rank")
         values["similar_to"] = similar_to
         values["similar_to_collection"] = similar_to_collection
         values["similar_viewer_id"] = viewer_id
@@ -137,7 +134,7 @@ async def list_records(
         preference = None
         if personalized:
             preference = await preference_strength(project, recommendation_user_id)
-        score = recommendation_score(match_ranks, preference)
+        score = recommendation_score(search.ranking is not None, similar, preference)
         query += f"\n ORDER BY {score} {direction}"
         values["seed"] = (
             0 if recommendation_user_id is None else recommendation_user_id

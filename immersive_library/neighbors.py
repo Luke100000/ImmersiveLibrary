@@ -16,6 +16,11 @@ from immersive_library.services.recommendations import (
 
 # Damps pairs with few shared users: one counts at 1/6 strength, five at half.
 DAMPING = 5
+
+# Pairs with less evidence are mostly chance overlaps of users who like a lot, so
+# they are not kept.
+MIN_SHARED = 3
+MIN_SCORE = 0.08
 NEIGHBORS = 50
 
 # Assets per product chunk and write transaction, keeping memory and lock times low.
@@ -73,12 +78,14 @@ def project_neighbors(
     for start in range(0, len(content_ids), CHUNK_SIZE):
         overlap = (transposed[start : start + CHUNK_SIZE] @ matrix).tocoo()
         row, column, shared = overlap.row, overlap.col, overlap.data
-        others = row + start != column
-        row, column, shared = row[others], column[others], shared[others]
+        kept = (row + start != column) & (shared >= MIN_SHARED)
+        row, column, shared = row[kept], column[kept], shared[kept]
 
         # Cosine similarity, damped for few shared owners.
         score = shared / np.sqrt(sizes[row + start] * sizes[column])
         score *= shared / (shared + DAMPING)
+        strong = score >= MIN_SCORE
+        row, column, score = row[strong], column[strong], score[strong]
 
         order = np.lexsort((-score, row))
         row, column, score = row[order], column[order], score[order]

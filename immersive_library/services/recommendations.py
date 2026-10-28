@@ -11,8 +11,8 @@ RECENT_ITEM_LIMIT = 200
 # A collection counts like this many users liking all its members.
 COLLECTION_WEIGHT = 3
 
-# Below this many seeds, the personal share shrinks proportionally.
-FULL_PREFERENCE_SEEDS = 5
+# Trust in a preference grows as seeds / (seeds + this): half at this many seeds.
+PREFERENCE_PRIOR = 5
 
 HOT_SCORE = f"""precomputation.recent_likes
     / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS})"""
@@ -36,6 +36,7 @@ class Weights:
 
 BROWSE_WEIGHTS = Weights(match=0.0, quality=1.0, personal=1.0, exploration=0.005)
 SEARCH_WEIGHTS = Weights(match=2.0, quality=1.0, personal=0.5, exploration=0.01)
+SIMILAR_WEIGHTS = Weights(match=2.0, quality=0.5, personal=0.5, exploration=0.01)
 
 # Added to every rank so that agreeing signals outweigh a single top rank.
 RANK_SMOOTHING = 10
@@ -147,21 +148,28 @@ async def refresh_quality_ranks(database: Database) -> None:
 
 
 async def preference_strength(project: str, user_id: int) -> float:
-    """How much the user's likes say about them, from 0 to 1."""
+    """How much the user's likes say about them, approaching 1."""
     seeds = await database.fetch_val(
         f"SELECT count(*) FROM ({PREFERENCE_SEEDS})",
         {"project": project, "preference_user_id": user_id},
     )
-    return min(seeds, FULL_PREFERENCE_SEEDS) / FULL_PREFERENCE_SEEDS
+    return seeds / (seeds + PREFERENCE_PRIOR)
 
 
-def recommendation_score(match_ranks: list[str], preference: float | None) -> str:
+def recommendation_score(keyword: bool, similar: bool, preference: float | None) -> str:
     """
     Adds up the evidence that an asset suits the request, each signal as
     weight / (rank + smoothing), plus deterministic daily randomness that explores
     new uploads most. With little evidence, exploration decides.
     """
-    weights = SEARCH_WEIGHTS if match_ranks else BROWSE_WEIGHTS
+    match_ranks = []
+    weights = BROWSE_WEIGHTS
+    if keyword:
+        match_ranks.append("keyword_rank.rank")
+        weights = SEARCH_WEIGHTS
+    if similar:
+        match_ranks.append("similar_rank.rank")
+        weights = SIMILAR_WEIGHTS
     quality_rank = "precomputation.quality_rank"
     personal_rank = "preference_rank.rank"
     if match_ranks:
