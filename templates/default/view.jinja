@@ -28,6 +28,9 @@
 {% block content %}
 <main class="page-centered">
     <div class="card view-box">
+        <span class="description-hint" tabindex="0" aria-label="Generated description">?
+            <span class="description-tooltip" role="tooltip">{{ description or "No description generated yet." }}</span>
+        </span>
         <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
         <div class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ content.model_dump() | tojson }}, "detail")'>
             {% set search_links = true %}

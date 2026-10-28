@@ -11,6 +11,7 @@ from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import projects, templates
 from immersive_library.enums import UserOrder
 from immersive_library.services import content as content_service
+from immersive_library.services import descriptions as description_service
 from immersive_library.services import statistics as statistics_service
 from immersive_library.services import users as user_service
 from immersive_library.utils import get_lite_user_class
@@ -184,4 +185,7 @@ async def get_content_front(request: Request, project: str, content_id: int):
         get_template(project, "view"),
         section="content",
         content=content,
+        description=await description_service.get_description(
+            content_id, content.version
+        ),
     )

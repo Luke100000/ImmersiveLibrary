@@ -218,3 +218,13 @@ async def describe_asset(
 
     if description:
         logger.info("Described {}/{}", record["project"], record["content_id"])
+
+
+async def get_description(content_id: int, version: int) -> str | None:
+    return await database.fetch_val(
+        """
+        SELECT description FROM content_descriptions
+        WHERE content_id=:id AND content_version=:version AND error IS NULL
+    """,
+        {"id": content_id, "version": version},
+    )

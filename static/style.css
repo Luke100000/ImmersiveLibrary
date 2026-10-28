@@ -502,9 +502,53 @@ a:hover {
 }
 
 .view-box {
+    position: relative;
     width: 500px;
     max-width: 100%;
     box-sizing: border-box;
+}
+
+/* The generated search description, mostly for debugging. */
+.description-hint {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border-highlight);
+    border-radius: 50%;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: help;
+}
+
+.description-hint:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.description-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: min(320px, 80vw);
+    padding: 10px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    background: var(--dialog-bg);
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.description-hint:hover .description-tooltip,
+.description-hint:focus .description-tooltip {
+    display: block;
 }
 
 #render-container {
