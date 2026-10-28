@@ -1,0 +1,74 @@
+import re
+from dataclasses import dataclass, field
+
+# bm25 weights of the title, tags and username columns.
+KEYWORD_COLUMNS = "4.0, 3.0, 2.0"
+
+RANKING_JOINS = "\n LEFT JOIN keyword_rank ON keyword_rank.content_id = c.oid"
+
+# bm25 scores are negative, better matches lower.
+RANKING_SCORE = "-COALESCE(keyword_rank.score, 0)"
+
+
+@dataclass
+class SearchPlan:
+    conditions: list[str] = field(default_factory=list)
+    values: dict[str, str] = field(default_factory=dict)
+    ranking: str | None = None
+
+
+def words(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
+
+
+def prefix_query(words: list[str], operator: str = " ") -> str:
+    """An FTS5 query matching the words as word prefixes."""
+    return operator.join(f'"{word}"*' for word in words)
+
+
+def keyword_condition(parameter: str) -> str:
+    return f"c.oid IN (SELECT rowid FROM content_search WHERE content_search MATCH :{parameter})"
+
+
+def plan_search(q: str | None, rank: bool) -> SearchPlan:
+    plan = SearchPlan()
+    terms = [term.strip() for term in (q or "").split(",") if term.strip()]
+    for index, term in enumerate(terms):
+        parameter = f"term_{index}"
+        negated = term.startswith("-")
+        search_term = term[1:].strip() if negated else term
+
+        if search_term.startswith("@"):
+            condition = f"username = :{parameter}"
+            plan.values[parameter] = search_term[1:].strip()
+        elif search_term.startswith("#"):
+            condition = f"""EXISTS (
+                    SELECT 1 FROM tags
+                    WHERE tags.content_id = c.oid AND tags.tag = :{parameter}
+                )"""
+            plan.values[parameter] = search_term[1:].strip()
+        elif search_term.startswith("~"):
+            condition = f"title LIKE :{parameter}"
+            plan.values[parameter] = f"%{search_term[1:].strip()}%"
+        elif term_words := words(search_term):
+            condition = keyword_condition(parameter)
+            plan.values[parameter] = prefix_query(term_words)
+        else:
+            condition = "0"
+
+        plan.conditions.append(f"{'NOT ' if negated else ''}{condition}")
+
+    # Every positive term ranks, including users and tags.
+    ranking_words = [
+        word for term in terms if not term.startswith("-") for word in words(term)
+    ]
+    if rank and ranking_words:
+        plan.values["ranking_keywords"] = prefix_query(ranking_words, " OR ")
+        plan.ranking = f"""
+            WITH keyword_rank AS (
+                SELECT rowid AS content_id, bm25(content_search, {KEYWORD_COLUMNS}) AS score
+                FROM content_search WHERE content_search MATCH :ranking_keywords
+            )
+        """
+
+    return plan

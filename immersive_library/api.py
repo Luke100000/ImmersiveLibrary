@@ -1,5 +1,6 @@
+import asyncio
 import os
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import partial
 from typing import Any
 
@@ -19,6 +20,7 @@ from immersive_library.database import database
 from immersive_library.database.schema import initialize_database
 from immersive_library.rendering import BrowserRenderer
 from immersive_library.routers import router
+from immersive_library.search_worker import run as maintain_search
 
 description = """
 A simple and generic user asset library.
@@ -91,13 +93,21 @@ async def lifespan(_app: FastAPI):
 
     renderer = BrowserRenderer()
     _app.state.renderer = renderer
+
+    search_task = asyncio.create_task(maintain_search(), name="search")
+
     try:
         yield
     finally:
         try:
-            await renderer.close()
+            search_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await search_task
         finally:
-            await database.disconnect()
+            try:
+                await renderer.close()
+            finally:
+                await database.disconnect()
 
 
 app = FastAPI(

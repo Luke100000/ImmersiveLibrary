@@ -10,6 +10,8 @@ from immersive_library.database import database as app_database
 from immersive_library.models import LiteUser
 
 MAX_USER_TOKENS = 10
+DAY = 86400
+RECENT_DAYS = 14
 
 
 async def update_precomputation(
@@ -23,14 +25,16 @@ async def update_precomputation(
     await database.execute(
         f"""
         INSERT OR REPLACE
-        INTO precomputation (content_id, tags, likes, reports)
+        INTO precomputation (content_id, tags, likes, reports, recent_likes)
         SELECT content.oid,
                COALESCE(tagged_content.c_tags, '') as tags,
                COALESCE(liked_content.c_likes, 0) as likes,
-               COALESCE(reported_c.reports, 0) as reports
+               COALESCE(reported_c.reports, 0) as reports,
+               COALESCE(liked_content.c_recent_likes, 0) as recent_likes
         FROM content
 
-         LEFT JOIN (SELECT likes.content_id, COUNT(*) as c_likes
+         LEFT JOIN (SELECT likes.content_id, COUNT(*) as c_likes,
+                           SUM(likes.created_at > unixepoch() - {RECENT_DAYS * DAY}) as c_recent_likes
                     FROM likes
                     {"" if content_id is None else "WHERE likes.content_id = :content_id"}
                     GROUP BY likes.content_id) liked_content ON liked_content.content_id = content.oid
@@ -49,6 +53,21 @@ async def update_precomputation(
         {"" if content_id is None else "WHERE content.oid = :content_id"}
     """,
         {} if content_id is None else {"content_id": content_id},
+    )
+
+
+async def refresh_recent_likes(database: Database) -> None:
+    await database.execute(
+        f"""
+        UPDATE precomputation SET recent_likes=(
+            SELECT COUNT(*) FROM likes
+            WHERE content_id=precomputation.content_id
+              AND created_at > unixepoch() - {RECENT_DAYS * DAY}
+        )
+        WHERE recent_likes > 0 OR content_id IN (
+            SELECT content_id FROM likes WHERE created_at > unixepoch() - {RECENT_DAYS * DAY}
+        )
+        """
     )
 
 

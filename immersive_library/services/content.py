@@ -10,7 +10,10 @@ from immersive_library.common import get_project
 from immersive_library.database import database
 from immersive_library.enums import ContentOrder
 from immersive_library.models import Content, ContentSummary, ContentUpload
+from immersive_library.services.search import RANKING_JOINS, RANKING_SCORE, plan_search
 from immersive_library.utils import (
+    DAY,
+    RECENT_DAYS,
     set_tags,
     update_precomputation,
 )
@@ -37,10 +40,17 @@ async def list_records(
     if order == ContentOrder.ADDED and collection_id is None:
         raise HTTPException(400, "Added ordering requires a collection")
 
+    search = plan_search(q, rank=order == ContentOrder.RELEVANCE)
+    if order == ContentOrder.RELEVANCE and search.ranking is None:
+        order = ContentOrder.RECOMMENDATIONS
+
     query = get_content_select(include_meta, include_data, include_personal)
-    values: dict[str, str | int | None] = {"project": project}
+    values: dict[str, str | int | None] = {"project": project, **search.values}
     if include_personal:
         values["viewer_id"] = viewer_id
+
+    if search.ranking is not None:
+        query = search.ranking + query + RANKING_JOINS
 
     if collection_id is not None:
         query += """
@@ -85,33 +95,8 @@ async def list_records(
     if filter_reported:
         query += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
 
-    terms = [term.strip() for term in (q or "").split(",") if term.strip()]
-
-    for index, term in enumerate(terms):
-        parameter = f"term_{index}"
-        negated = term.startswith("-")
-        search_term = term[1:].strip() if negated else term
-
-        if search_term.startswith("@"):
-            condition = f"username = :{parameter}"
-            values[parameter] = search_term[1:].strip()
-        elif search_term.startswith("#"):
-            condition = f"""EXISTS (
-                    SELECT 1 FROM tags
-                    WHERE tags.content_id = c.oid AND tags.tag = :{parameter}
-                )"""
-            values[parameter] = search_term[1:].strip()
-        elif search_term.startswith("~"):
-            condition = f"title LIKE :{parameter}"
-            values[parameter] = f"%{search_term[1:].strip()}%"
-        else:
-            condition = (
-                f"(username LIKE :{parameter} OR title LIKE :{parameter} "
-                f"OR tags LIKE :{parameter})"
-            )
-            values[parameter] = f"%{search_term}%"
-
-        query += f"\n AND {'NOT ' if negated else ''}{condition}"
+    for condition in search.conditions:
+        query += f"\n AND {condition}"
 
     direction = "DESC" if descending else "ASC"
 
@@ -130,6 +115,18 @@ async def list_records(
         values["like_norm"] = 100
     elif order == ContentOrder.ADDED:
         query += f"\n ORDER BY collection_membership.created_at {direction}"
+    elif order == ContentOrder.RELEVANCE:
+        query += f"\n ORDER BY {RANKING_SCORE} {direction}, likes {direction}"
+    elif order == ContentOrder.HOT:
+        query += f"""
+            ORDER BY precomputation.recent_likes
+                / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS}) {direction},
+                likes {direction}
+        """
+    elif order == ContentOrder.POPULAR:
+        query += (
+            f"\n ORDER BY precomputation.recent_likes {direction}, likes {direction}"
+        )
     else:
         sort_column = "c.oid" if order == ContentOrder.DATE else order.name
         query += f"\n ORDER BY {sort_column} {direction}"

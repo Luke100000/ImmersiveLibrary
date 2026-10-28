@@ -64,7 +64,8 @@ TABLES = {
         content_id INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
         tags TEXT NOT NULL,
         likes INTEGER NOT NULL,
-        reports INTEGER NOT NULL
+        reports INTEGER NOT NULL,
+        recent_likes INTEGER NOT NULL DEFAULT 0
     ) WITHOUT ROWID""",
 }
 
