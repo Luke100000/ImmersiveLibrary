@@ -8,7 +8,6 @@ class ContentOrder(str, Enum):
     REPORTS = "reports"
     RECOMMENDATIONS = "recommendations"
     ADDED = "added"
-    RELEVANCE = "relevance"
     HOT = "hot"
     POPULAR = "popular"
 

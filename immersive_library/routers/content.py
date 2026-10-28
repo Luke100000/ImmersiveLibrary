@@ -64,9 +64,7 @@ async def list_content(
         description="Only include content liked by this user ID.",
     ),
     collection_id: int | None = Query(
-        None,
-        ge=1,
-        description="Only include content in this accessible collection.",
+        None, description="Only include content in this accessible collection."
     ),
     q: str | None = Query(
         None,
@@ -76,6 +74,13 @@ async def list_content(
             "partial title; unprefixed terms partially match username, title, or "
             "tags. Prefix any term with - to exclude it."
         ),
+    ),
+    similar_to: int | None = Query(
+        None, description="Only include content similar to this content ID."
+    ),
+    similar_to_collection: int | None = Query(
+        None,
+        description="Only include content similar to this accessible collection.",
     ),
     filter_banned: bool = Query(True, description="Exclude content from banned users."),
     filter_reported: bool = Query(
@@ -109,6 +114,8 @@ async def list_content(
         liked_by=resolve_user_filter(liked_by, viewer_id),
         collection_id=collection_id,
         q=q,
+        similar_to=similar_to,
+        similar_to_collection=similar_to_collection,
         filter_banned=filter_banned,
         filter_reported=filter_reported,
         order=order,

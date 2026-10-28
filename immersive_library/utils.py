@@ -24,8 +24,7 @@ async def update_precomputation(
     """
     await database.execute(
         f"""
-        INSERT OR REPLACE
-        INTO precomputation (content_id, tags, likes, reports, recent_likes)
+        INSERT INTO precomputation (content_id, tags, likes, reports, recent_likes)
         SELECT content.oid,
                COALESCE(tagged_content.c_tags, '') as tags,
                COALESCE(liked_content.c_likes, 0) as likes,
@@ -50,7 +49,9 @@ async def update_precomputation(
                     {"" if content_id is None else "AND reports.content_id = :content_id"}
                     GROUP BY reports.content_id) reported_c on reported_c.content_id = content.oid
 
-        {"" if content_id is None else "WHERE content.oid = :content_id"}
+        WHERE {"true" if content_id is None else "content.oid = :content_id"}
+        ON CONFLICT (content_id) DO UPDATE SET tags=excluded.tags, likes=excluded.likes,
+            reports=excluded.reports, recent_likes=excluded.recent_likes
     """,
         {} if content_id is None else {"content_id": content_id},
     )

@@ -10,10 +10,19 @@ from immersive_library.common import get_project
 from immersive_library.database import database
 from immersive_library.enums import ContentOrder
 from immersive_library.models import Content, ContentSummary, ContentUpload
-from immersive_library.services.search import RANKING_JOINS, RANKING_SCORE, plan_search
+from immersive_library.services.recommendations import (
+    HOT_SCORE,
+    PREFERENCE_RANK,
+    PREFERENCE_SEEDS,
+    SIMILAR_RANK,
+    SIMILAR_SEEDS,
+    neighbor_scores,
+    preference_strength,
+    recommendation_score,
+)
+from immersive_library.services.search import RANKING_JOINS, plan_search
 from immersive_library.utils import (
     DAY,
-    RECENT_DAYS,
     set_tags,
     update_precomputation,
 )
@@ -36,21 +45,43 @@ async def list_records(
     viewer_id: int | None = None,
     recommendation_user_id: int | None = None,
     include_personal: bool = False,
+    similar_to: int | None = None,
+    similar_to_collection: int | None = None,
 ) -> list[Record]:
     if order == ContentOrder.ADDED and collection_id is None:
         raise HTTPException(400, "Added ordering requires a collection")
 
-    search = plan_search(q, rank=order == ContentOrder.RELEVANCE)
-    if order == ContentOrder.RELEVANCE and search.ranking is None:
-        order = ContentOrder.RECOMMENDATIONS
+    recommended = order == ContentOrder.RECOMMENDATIONS
+    similar = similar_to is not None or similar_to_collection is not None
+    search = plan_search(q, rank=recommended)
+    personalized = recommended and recommendation_user_id is not None
 
     query = get_content_select(include_meta, include_data, include_personal)
-    values: dict[str, str | int | None] = {"project": project, **search.values}
+    values: dict[str, str | int | float | None] = {"project": project, **search.values}
     if include_personal:
         values["viewer_id"] = viewer_id
 
+    ctes = []
+    match_ranks = []
     if search.ranking is not None:
-        query = search.ranking + query + RANKING_JOINS
+        ctes.append(search.ranking)
+        query += RANKING_JOINS
+        match_ranks.append("keyword_rank.rank")
+    if similar:
+        ctes.append(neighbor_scores("similar", SIMILAR_SEEDS))
+        ctes.append(SIMILAR_RANK)
+        query += "\n JOIN similar_rank ON similar_rank.content_id = c.oid"
+        match_ranks.append("similar_rank.rank")
+        values["similar_to"] = similar_to
+        values["similar_to_collection"] = similar_to_collection
+        values["similar_viewer_id"] = viewer_id
+    if personalized:
+        ctes.append(neighbor_scores("preference", PREFERENCE_SEEDS))
+        ctes.append(PREFERENCE_RANK)
+        query += "\n LEFT JOIN preference_rank ON preference_rank.content_id = c.oid"
+        values["preference_user_id"] = recommendation_user_id
+    if ctes:
+        query = "WITH " + ", ".join(ctes) + query
 
     if collection_id is not None:
         query += """
@@ -100,29 +131,19 @@ async def list_records(
 
     direction = "DESC" if descending else "ASC"
 
-    if order == ContentOrder.RECOMMENDATIONS:
-        query += f"""
-            ORDER BY (likes + :like_norm) * ABS(
-                ((:seed + c.oid) * 1103515245 + 12345)
-                - 2147483648 * CAST(
-                    ((:seed + c.oid) * 1103515245 + 12345) / 2147483648 AS INTEGER
-                )
-            ) / 2147483647.0 {direction}
-        """
+    if recommended:
+        preference = None
+        if personalized:
+            preference = await preference_strength(project, recommendation_user_id)
+        score = recommendation_score(match_ranks, preference)
+        query += f"\n ORDER BY {score} {direction}"
         values["seed"] = (
             0 if recommendation_user_id is None else recommendation_user_id
-        ) + int(time.time() / 86400)
-        values["like_norm"] = 100
+        ) + int(time.time() / DAY)
     elif order == ContentOrder.ADDED:
         query += f"\n ORDER BY collection_membership.created_at {direction}"
-    elif order == ContentOrder.RELEVANCE:
-        query += f"\n ORDER BY {RANKING_SCORE} {direction}, likes {direction}"
     elif order == ContentOrder.HOT:
-        query += f"""
-            ORDER BY precomputation.recent_likes
-                / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS}) {direction},
-                likes {direction}
-        """
+        query += f"\n ORDER BY {HOT_SCORE} {direction}, likes {direction}"
     elif order == ContentOrder.POPULAR:
         query += (
             f"\n ORDER BY precomputation.recent_likes {direction}, likes {direction}"

@@ -6,9 +6,6 @@ KEYWORD_COLUMNS = "4.0, 3.0, 2.0"
 
 RANKING_JOINS = "\n LEFT JOIN keyword_rank ON keyword_rank.content_id = c.oid"
 
-# bm25 scores are negative, better matches lower.
-RANKING_SCORE = "-COALESCE(keyword_rank.score, 0)"
-
 
 @dataclass
 class SearchPlan:
@@ -65,8 +62,10 @@ def plan_search(q: str | None, rank: bool) -> SearchPlan:
     if rank and ranking_words:
         plan.values["ranking_keywords"] = prefix_query(ranking_words, " OR ")
         plan.ranking = f"""
-            WITH keyword_rank AS (
-                SELECT rowid AS content_id, bm25(content_search, {KEYWORD_COLUMNS}) AS score
+            keyword_rank AS (
+                SELECT rowid AS content_id, ROW_NUMBER() OVER (
+                    ORDER BY bm25(content_search, {KEYWORD_COLUMNS}), rowid
+                ) AS rank
                 FROM content_search WHERE content_search MATCH :ranking_keywords
             )
         """

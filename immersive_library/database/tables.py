@@ -65,7 +65,15 @@ TABLES = {
         tags TEXT NOT NULL,
         likes INTEGER NOT NULL,
         reports INTEGER NOT NULL,
-        recent_likes INTEGER NOT NULL DEFAULT 0
+        recent_likes INTEGER NOT NULL DEFAULT 0,
+        -- Rank by hot, popular and all-time likes, refreshed hourly.
+        quality_rank INTEGER
+    ) WITHOUT ROWID""",
+    "content_neighbors": """(
+        content_id INTEGER NOT NULL REFERENCES content(oid) ON DELETE CASCADE,
+        neighbor_id INTEGER NOT NULL,
+        score REAL NOT NULL,
+        PRIMARY KEY (content_id, neighbor_id)
     ) WITHOUT ROWID""",
 }
 
