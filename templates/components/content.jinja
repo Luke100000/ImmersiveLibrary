@@ -3,13 +3,9 @@
 <template x-if="content">
     <div class="content-body">
         <div class="title" :title="content.title" x-text="content.title"></div>
-        {% if search_links %}
-            <div class="author">
-                <a class="search-link" :href="userUrl()" x-text="content.username"></a>
-            </div>
-        {% else %}
-            <div class="author" x-text="content.username"></div>
-        {% endif %}
+        <div class="author">
+            <a class="search-link" :href="userUrl()" x-text="content.username" @click.stop></a>
+        </div>
         <div class="content" x-ref="preview"></div>
         <div class="tags-container">
             <template x-for="(tag, index) in content.tags" :key="index">
