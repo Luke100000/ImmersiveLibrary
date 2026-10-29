@@ -10,6 +10,7 @@
     </button>
     {{ action_button("collect", "Collections", "editCollections()", ':disabled="pending || loading"') }}
     {{ action_link("similar", "Similar", "similarUrl()") }}
-    {{ action_button("report", "Report", "report()", ':disabled="pending || loading" :class="{active: content.reports.length > 0}"') }}
+    {{ action_button("report", "Report", "report()", ':disabled="pending || loading" :class="{active: content.reports.some((reason) => reason in reportReasons)}"') }}
+    {{ action_button("reviewed", "Mark reviewed", "markReviewed()", 'x-show="$store.auth.user?.moderator" :disabled="pending || loading"') }}
     {{ action_button("delete", "Delete", "deleteContent()", 'x-show="canDelete" :disabled="pending || loading" data-danger') }}
 </div>

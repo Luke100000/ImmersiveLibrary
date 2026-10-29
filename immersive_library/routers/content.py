@@ -85,10 +85,7 @@ async def list_content(
     filter_banned: bool = Query(True, description="Exclude content from banned users."),
     filter_reported: bool = Query(
         True,
-        description=(
-            "Exclude content hidden by its aggregate report score. Content you "
-            "reported with DEFAULT is always excluded, regardless of this setting."
-        ),
+        description="Exclude content hidden by its reports, and content you reported.",
     ),
     order: ContentOrder = ContentOrder.DATE,
     descending: bool = Query(False, description="Sort in descending order."),

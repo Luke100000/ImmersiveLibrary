@@ -20,8 +20,7 @@ uvicorn --reload immersive_library.main:app
 python -m immersive_library.worker
 ```
 
-The worker runs backups, ranking refreshes and recommendation updates in the
-background.
+The worker runs backups, ranking refreshes and recommendation updates in the background.
 
 ```sh
 docker compose up
@@ -64,23 +63,20 @@ Tags are used for filtering or marking content, either set by the user or as par
 
 ### Likes
 
-Simple like/favorite system, one like per user per content.
-Likes are considered public information.
+Simple like/favorite system, one like per user per content. Likes are considered public information.
 
 ### Collections
 
-Named, user-owned collections of content within a project.
-Collections are private by default; owners can make them public.
-Deleting a collection leaves its content in the library.
+Named, user-owned collections of content within a project. Collections are private by default; owners can make them
+public. Deleting a collection leaves its content in the library.
 
 ### Reports
 
-Reports are used to flag content for moderation, with a custom reason enum.
-`DEFAULT` is used for user-based heuristic moderation.
-Additional reports can be handled in the project validators.
+Reports flag content for moderation, with reasons defined per project.
+`DEFAULT` reports hide content once they outweigh its likes. Moderators list reported content with `order=reports` and
+clear it for good with `REVIEWED`. Additional reasons can be handled in the project validators.
 
 ### Projects
 
-Projects define a collection of content and can have several validators to reject, or post-process content.
-The `default` fallback can allow user-chosen projects.
-See `main.py` for examples.
+Projects define a collection of content and can have several validators to reject, or post-process content. The
+`default` fallback can allow user-chosen projects. See `main.py` for examples.

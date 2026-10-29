@@ -1,12 +1,23 @@
+from fastapi import HTTPException
+
 from immersive_library.common import get_project
 from immersive_library.database import database
-from immersive_library.utils import content_guard, update_precomputation
+from immersive_library.utils import content_guard, is_moderator, update_precomputation
+
+# Reports relative to likes. Content is hidden once it exceeds 1.
+REPORT_SCORE = "precomputation.reports * 10.0 / (precomputation.likes + 10)"
 
 
 async def set_report(
     project: str, content_id: int, user_id: int, reason: str, reported: bool
 ) -> bool:
     await content_guard(project, content_id)
+
+    report_reason = get_project(project).report_reasons.get(reason)
+    if report_reason is None:
+        raise HTTPException(400, "Unknown report reason")
+    if report_reason.moderator_only and not await is_moderator(database, user_id):
+        raise HTTPException(403, "Not a moderator")
 
     if reported:
         await get_project(project).validate(

@@ -47,6 +47,11 @@ async def update_precomputation(
                     FROM reports
                     WHERE reports.reason = 'DEFAULT'
                     {"" if content_id is None else "AND reports.content_id = :content_id"}
+                    AND NOT EXISTS (
+                        SELECT 1 FROM reports AS reviews
+                        WHERE reviews.content_id = reports.content_id
+                            AND reviews.reason = 'REVIEWED'
+                    )
                     GROUP BY reports.content_id) reported_c on reported_c.content_id = content.oid
 
         WHERE {"true" if content_id is None else "content.oid = :content_id"}

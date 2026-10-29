@@ -20,6 +20,7 @@ from immersive_library.services.recommendations import (
     preference_strength,
     recommendation_score,
 )
+from immersive_library.services.reports import REPORT_SCORE
 from immersive_library.services.search import RANKING_JOINS, plan_search
 from immersive_library.utils import (
     DAY,
@@ -50,6 +51,11 @@ async def list_records(
 ) -> list[Record]:
     if order == ContentOrder.ADDED and collection_id is None:
         raise HTTPException(400, "Added ordering requires a collection")
+
+    # The moderation queue needs to be able to show banned or reported content
+    if order == ContentOrder.REPORTS:
+        filter_banned = False
+        filter_reported = False
 
     recommended = order == ContentOrder.RECOMMENDATIONS
     similar = similar_to is not None or similar_to_collection is not None
@@ -108,22 +114,21 @@ async def list_records(
         query += "\n AND EXISTS (SELECT 1 FROM likes WHERE likes.content_id=c.oid AND likes.user_id=:liked_by)"
         values["liked_by"] = liked_by
 
-    # Hide content reported by the viewer.
-    if viewer_id is not None:
-        query += """
-         AND NOT EXISTS (SELECT *
-                    FROM reports
-                    WHERE reports.content_id = c.oid AND reports.reason = 'DEFAULT' AND reports.user_id = :viewer_id)
-        """
-        values["viewer_id"] = viewer_id
-
-    # Remove content from banned users
     if filter_banned:
         query += "\n AND NOT users.banned"
 
-    # Remove reported content
     if filter_reported:
-        query += "\n AND 1.0 + likes / 10.0 - reports >= 0.0"
+        query += f"\n AND {REPORT_SCORE} <= 1"
+        if viewer_id is not None:
+            query += """
+             AND NOT EXISTS (SELECT 1 FROM reports
+                WHERE reports.content_id = c.oid AND reports.reason = 'DEFAULT'
+                    AND reports.user_id = :viewer_id)
+            """
+            values["viewer_id"] = viewer_id
+
+    if order == ContentOrder.REPORTS:
+        query += f"\n AND {REPORT_SCORE} > 1"
 
     for condition in search.conditions:
         query += f"\n AND {condition}"
@@ -141,6 +146,8 @@ async def list_records(
         ) + int(time.time() / DAY)
     elif order == ContentOrder.ADDED:
         query += f"\n ORDER BY collection_membership.created_at {direction}"
+    elif order == ContentOrder.REPORTS:
+        query += f"\n ORDER BY {REPORT_SCORE} {direction}"
     elif order == ContentOrder.HOT:
         query += f"\n ORDER BY {HOT_SCORE} {direction}, likes {direction}"
     elif order == ContentOrder.POPULAR:

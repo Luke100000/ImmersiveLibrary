@@ -1,10 +1,14 @@
-from immersive_library.common import Project, default_project, projects
+from immersive_library.common import (
+    Project,
+    ReportReason,
+    default_project,
+    projects,
+)
 from immersive_library.validators.common import (
     MaxSizeValidator,
     ReadOnlyValidator,
     TitleLengthValidator,
 )
-from immersive_library.validators.common.report import ReportValidator
 from immersive_library.validators.mca import (
     InvalidReportValidator,
     ValidClothingValidator,
@@ -38,10 +42,7 @@ def register_projects() -> None:
     projects["mca"] = Project(
         title="MCA Reborn",
         description="Clothing and hair for the villagers of Minecraft Comes Alive Reborn.",
-        report_reasons={
-            "DEFAULT": "Inappropriate or harmful",
-            "INVALID": "Broken or not clothing",
-        },
+        report_reasons=[ReportReason("INVALID", "Broken or not clothing")],
         description_context=MCA_DESCRIPTION_CONTEXT,
     )
     projects["mca"].validators = [
@@ -49,7 +50,6 @@ def register_projects() -> None:
         MaxSizeValidator(65536),
         ValidClothingValidator(),
         InvalidReportValidator(),
-        ReportValidator(lambda reason: reason in ["DEFAULT", "INVALID"]),
     ]
 
     # Add Immersive Furniture specific validators

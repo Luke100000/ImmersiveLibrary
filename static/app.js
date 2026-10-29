@@ -505,6 +505,7 @@ document.addEventListener('alpine:init', () => {
             pending: false,
             isDetail: mode === 'detail',
             showActions: mode !== 'preview',
+            reportReasons: pageConfig().reportReasons ?? {},
             backUrl: sitePath(project),
 
             async init() {
@@ -635,7 +636,7 @@ document.addEventListener('alpine:init', () => {
                 this.$store.picker.show({
                     title: 'Report content',
                     message: `Why are you reporting "${this.content.title}"?`,
-                    items: Object.entries(pageConfig().reportReasons ?? {}).map(([reason, label]) => ({
+                    items: Object.entries(this.reportReasons).map(([reason, label]) => ({
                         id: reason,
                         label,
                         selected: this.content.reports.includes(reason),
@@ -652,6 +653,24 @@ document.addEventListener('alpine:init', () => {
                             : this.content.reports.filter((reason) => reason !== item.id);
                     },
                 });
+            },
+
+            // Reviewed content is no longer hidden by reports.
+            async markReviewed() {
+                if (this.pending) return;
+                this.pending = true;
+                try {
+                    await fetchJson(sitePath('v1', 'report', project, contentId, 'REVIEWED'), {
+                        method: 'POST',
+                        errorMessage: 'Unable to mark as reviewed',
+                        allowedStatuses: [428],
+                    });
+                    this.$dispatch('content-reviewed', contentId);
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    this.pending = false;
+                }
             },
 
             async deleteContent() {

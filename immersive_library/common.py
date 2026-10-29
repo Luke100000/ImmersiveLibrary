@@ -1,9 +1,25 @@
+from collections.abc import Iterable
+from dataclasses import dataclass
+
 from fastapi import HTTPException
 from starlette.templating import Jinja2Templates
 
 from immersive_library.validators.validator import Validator
 
 templates = Jinja2Templates(directory="templates")
+
+
+@dataclass(frozen=True)
+class ReportReason:
+    name: str
+    label: str
+    moderator_only: bool = False
+
+
+DEFAULT_REPORT = ReportReason("DEFAULT", "Inappropriate or harmful")
+REVIEWED_REPORT = ReportReason(
+    "REVIEWED", "Reviewed by a moderator", moderator_only=True
+)
 
 
 class Project:
@@ -13,17 +29,27 @@ class Project:
         self,
         title: str = "",
         description: str = "",
-        report_reasons: dict[str, str] | None = None,
+        report_reasons: Iterable[ReportReason] = (),
         description_context: str | None = None,
     ) -> None:
         self.title = title
         self.description = description
-        # Maps accepted report reasons to the labels shown in the report dialog.
-        self.report_reasons = report_reasons or {"DEFAULT": "Inappropriate or harmful"}
+        self.report_reasons = {
+            reason.name: reason
+            for reason in (DEFAULT_REPORT, *report_reasons, REVIEWED_REPORT)
+        }
         # Explains the project's assets and previews to the description model.
         # Assets are only described when it is set.
         self.description_context = description_context
         self.validators = []
+
+    @property
+    def public_report_labels(self) -> dict[str, str]:
+        return {
+            reason.name: reason.label
+            for reason in self.report_reasons.values()
+            if not reason.moderator_only
+        }
 
     async def validate(self, callback: str, *args) -> None:
         for validator in self.validators:

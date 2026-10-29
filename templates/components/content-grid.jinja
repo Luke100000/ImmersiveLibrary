@@ -1,7 +1,8 @@
 {# Expects project; optional filters (fixed API parameters) and show_track. #}
 {% from "components/macros.jinja" import select_control, search_control, limit_control, order_control %}
 <section class="list-section" x-data='contentList({{ project | tojson }}, {{ (filters or {}) | tojson }})'
-         @content-deleted="removeItem($event.detail)" @content-like-changed="likeChanged($event.detail)">
+         @content-deleted="removeItem($event.detail)" @content-like-changed="likeChanged($event.detail)"
+         @content-reviewed="sort === 'reports' && removeItem($event.detail)">
     <div class="controls">
         {% if show_track %}
             {{ select_control("track", "Track", [
@@ -15,7 +16,7 @@
             ("date", "Date"),
             ("likes", "Likes"),
             ("title", "Title"),
-            ("reports", "Reports"),
+            ("reports", "Reports", 'x-bind:hidden="!$store.auth.user?.moderator"'),
         ]) }}
         {{ order_control() }}
         {{ limit_control(["8", "16", "32"]) }}
