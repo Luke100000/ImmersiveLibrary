@@ -24,20 +24,26 @@ INDEXES = (
 # Keyword index over the fields free-text search matches. The rowid is the content ID.
 SEARCH_TABLE = """
     CREATE VIRTUAL TABLE IF NOT EXISTS content_search USING fts5(
-        title, tags, username, tokenize='unicode61 remove_diacritics 2', prefix='2 3'
+        title, tags, username, description,
+        tokenize='unicode61 remove_diacritics 2', prefix='2 3'
     )
 """
 SEARCH_TAGS = (
     "COALESCE((SELECT group_concat(tag, ' ') FROM tags WHERE content_id={id}), '')"
 )
+SEARCH_DESCRIPTION = """COALESCE((
+    SELECT description FROM content_descriptions WHERE content_id={id} AND error IS NULL
+), '')"""
 SEARCH_ROW = f"""
-    SELECT content.oid, content.title, {SEARCH_TAGS.format(id="content.oid")}, users.username
+    SELECT content.oid, content.title, {SEARCH_TAGS.format(id="content.oid")},
+           users.username, {SEARCH_DESCRIPTION.format(id="content.oid")}
     FROM content JOIN users ON users.oid=content.user_id
 """
+SEARCH_COLUMNS = "(rowid, title, tags, username, description)"
 SEARCH_TRIGGERS = {
     "content_search_insert": f"""
         AFTER INSERT ON content BEGIN
-            INSERT INTO content_search (rowid, title, tags, username)
+            INSERT INTO content_search {SEARCH_COLUMNS}
             {SEARCH_ROW} WHERE content.oid=NEW.oid;
         END""",
     "content_search_update": """
@@ -66,7 +72,15 @@ SEARCH_TRIGGERS = {
             WHERE rowid IN (SELECT oid FROM content WHERE user_id=NEW.oid);
         END""",
 }
-
+SEARCH_TRIGGERS |= {
+    f"content_search_description_{operation}": f"""
+        AFTER {operation.upper()} ON content_descriptions BEGIN
+            UPDATE content_search
+            SET description={SEARCH_DESCRIPTION.format(id=f"{row}.content_id")}
+            WHERE rowid={row}.content_id;
+        END"""
+    for operation, row in [("insert", "NEW"), ("update", "NEW"), ("delete", "OLD")]
+}
 
 # A description is removed as soon as its asset changes, so stale text is never used.
 DESCRIPTION_TRIGGERS = {
@@ -89,19 +103,32 @@ DESCRIPTION_TRIGGERS = {
 }
 
 
-async def initialize_search(database: Database) -> None:
-    await database.execute(SEARCH_TABLE)
-    for name, trigger in SEARCH_TRIGGERS.items():
-        await database.execute(f"CREATE TRIGGER IF NOT EXISTS {name} {trigger}")
+async def create_triggers(database: Database, triggers: dict[str, str]) -> None:
+    for name, trigger in triggers.items():
+        await database.execute(f"DROP TRIGGER IF EXISTS {name}")
+        await database.execute(f"CREATE TRIGGER {name} {trigger}")
 
-    # The index is derived data, so it is rebuilt whenever it drifted from content.
+
+def normalized(sql: str | None) -> str:
+    return " ".join((sql or "").replace("IF NOT EXISTS ", "").split())
+
+
+async def initialize_search(database: Database) -> None:
+    current = await database.fetch_val(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='content_search'"
+    )
+    if current is not None and normalized(current) != normalized(SEARCH_TABLE):
+        await database.execute("DROP TABLE content_search")
+    await database.execute(SEARCH_TABLE)
+    await create_triggers(database, SEARCH_TRIGGERS)
+
     async with database.transaction():
         if await database.fetch_val(
             "SELECT (SELECT count(*) FROM content) != (SELECT count(*) FROM content_search)"
         ):
             await database.execute("DELETE FROM content_search")
             await database.execute(
-                f"INSERT INTO content_search (rowid, title, tags, username) {SEARCH_ROW}"
+                f"INSERT INTO content_search {SEARCH_COLUMNS} {SEARCH_ROW}"
             )
 
 
@@ -115,6 +142,4 @@ async def initialize_database(database: Database) -> None:
         await database.execute(index)
 
     await initialize_search(database)
-
-    for name, trigger in DESCRIPTION_TRIGGERS.items():
-        await database.execute(f"CREATE TRIGGER IF NOT EXISTS {name} {trigger}")
+    await create_triggers(database, DESCRIPTION_TRIGGERS)

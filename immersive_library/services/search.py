@@ -1,8 +1,11 @@
 import re
 from dataclasses import dataclass, field
 
-# bm25 weights of the title, tags and username columns.
-KEYWORD_COLUMNS = "4.0, 3.0, 2.0"
+# bm25 weights of the title, tags, username and description columns.
+KEYWORD_COLUMNS = "4.0, 3.0, 2.0, 1.0"
+
+# All words in what uploaders wrote, or all of them in the description.
+STRICT_QUERY = "({{title tags username}} : ({words})) OR (description : ({words}))"
 
 RANKING_JOINS = "\n JOIN keyword_rank ON keyword_rank.content_id = c.oid"
 
@@ -46,10 +49,15 @@ def plan_search(q: str | None, rank: bool) -> SearchPlan:
             plan.values[parameter] = search_term[1:].strip()
         elif term_words := words(search_term):
             condition = keyword_condition(parameter)
-            query = prefix_query(term_words)
             if search_term.startswith("~"):
-                query = f"title : ({query})"
-            plan.values[parameter] = query
+                plan.values[parameter] = f"title : ({prefix_query(term_words)})"
+            elif rank and not negated:
+                # Ranked results may match any word; the ranking puts the best first.
+                plan.values[parameter] = prefix_query(term_words, " OR ")
+            else:
+                plan.values[parameter] = STRICT_QUERY.format(
+                    words=prefix_query(term_words)
+                )
         else:
             condition = "0"
 
