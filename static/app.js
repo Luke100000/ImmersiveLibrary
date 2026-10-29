@@ -434,6 +434,15 @@ document.addEventListener('alpine:init', () => {
 
         async init() {
             await this.$store.auth.loadUser(project);
+            // The page is rendered without moderator-only statistics.
+            if (this.$store.auth.user?.moderator) {
+                try {
+                    const data = await fetchJson(sitePath('v3', 'user', project, user.user_id));
+                    this.item = data.user;
+                } catch {
+                    // The rendered statistics stay.
+                }
+            }
         },
 
         get canModerate() {

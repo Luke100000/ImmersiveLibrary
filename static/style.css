@@ -391,7 +391,17 @@ a:hover {
 }
 
 .detail-header .metrics {
-    max-width: 420px;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    max-width: 600px;
+}
+
+@media (max-width: 480px) {
+    .detail-header .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-auto-flow: row;
+    }
 }
 
 .project-card {

@@ -17,6 +17,8 @@ class UserOrder(str, Enum):
     SUBMISSION_COUNT = "submissions"
     LIKES_GIVEN = "likes_given"
     LIKES_RECEIVED = "likes_received"
+    RECENT_LIKES_RECEIVED = "recent_likes_received"
+    AVERAGE_REPORT_SCORE = "average_report_score"
 
 
 class RenderPreset(str, Enum):

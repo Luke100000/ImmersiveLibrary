@@ -2,5 +2,9 @@
 <dl class="metrics metrics-row">
     <div title="Submissions"><dt>Uploads</dt><dd x-text="item.submission_count.toLocaleString()"></dd></div>
     <div title="Likes received"><dt>Likes</dt><dd x-text="item.likes_received.toLocaleString()"></dd></div>
+    <div title="Likes received in the last 14 days"><dt>Recent</dt><dd x-text="item.recent_likes_received.toLocaleString()"></dd></div>
+    <div title="Average report score of their uploads; above 1 hides an upload" x-show="item.average_report_score != null" x-cloak>
+        <dt>Reports</dt><dd x-text="item.average_report_score?.toFixed(2)"></dd>
+    </div>
     <div title="Likes given to others"><dt>Liked</dt><dd x-text="item.likes_given.toLocaleString()"></dd></div>
 </dl>

@@ -1,7 +1,10 @@
 from databases.interfaces import Record
+from fastapi import HTTPException
 
 from immersive_library.database import database
 from immersive_library.enums import UserOrder
+from immersive_library.services.reports import REPORT_SCORE
+from immersive_library.utils import is_moderator
 
 
 async def list_users(
@@ -12,7 +15,13 @@ async def list_users(
     descending: bool,
     user_id: int | None = None,
     q: str | None = None,
+    viewer_id: int | None = None,
 ) -> list[Record]:
+    if order == UserOrder.AVERAGE_REPORT_SCORE and (
+        viewer_id is None or not await is_moderator(database, viewer_id)
+    ):
+        raise HTTPException(403, "Ordering by report score requires a moderator")
+
     values = {"limit": limit, "offset": offset, "project": project}
     user_filter = ""
     if user_id is not None:
@@ -44,13 +53,17 @@ async def list_users(
                    users.moderator,
                    COALESCE(submitted_content.submission_count, 0) as submission_count,
                    COALESCE(likes_given.count, 0) as likes_given,
-                   COALESCE(submitted_content.likes_received, 0) as likes_received
+                   COALESCE(submitted_content.likes_received, 0) as likes_received,
+                   COALESCE(submitted_content.recent_likes_received, 0) as recent_likes_received,
+                   COALESCE(submitted_content.average_report_score, 0) as average_report_score
             FROM selected_users users
 
             LEFT JOIN (
                 SELECT content.user_id,
                        COUNT(*) as submission_count,
-                       SUM(COALESCE(precomputation.likes, 0)) as likes_received
+                       SUM(COALESCE(precomputation.likes, 0)) as likes_received,
+                       SUM(COALESCE(precomputation.recent_likes, 0)) as recent_likes_received,
+                       AVG(COALESCE({REPORT_SCORE}, 0)) as average_report_score
                 FROM content
                 LEFT JOIN precomputation ON precomputation.content_id = content.oid
                 WHERE content.project = :project

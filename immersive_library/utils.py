@@ -250,7 +250,7 @@ async def set_tags(database: Database, content_id: int, tags: list[str]) -> None
         )
 
 
-def user_from_record(record: Record) -> User:
+def user_from_record(record: Record, include_report_score: bool = False) -> User:
     """
     Populates a user object
     """
@@ -260,6 +260,10 @@ def user_from_record(record: Record) -> User:
         submission_count=record["submission_count"],
         likes_given=record["likes_given"],
         likes_received=record["likes_received"],
+        recent_likes_received=record["recent_likes_received"],
+        average_report_score=(
+            record["average_report_score"] if include_report_score else None
+        ),
         moderator=record["moderator"] > 0,
     )
 

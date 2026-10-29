@@ -20,8 +20,9 @@ from immersive_library.models import (
 from immersive_library.routers.deprecated.models import LegacyBanEntry
 from immersive_library.services import users as user_service
 from immersive_library.utils import (
-    user_from_record,
+    is_moderator,
     moderator_guard,
+    user_from_record,
     set_banned,
     set_moderator,
     update_precomputation,
@@ -44,7 +45,11 @@ async def get_banned() -> list[LegacyBanEntry]:
     return [LegacyBanEntry(userid=u[0], username=u[1]) for u in content]
 
 
-@router.get("/v3/user/{project}", response_model=UserListSuccess)
+@router.get(
+    "/v3/user/{project}",
+    response_model=UserListSuccess,
+    response_model_exclude_none=True,
+)
 @public_cache()
 @cache(expire=60)
 async def get_users_v3(
@@ -59,20 +64,30 @@ async def get_users_v3(
         0, ge=0, description="The offset to start fetching users from."
     ),
     order: UserOrder = Query(
-        UserOrder.OID, description="Sort order; ties are resolved by user ID."
+        UserOrder.OID,
+        description=(
+            "Sort order; ties are resolved by user ID. Ordering by report score is "
+            "for moderators."
+        ),
     ),
     descending: bool = Query(False, description="Sort in descending order."),
+    viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> UserListSuccess:
     rows = await user_service.list_users(
-        project, limit + 1, offset, order, descending, q=q
+        project, limit + 1, offset, order, descending, q=q, viewer_id=viewer_id
     )
+    moderator = viewer_id is not None and await is_moderator(database, viewer_id)
     return UserListSuccess(
-        users=[user_from_record(row) for row in rows[:limit]],
+        users=[user_from_record(row, moderator) for row in rows[:limit]],
         has_more=len(rows) > limit,
     )
 
 
-@router.get("/v3/user/{project}/{user_id}", response_model=UserSuccess)
+@router.get(
+    "/v3/user/{project}/{user_id}",
+    response_model=UserSuccess,
+    response_model_exclude_none=True,
+)
 @public_cache()
 @cache(expire=60)
 async def get_user_v3(
@@ -86,7 +101,8 @@ async def get_user_v3(
     )
     if not rows:
         raise HTTPException(404, "User doesn't exist")
-    return UserSuccess(user=user_from_record(rows[0]))
+    moderator = viewer_id is not None and await is_moderator(database, viewer_id)
+    return UserSuccess(user=user_from_record(rows[0], moderator))
 
 
 @router.put(

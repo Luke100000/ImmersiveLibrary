@@ -8,6 +8,8 @@
     <div class="controls">
         {{ select_control("sort", "Sort by", [
             ("likes_received", "Likes received"),
+            ("recent_likes_received", "Recent likes received"),
+            ("average_report_score", "Report score", 'x-bind:hidden="!$store.auth.user?.moderator"'),
             ("likes_given", "Likes given"),
             ("submissions", "Submissions"),
             ("date", "Join date"),
