@@ -13,14 +13,14 @@ from immersive_library.dependencies import (
 from immersive_library.enums import UserOrder
 from immersive_library.models import (
     Error,
-    LiteUserSuccess,
+    UserSuccess,
     PlainSuccess,
     UserListSuccess,
 )
-from immersive_library.routers.deprecated.models import BanEntry
+from immersive_library.routers.deprecated.models import LegacyBanEntry
 from immersive_library.services import users as user_service
 from immersive_library.utils import (
-    get_lite_user_class,
+    user_from_record,
     moderator_guard,
     set_banned,
     set_moderator,
@@ -32,7 +32,7 @@ router = APIRouter(tags=["Users"])
 
 
 @router.get("/v1/bans", dependencies=[Depends(moderator_guard)])
-async def get_banned() -> list[BanEntry]:
+async def get_banned() -> list[LegacyBanEntry]:
     content = await database.fetch_all(
         """
         SELECT oid, username
@@ -41,7 +41,7 @@ async def get_banned() -> list[BanEntry]:
     """
     )
 
-    return [BanEntry(userid=u[0], username=u[1]) for u in content]
+    return [LegacyBanEntry(userid=u[0], username=u[1]) for u in content]
 
 
 @router.get("/v3/user/{project}", response_model=UserListSuccess)
@@ -67,26 +67,26 @@ async def get_users_v3(
         project, limit + 1, offset, order, descending, q=q
     )
     return UserListSuccess(
-        users=[get_lite_user_class(row) for row in rows[:limit]],
+        users=[user_from_record(row) for row in rows[:limit]],
         has_more=len(rows) > limit,
     )
 
 
-@router.get("/v3/user/{project}/{user_id}", response_model=LiteUserSuccess)
+@router.get("/v3/user/{project}/{user_id}", response_model=UserSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_user_v3(
     project: str,
     user_id: UserFilter,
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
-) -> LiteUserSuccess:
+) -> UserSuccess:
     target_user_id = resolve_user_filter(user_id, viewer_id)
     rows = await user_service.list_users(
         project, 1, 0, UserOrder.OID, False, target_user_id
     )
     if not rows:
         raise HTTPException(404, "User doesn't exist")
-    return LiteUserSuccess(user=get_lite_user_class(rows[0]))
+    return UserSuccess(user=user_from_record(rows[0]))
 
 
 @router.put(

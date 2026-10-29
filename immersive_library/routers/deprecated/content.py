@@ -7,8 +7,8 @@ from immersive_library.enums import ContentOrder, ContentTrack
 from immersive_library.routers.deprecated import serialization as legacy_content
 from immersive_library.routers.deprecated.filters import merge_tag_filters
 from immersive_library.routers.deprecated.models import (
-    ContentListSuccess,
-    ContentSuccess,
+    LegacyContentListSuccess,
+    LegacyContentSuccess,
 )
 from immersive_library.services import content as content_service
 from immersive_library.utils import (
@@ -27,7 +27,7 @@ router = APIRouter(tags=["Content"], deprecated=True)
 @cache(expire=60)
 async def list_content(
     project: str, tag_filter: str | None = None, invert_filter: bool = False
-) -> ContentListSuccess:
+) -> LegacyContentListSuccess:
     return await legacy_content.list_content(
         project,
         whitelist=merge_tag_filters(
@@ -41,7 +41,7 @@ async def list_content(
 @router.get(
     "/v2/content/{project}",
     response_model_exclude_none=True,
-    response_model=ContentListSuccess,
+    response_model=LegacyContentListSuccess,
 )
 @public_cache(
     when=lambda request: (
@@ -99,7 +99,7 @@ async def list_content_v2(
     ),
     token: str | None = None,
     authorization: str = Header(None),
-) -> ContentListSuccess:
+) -> LegacyContentListSuccess:
     viewer_id = await token_to_user_id(database, token, authorization)
 
     return await legacy_content.list_content(
@@ -119,7 +119,7 @@ async def list_content_v2(
     )
 
 
-@router.get("/v1/content/{project}/{content_id}", response_model=ContentSuccess)
+@router.get("/v1/content/{project}/{content_id}", response_model=LegacyContentSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_content(
@@ -127,9 +127,9 @@ async def get_content(
     content_id: int,
     parse_meta: bool = False,
     version: int = 0,
-) -> ContentSuccess:
+) -> LegacyContentSuccess:
     # version is accepted for compatibility but ignored.
     record = await content_service.get_record(project, content_id, include_data=True)
     content = legacy_content.get_content_class(record, parse_meta)
 
-    return ContentSuccess(content=content)
+    return LegacyContentSuccess(content=content)

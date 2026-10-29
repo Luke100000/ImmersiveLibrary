@@ -34,7 +34,7 @@ class ContentUpload(BaseModel):
         self.data = base64.b64encode(data).decode()
 
 
-class LiteUser(BaseModel):
+class User(BaseModel):
     user_id: int
     username: str
     submission_count: int
@@ -52,8 +52,8 @@ class ProjectListSuccess(BaseModel):
     projects: list[ProjectSummary]
 
 
-class LiteUserSuccess(BaseModel):
-    user: LiteUser
+class UserSuccess(BaseModel):
+    user: User
 
 
 class IsAuthResponse(BaseModel):
@@ -101,7 +101,7 @@ class ContentListSuccess(BaseModel):
 
 
 class UserListSuccess(BaseModel):
-    users: list[LiteUser]
+    users: list[User]
     has_more: bool
 
 

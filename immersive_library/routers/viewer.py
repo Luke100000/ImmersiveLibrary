@@ -14,7 +14,7 @@ from immersive_library.services import content as content_service
 from immersive_library.services import descriptions as description_service
 from immersive_library.services import statistics as statistics_service
 from immersive_library.services import users as user_service
-from immersive_library.utils import get_lite_user_class
+from immersive_library.utils import user_from_record
 
 router = APIRouter(tags=["Viewer"])
 
@@ -148,7 +148,7 @@ async def get_user_front(request: Request, project: str, user_id: int):
         project,
         "library/user.jinja",
         section="users",
-        user=get_lite_user_class(rows[0]),
+        user=user_from_record(rows[0]),
     )
 
 

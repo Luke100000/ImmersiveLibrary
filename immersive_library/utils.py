@@ -7,7 +7,7 @@ from databases.interfaces import Record
 from fastapi import Header, HTTPException, Path
 
 from immersive_library.database import database as app_database
-from immersive_library.models import LiteUser
+from immersive_library.models import User
 
 MAX_USER_TOKENS = 10
 DAY = 86400
@@ -250,11 +250,11 @@ async def set_tags(database: Database, content_id: int, tags: list[str]) -> None
         )
 
 
-def get_lite_user_class(record: Record) -> LiteUser:
+def user_from_record(record: Record) -> User:
     """
     Populates a user object
     """
-    return LiteUser(
+    return User(
         user_id=record["oid"],
         username=record["username"],
         submission_count=record["submission_count"],

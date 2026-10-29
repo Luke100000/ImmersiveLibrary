@@ -20,7 +20,7 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
-from immersive_library.routers.deprecated.models import ContentIdSuccess
+from immersive_library.routers.deprecated.models import LegacyContentIdSuccess
 from immersive_library.services import content as content_service
 from immersive_library.utils import logged_in_guard, owner_guard
 
@@ -153,9 +153,9 @@ async def get_content_v3(
 )
 async def add_content(
     project: str, content: ContentUpload, user_id: int = Depends(logged_in_guard)
-) -> ContentIdSuccess:
+) -> LegacyContentIdSuccess:
     content_id = await content_service.create_content(project, content, user_id)
-    return ContentIdSuccess(contentid=content_id)
+    return LegacyContentIdSuccess(contentid=content_id)
 
 
 @router.put("/v1/content/{project}/{content_id}", responses={401: {"model": Error}})

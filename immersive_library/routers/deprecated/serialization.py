@@ -7,10 +7,10 @@ from fastapi import HTTPException
 
 from immersive_library.enums import ContentOrder, ContentTrack
 from immersive_library.routers.deprecated.models import (
-    Content,
-    ContentListSuccess,
-    LiteContent,
-    LiteUser,
+    LegacyContent,
+    LegacyContentListSuccess,
+    LegacyLiteContent,
+    LegacyLiteUser,
 )
 from immersive_library.services import content as content_service
 
@@ -24,8 +24,8 @@ def safe_parse(meta: str) -> dict[str, Any]:
     return parsed_meta if isinstance(parsed_meta, dict) else {}
 
 
-def get_lite_user_class(record: Record) -> LiteUser:
-    return LiteUser(
+def get_lite_user_class(record: Record) -> LegacyLiteUser:
+    return LegacyLiteUser(
         userid=record["oid"],
         username=record["username"],
         submission_count=record["submission_count"],
@@ -37,7 +37,7 @@ def get_lite_user_class(record: Record) -> LiteUser:
 
 def get_lite_content_class(
     record: Record, include_meta: bool, parse_meta: bool
-) -> LiteContent:
+) -> LegacyLiteContent:
     """
     Populates a lite content object
     """
@@ -45,7 +45,7 @@ def get_lite_content_class(
     if include_meta:
         meta = safe_parse(record["meta"]) if parse_meta else record["meta"]
 
-    return LiteContent(
+    return LegacyLiteContent(
         contentid=record["oid"],
         userid=record["user_id"],
         username=record["username"],
@@ -57,11 +57,11 @@ def get_lite_content_class(
     )
 
 
-def get_content_class(record: Record, parse_meta: bool = True) -> Content:
+def get_content_class(record: Record, parse_meta: bool = True) -> LegacyContent:
     """
     Populates a content object
     """
-    return Content(
+    return LegacyContent(
         contentid=record["oid"],
         userid=record["user_id"],
         username=record["username"],
@@ -88,7 +88,7 @@ async def list_content(
     include_meta: bool = False,
     parse_meta: bool = False,
     viewer_id: int | None = None,
-) -> ContentListSuccess:
+) -> LegacyContentListSuccess:
     target_user = user_id if user_id is not None else viewer_id
     author_id = None
     liked_by = None
@@ -99,7 +99,7 @@ async def list_content(
     elif track != ContentTrack.ALL:
         raise HTTPException(400, "Invalid track")
     if track != ContentTrack.ALL and target_user is None:
-        return ContentListSuccess(contents=[])
+        return LegacyContentListSuccess(contents=[])
 
     records = await content_service.list_records(
         project,
@@ -116,7 +116,7 @@ async def list_content(
         viewer_id=viewer_id,
         recommendation_user_id=target_user,
     )
-    return ContentListSuccess(
+    return LegacyContentListSuccess(
         contents=[
             get_lite_content_class(row, include_meta, parse_meta) for row in records
         ]

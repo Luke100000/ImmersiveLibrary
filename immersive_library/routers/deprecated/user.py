@@ -7,10 +7,10 @@ from immersive_library.enums import ContentTrack, UserOrder
 from immersive_library.models import Error
 from immersive_library.routers.deprecated import serialization as legacy_content
 from immersive_library.routers.deprecated.models import (
-    LiteUserSuccess,
-    User,
-    UserListSuccess,
-    UserSuccess,
+    LegacyLiteUserSuccess,
+    LegacyUser,
+    LegacyUserListSuccess,
+    LegacyUserSuccess,
 )
 from immersive_library.services import users as user_service
 from immersive_library.utils import logged_in_guard
@@ -22,12 +22,14 @@ router = APIRouter(tags=["Users"], deprecated=True)
     "/v1/user/{project}/me",
     responses={401: {"model": Error}},
     response_model_exclude_none=True,
-    response_model=UserSuccess,
+    response_model=LegacyUserSuccess,
     deprecated=True,
     include_in_schema=False,
 )
 @cache(expire=60)
-async def get_me(project: str, user_id: int = Depends(logged_in_guard)) -> UserSuccess:
+async def get_me(
+    project: str, user_id: int = Depends(logged_in_guard)
+) -> LegacyUserSuccess:
     return await get_user(project, user_id)
 
 
@@ -35,7 +37,7 @@ async def get_me(project: str, user_id: int = Depends(logged_in_guard)) -> UserS
     "/v1/user/{project}/{user_id}",
     responses={404: {"model": Error}},
     response_model_exclude_none=True,
-    response_model=UserSuccess,
+    response_model=LegacyUserSuccess,
     include_in_schema=False,
     deprecated=True,
 )
@@ -43,7 +45,7 @@ async def get_me(project: str, user_id: int = Depends(logged_in_guard)) -> UserS
 async def get_user(
     project: str,
     user_id: int,
-) -> UserSuccess:
+) -> LegacyUserSuccess:
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:user_id",
         {"user_id": user_id},
@@ -66,8 +68,8 @@ async def get_user(
         user_id=user_id,
     )
 
-    return UserSuccess(
-        user=User(
+    return LegacyUserSuccess(
+        user=LegacyUser(
             userid=content["oid"],
             username=content["username"],
             moderator=content["moderator"] > 0,
@@ -78,7 +80,7 @@ async def get_user(
     )
 
 
-@router.get("/v1/user/{project}", response_model=UserListSuccess)
+@router.get("/v1/user/{project}", response_model=LegacyUserListSuccess)
 @public_cache()
 @cache(expire=60)
 async def get_users(
@@ -87,9 +89,9 @@ async def get_users(
     offset: int = 0,
     order: UserOrder = UserOrder.OID,
     descending: bool = False,
-) -> UserListSuccess:
+) -> LegacyUserListSuccess:
     content = await user_service.list_users(project, limit, offset, order, descending)
-    return UserListSuccess(
+    return LegacyUserListSuccess(
         users=[legacy_content.get_lite_user_class(c) for c in content]
     )
 
@@ -97,14 +99,14 @@ async def get_users(
 @router.get(
     "/v2/user/{project}/{user_id}",
     responses={404: {"model": Error}},
-    response_model=LiteUserSuccess,
+    response_model=LegacyLiteUserSuccess,
 )
 @public_cache()
 @cache(expire=60)
-async def get_user_v2(project: str, user_id: int) -> LiteUserSuccess:
+async def get_user_v2(project: str, user_id: int) -> LegacyLiteUserSuccess:
     content = await user_service.list_users(
         project, 1, 0, UserOrder.OID, False, user_id
     )
     if not content:
         raise HTTPException(404, "User doesn't exist")
-    return LiteUserSuccess(user=legacy_content.get_lite_user_class(content[0]))
+    return LegacyLiteUserSuccess(user=legacy_content.get_lite_user_class(content[0]))

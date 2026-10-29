@@ -3,16 +3,16 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class ContentIdSuccess(BaseModel):
+class LegacyContentIdSuccess(BaseModel):
     contentid: int
 
 
-class BanEntry(BaseModel):
+class LegacyBanEntry(BaseModel):
     userid: int
     username: str
 
 
-class LiteUser(BaseModel):
+class LegacyLiteUser(BaseModel):
     userid: int
     username: str
     submission_count: int
@@ -21,11 +21,11 @@ class LiteUser(BaseModel):
     moderator: bool
 
 
-class LiteUserSuccess(BaseModel):
-    user: LiteUser
+class LegacyLiteUserSuccess(BaseModel):
+    user: LegacyLiteUser
 
 
-class Content(BaseModel):
+class LegacyContent(BaseModel):
     contentid: int
     userid: int
     username: str
@@ -37,7 +37,7 @@ class Content(BaseModel):
     data: str
 
 
-class LiteContent(BaseModel):
+class LegacyLiteContent(BaseModel):
     contentid: int
     userid: int
     username: str
@@ -48,30 +48,30 @@ class LiteContent(BaseModel):
     meta: str | dict[str, Any] | None = None
 
 
-class ContentSuccess(BaseModel):
-    content: Content
+class LegacyContentSuccess(BaseModel):
+    content: LegacyContent
 
 
-class ContentListSuccess(BaseModel):
-    contents: list[LiteContent]
+class LegacyContentListSuccess(BaseModel):
+    contents: list[LegacyLiteContent]
 
 
-class UserListSuccess(BaseModel):
-    users: list[LiteUser]
+class LegacyUserListSuccess(BaseModel):
+    users: list[LegacyLiteUser]
 
 
-class TagDictSuccess(BaseModel):
+class LegacyTagDictSuccess(BaseModel):
     tags: dict[str, int]
 
 
-class User(BaseModel):
+class LegacyUser(BaseModel):
     userid: int
     username: str
     likes_received: int
-    likes: list[LiteContent] | list[int]
-    submissions: list[LiteContent] | list[int]
+    likes: list[LegacyLiteContent] | list[int]
+    submissions: list[LegacyLiteContent] | list[int]
     moderator: bool
 
 
-class UserSuccess(BaseModel):
-    user: User
+class LegacyUserSuccess(BaseModel):
+    user: LegacyUser
