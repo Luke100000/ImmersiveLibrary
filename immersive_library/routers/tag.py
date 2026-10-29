@@ -10,6 +10,7 @@ from immersive_library.models import (
     TagListPage,
     TagListSuccess,
 )
+from immersive_library.ratelimit import INTERACT
 from immersive_library.services import tags as tag_service
 from immersive_library.utils import content_guard, owner_guard
 
@@ -48,7 +49,7 @@ async def list_content_tags(project: str, content_id: int) -> TagListSuccess:
 @router.post(
     "/v1/tag/{project}/{content_id}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
-    dependencies=[Depends(owner_guard)],
+    dependencies=[Depends(owner_guard), Depends(INTERACT)],
 )
 async def add_tag(project: str, content_id: int, tag: str) -> PlainSuccess:
     if "," in tag:
@@ -61,7 +62,7 @@ async def add_tag(project: str, content_id: int, tag: str) -> PlainSuccess:
 @router.delete(
     "/v1/tag/{project}/{content_id}/{tag}",
     responses={401: {"model": Error}, 428: {"model": Error}},
-    dependencies=[Depends(owner_guard)],
+    dependencies=[Depends(owner_guard), Depends(INTERACT)],
 )
 async def delete_tag(project: str, content_id: int, tag: str) -> PlainSuccess:
     if not await tag_service.set_tag(project, content_id, tag, False):

@@ -20,6 +20,7 @@ from immersive_library.models import (
     ProjectListSuccess,
     ProjectSummary,
 )
+from immersive_library.ratelimit import UPDATE, UPLOAD
 from immersive_library.routers.deprecated.models import LegacyContentIdSuccess
 from immersive_library.services import content as content_service
 from immersive_library.utils import logged_in_guard, owner_guard
@@ -150,6 +151,7 @@ async def get_content_v3(
 @router.post(
     "/v1/content/{project}",
     responses={401: {"model": Error}, 428: {"model": Error}, 400: {"model": Error}},
+    dependencies=[Depends(UPLOAD)],
 )
 async def add_content(
     project: str, content: ContentUpload, user_id: int = Depends(logged_in_guard)
@@ -158,7 +160,11 @@ async def add_content(
     return LegacyContentIdSuccess(contentid=content_id)
 
 
-@router.put("/v1/content/{project}/{content_id}", responses={401: {"model": Error}})
+@router.put(
+    "/v1/content/{project}/{content_id}",
+    responses={401: {"model": Error}},
+    dependencies=[Depends(UPDATE)],
+)
 async def update_content(
     project: str,
     content_id: int,

@@ -15,6 +15,7 @@ from immersive_library.common import projects
 from immersive_library.database import database
 from immersive_library.enums import RenderPreset
 from immersive_library.previews import JPEG_QUALITY, MASTER_SIZE, make_preview
+from immersive_library.ratelimit import RENDER, client_ip
 from immersive_library.rendering import BrowserRenderer
 from immersive_library.services import content as content_service
 
@@ -64,6 +65,7 @@ async def get_master(
     render_url = request.app.url_path_for("get_render_shell").make_absolute_url(
         os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000")
     )
+    await RENDER.hit(client_ip(request))
     content = await content_service.get_content(project, content_id)
     try:
         renderer: BrowserRenderer = request.app.state.renderer

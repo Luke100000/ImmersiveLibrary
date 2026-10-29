@@ -15,6 +15,7 @@ from immersive_library.models import (
     Error,
     PlainSuccess,
 )
+from immersive_library.ratelimit import INTERACT
 from immersive_library.services import collections as collection_service
 from immersive_library.utils import logged_in_guard
 
@@ -56,7 +57,10 @@ async def list_collections(
 
 
 @router.post(
-    "/v1/collection/{project}", status_code=201, response_model_exclude_none=True
+    "/v1/collection/{project}",
+    status_code=201,
+    response_model_exclude_none=True,
+    dependencies=[Depends(INTERACT)],
 )
 async def create_collection(
     project: str,
@@ -86,7 +90,9 @@ async def get_collection(
 
 
 @router.patch(
-    "/v1/collection/{project}/{collection_id}", response_model_exclude_none=True
+    "/v1/collection/{project}/{collection_id}",
+    response_model_exclude_none=True,
+    dependencies=[Depends(INTERACT)],
 )
 async def update_collection(
     project: str,
@@ -101,7 +107,9 @@ async def update_collection(
     )
 
 
-@router.delete("/v1/collection/{project}/{collection_id}")
+@router.delete(
+    "/v1/collection/{project}/{collection_id}", dependencies=[Depends(INTERACT)]
+)
 async def delete_collection(
     project: str,
     collection_id: int,
@@ -111,7 +119,10 @@ async def delete_collection(
     return PlainSuccess()
 
 
-@router.put("/v1/collection/{project}/{collection_id}/content/{content_id}")
+@router.put(
+    "/v1/collection/{project}/{collection_id}/content/{content_id}",
+    dependencies=[Depends(INTERACT)],
+)
 async def add_content(
     project: str,
     collection_id: int,
@@ -124,7 +135,10 @@ async def add_content(
     return PlainSuccess()
 
 
-@router.delete("/v1/collection/{project}/{collection_id}/content/{content_id}")
+@router.delete(
+    "/v1/collection/{project}/{collection_id}/content/{content_id}",
+    dependencies=[Depends(INTERACT)],
+)
 async def remove_content(
     project: str,
     collection_id: int,

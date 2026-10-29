@@ -4,7 +4,7 @@ import os
 from typing import Annotated
 
 import orjson
-from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request
 from google.auth.exceptions import GoogleAuthError, TransportError
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -17,6 +17,7 @@ from immersive_library.models import (
     Error,
     IsAuthResponse,
 )
+from immersive_library.ratelimit import AUTH
 from immersive_library.utils import (
     login_user,
     token_to_user_id,
@@ -29,6 +30,7 @@ router = APIRouter(tags=["Auth"])
     "/v1/auth",
     responses={401: {"model": Error}, 400: {"model": Error}},
     summary="Authenticate user",
+    dependencies=[Depends(AUTH)],
 )
 async def auth(
     request: Request,
