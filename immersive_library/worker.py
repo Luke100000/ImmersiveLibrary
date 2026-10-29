@@ -18,6 +18,7 @@ RETRY_SECONDS = 300
 CHECK_SECONDS = 60
 
 DESCRIPTION_IDLE_SECONDS = 30
+DESCRIPTION_ATTEMPTS = 3
 DESCRIPTION_MAX_BACKOFF_SECONDS = 3600
 
 
@@ -65,23 +66,37 @@ async def describe_assets() -> None:
     base_url = os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
     empty_preview = descriptions.blank_preview()
 
-    # Failures other than AssetError affect every asset, such as an unreachable
-    # API, so the worker backs off and then retries the same asset.
+    # Failures other than AssetError, such as an unreachable API, usually affect
+    # every asset, so the worker backs off and retries the same asset. One that
+    # keeps failing is postponed, so it cannot block the others.
     failures = 0
+    attempts: dict[int, int] = {}
+    postponed: dict[int, float] = {}
     while True:
+        now = time.monotonic()
+        postponed = {i: until for i, until in postponed.items() if until > now}
+        job = None
         try:
-            job = await descriptions.take_next()
+            job = await descriptions.take_next(set(postponed))
             if job is None:
                 await asyncio.sleep(DESCRIPTION_IDLE_SECONDS)
                 continue
             await descriptions.describe_asset(*job, base_url, empty_preview)
             failures = 0
+            attempts.pop(job[0]["content_id"], None)
         except Exception:
             delay = min(
                 DESCRIPTION_IDLE_SECONDS * 2**failures, DESCRIPTION_MAX_BACKOFF_SECONDS
             )
             failures += 1
             logger.exception("Description failed, retrying in {} s", delay)
+            if job is not None:
+                content_id = job[0]["content_id"]
+                attempts[content_id] = attempts.get(content_id, 0) + 1
+                if attempts[content_id] >= DESCRIPTION_ATTEMPTS:
+                    logger.warning("Postponing asset {} for a day", content_id)
+                    postponed[content_id] = time.monotonic() + DAY
+                    del attempts[content_id]
             await asyncio.sleep(delay)
 
 
