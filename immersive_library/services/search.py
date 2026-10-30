@@ -2,17 +2,20 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from immersive_library.services.recommendations import RANK_SMOOTHING
 from immersive_library.services.reports import REPORT_SCORE
 
 # bm25 weights of the title, tags, username and description columns.
 KEYWORD_COLUMNS = "4.0, 3.0, 2.0, 1.0"
 COLLECTION_KEYWORD_COLUMNS = "4.0, 2.0, 1.0"
 
+# Popularity can adjust a match score by at most this fraction.
+RELEVANCE_QUALITY_BOOST = 0.1
+
+# Added to every rank so that agreeing signals outweigh a single top rank.
+RANK_SMOOTHING = 10
+
 # All words in what uploaders wrote, or all of them in the description.
 STRICT_QUERY = "({{title tags username}} : ({words})) OR (description : ({words}))"
-
-RANKING_JOINS = "\n JOIN keyword_rank ON keyword_rank.content_id = c.oid"
 
 COLLECTION_CONTENT_VISIBILITY = f"""
     c.project=:project AND NOT author.banned AND {REPORT_SCORE} <= 1
@@ -56,7 +59,7 @@ def query_terms(q: str | None) -> Iterator[tuple[str, str, bool]]:
         yield f"term_{index}", term[1:].strip() if negated else term, negated
 
 
-def plan_search(q: str | None, rank: bool) -> SearchPlan:
+def plan_content_search(q: str | None, rank: bool = True) -> SearchPlan:
     plan = SearchPlan()
     ranking_queries = []
     for parameter, search_term, negated in query_terms(q):
@@ -88,9 +91,9 @@ def plan_search(q: str | None, rank: bool) -> SearchPlan:
     if ranking_queries:
         plan.values["ranking_keywords"] = " OR ".join(ranking_queries)
         plan.ranking = f"""
-            keyword_rank AS (
-                SELECT rowid AS content_id, ROW_NUMBER() OVER (
-                    ORDER BY bm25(content_search, {KEYWORD_COLUMNS}), rowid
+            content_keyword_rank AS (
+                SELECT rowid AS content_id, DENSE_RANK() OVER (
+                    ORDER BY bm25(content_search, {KEYWORD_COLUMNS})
                 ) AS rank
                 FROM content_search WHERE content_search MATCH :ranking_keywords
             )
@@ -193,7 +196,7 @@ def plan_collection_search(q: str | None, rank: bool = True) -> SearchPlan:
             else:
                 rankings.append(collection_keyword_ranking(parameter, title_only))
                 scores.append(f"""SELECT collection_id,
-                    1.0 / ({RANK_SMOOTHING} + rank) AS score FROM {parameter}_ranks""")
+                    {reciprocal_rank("rank")} AS score FROM {parameter}_ranks""")
                 condition = f"collections.oid IN (SELECT collection_id FROM {parameter}_matches)"
         else:
             condition = "0"
@@ -202,10 +205,36 @@ def plan_collection_search(q: str | None, rank: bool = True) -> SearchPlan:
 
     if rankings:
         rankings.append(f"""collection_keyword_rank AS (
-            SELECT collection_id, SUM(score) AS score FROM (
+            SELECT collection_id, SUM(score) AS score,
+                   DENSE_RANK() OVER (ORDER BY SUM(score) DESC) AS rank
+            FROM (
                 {" UNION ALL ".join(scores)}
             ) GROUP BY collection_id
         )""")
         plan.ranking = ", ".join(rankings)
 
     return plan
+
+
+def reciprocal_rank(rank: str) -> str:
+    return f"COALESCE(1.0 / ({rank} + {RANK_SMOOTHING}), 0)"
+
+
+def relevance_score(match_ranks: list[str], quality_rank: str | None = None) -> str:
+    if not match_ranks:
+        return reciprocal_rank(quality_rank) if quality_rank is not None else "0.0"
+
+    matches = " + ".join(reciprocal_rank(rank) for rank in match_ranks)
+    score = f"(({matches}) / {len(match_ranks)}.0)"
+    if quality_rank is not None:
+        score += (
+            f" * (1 + {RELEVANCE_QUALITY_BOOST} * COALESCE(1.0 / ({quality_rank}), 0))"
+        )
+    return score
+
+
+def within_results(rank: str) -> str:
+    """Re-ranks items among the listed ones, NULL where the input rank is NULL."""
+    return f"""CASE WHEN {rank} IS NOT NULL THEN DENSE_RANK() OVER (
+        PARTITION BY {rank} IS NULL ORDER BY {rank}
+    ) END"""

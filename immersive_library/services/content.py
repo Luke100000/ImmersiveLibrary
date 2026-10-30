@@ -1,5 +1,4 @@
 import base64
-import time
 
 import orjson
 from cachetools import cached
@@ -11,19 +10,20 @@ from immersive_library.database import database
 from immersive_library.enums import ContentOrder
 from immersive_library.models import Content, ContentSummary, ContentUpload
 from immersive_library.services.recommendations import (
+    CONTENT_PREFERENCE_CTES,
+    CONTENT_SIMILARITY_CTES,
     HOT_SCORE,
-    PREFERENCE_RANK,
-    PREFERENCE_SEEDS,
-    SIMILAR_RANK,
-    SIMILAR_SEEDS,
-    neighbor_scores,
+    exploration_seed,
     preference_strength,
     recommendation_score,
 )
 from immersive_library.services.reports import REPORT_SCORE
-from immersive_library.services.search import RANKING_JOINS, plan_search
+from immersive_library.services.search import (
+    plan_content_search,
+    relevance_score,
+    within_results,
+)
 from immersive_library.utils import (
-    DAY,
     set_tags,
     update_precomputation,
 )
@@ -58,9 +58,10 @@ async def list_records(
         filter_reported = False
 
     recommended = order == ContentOrder.RECOMMENDATIONS
-    similar = similar_to is not None or similar_to_collection is not None
-    search = plan_search(q, rank=recommended)
+    ranked = order in (ContentOrder.RELEVANCE, ContentOrder.RECOMMENDATIONS)
     personalized = recommended and recommendation_user_id is not None
+    similar = similar_to is not None or similar_to_collection is not None
+    search = plan_content_search(q, rank=ranked)
 
     query = get_content_select(include_meta, include_data, include_personal)
     values: dict[str, str | int | float | None] = {"project": project, **search.values}
@@ -69,19 +70,22 @@ async def list_records(
 
     ctes = []
     if personalized:
-        ctes.append(
-            neighbor_scores("preference", PREFERENCE_SEEDS, exclude_seeds=False)
-        )
-        ctes.append(PREFERENCE_RANK)
-        query += "\n LEFT JOIN preference_rank ON preference_rank.content_id = c.oid"
+        ctes.append(CONTENT_PREFERENCE_CTES)
+        query += """
+            LEFT JOIN content_preference_rank
+                ON content_preference_rank.content_id=c.oid
+        """
         values["preference_user_id"] = recommendation_user_id
     if search.ranking is not None:
         ctes.append(search.ranking)
-        query += RANKING_JOINS
+        query += """
+            JOIN content_keyword_rank ON content_keyword_rank.content_id=c.oid
+        """
     if similar:
-        ctes.append(neighbor_scores("similar", SIMILAR_SEEDS, exclude_seeds=True))
-        ctes.append(SIMILAR_RANK)
-        query += "\n JOIN similar_rank ON similar_rank.content_id = c.oid"
+        ctes.append(CONTENT_SIMILARITY_CTES)
+        query += """
+            JOIN content_similarity_rank ON content_similarity_rank.content_id=c.oid
+        """
         values["similar_to"] = similar_to
         values["similar_to_collection"] = similar_to_collection
         values["similar_viewer_id"] = viewer_id
@@ -135,15 +139,32 @@ async def list_records(
 
     direction = "DESC" if descending else "ASC"
 
-    if recommended:
-        preference = None
-        if personalized:
-            preference = await preference_strength(project, recommendation_user_id)
-        score = recommendation_score(search.ranking is not None, similar, preference)
+    if ranked:
+        match_ranks = []
+        if search.ranking is not None:
+            match_ranks.append("content_keyword_rank.rank")
+        if similar:
+            match_ranks.append("content_similarity_rank.rank")
+        quality_rank = "precomputation.quality_rank"
+        if match_ranks:
+            quality_rank = within_results(quality_rank)
+        score = relevance_score(match_ranks, quality_rank)
+        if recommended:
+            preference = None
+            personal_rank = None
+            if recommendation_user_id is not None:
+                preference = await preference_strength(project, recommendation_user_id)
+                personal_rank = "content_preference_rank.rank"
+            score = recommendation_score(
+                score,
+                item_id="c.oid",
+                created_at="c.created_at",
+                personal_rank=personal_rank,
+                preference=preference,
+                searching=bool(match_ranks),
+            )
+            values["seed"] = exploration_seed(recommendation_user_id)
         query += f"\n ORDER BY {score} {direction}"
-        values["seed"] = (
-            0 if recommendation_user_id is None else recommendation_user_id
-        ) + int(time.time() / DAY)
     elif order == ContentOrder.ADDED:
         query += f"\n ORDER BY collection_membership.created_at {direction}"
     elif order == ContentOrder.REPORTS:

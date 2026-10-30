@@ -6,6 +6,7 @@ class ContentOrder(str, Enum):
     LIKES = "likes"
     TITLE = "title"
     REPORTS = "reports"
+    RELEVANCE = "relevance"
     RECOMMENDATIONS = "recommendations"
     ADDED = "added"
     HOT = "hot"
@@ -23,6 +24,7 @@ class UserOrder(str, Enum):
 
 class CollectionOrder(str, Enum):
     RELEVANCE = "relevance"
+    RECOMMENDATIONS = "recommendations"
     CONTENT_COUNT = "content_count"
     DATE = "date"
     UPDATED = "updated"

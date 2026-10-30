@@ -40,8 +40,8 @@ async def list_collections(
             "an exact tag on a visible asset in the collection. Unprefixed terms "
             "search collection titles, descriptions, and owners, or a visible "
             "asset's title, tags, description, and author. Words match from their "
-            "start. Relevance sorting allows partial keyword matches; other sorts "
-            "require all words. Prefix any term with - to exclude matching collections. "
+            "start. Relevance and recommendations allow partial keyword matches; "
+            "other sorts require all words. Prefix any term with - to exclude matching collections. "
             "Separate terms may match different assets."
         ),
     ),

@@ -4,7 +4,16 @@ from immersive_library.common import projects
 from immersive_library.database import database
 from immersive_library.enums import CollectionOrder
 from immersive_library.models import Collection, CollectionCreate, CollectionUpdate
-from immersive_library.services.search import plan_collection_search
+from immersive_library.services.recommendations import (
+    COLLECTION_PREFERENCE_CTES,
+    exploration_seed,
+    preference_strength,
+    recommendation_score,
+)
+from immersive_library.services.search import (
+    plan_collection_search,
+    relevance_score,
+)
 from immersive_library.utils import content_guard
 
 COLLECTION_SELECT = """
@@ -36,45 +45,79 @@ async def list_collections(
     if content_id is not None:
         await content_guard(project, content_id)
 
-    search = plan_collection_search(q, rank=order == CollectionOrder.RELEVANCE)
+    recommended = order == CollectionOrder.RECOMMENDATIONS
+    ranked = order in (CollectionOrder.RELEVANCE, CollectionOrder.RECOMMENDATIONS)
+    personalized = recommended and viewer_id is not None
+    search = plan_collection_search(q, rank=ranked)
     query = COLLECTION_SELECT
+    values: dict[str, str | int | float | None] = {
+        "project": project,
+        "viewer_id": viewer_id,
+        "content_id": content_id,
+        **search.values,
+    }
+
+    ctes = []
+    if personalized:
+        ctes.append(COLLECTION_PREFERENCE_CTES)
+        query += """
+            LEFT JOIN collection_preference_rank
+                ON collection_preference_rank.collection_id=collections.oid
+        """
+        values["preference_user_id"] = viewer_id
     if search.ranking is not None:
-        query = f"WITH {search.ranking} " + query
+        ctes.append(search.ranking)
         query += """
             LEFT JOIN collection_keyword_rank
                 ON collection_keyword_rank.collection_id=collections.oid
         """
+    if ctes:
+        query = "WITH " + ", ".join(ctes) + query
     query += """
         WHERE collections.project=:project
         AND (collections.user_id=:viewer_id OR collections.is_public=1)
     """
-    values = {
-        "project": project,
-        "viewer_id": viewer_id,
-        "content_id": content_id,
-        "limit": limit,
-        "offset": offset,
-    }
     if user_id is not None:
         query += " AND collections.user_id=:user_id"
         values["user_id"] = user_id
 
     for condition in search.conditions:
         query += f"\n AND {condition}"
-    values.update(search.values)
 
-    sort_column = {
-        CollectionOrder.RELEVANCE: "collections.created_at",
-        CollectionOrder.CONTENT_COUNT: "content_count",
-        CollectionOrder.DATE: "collections.created_at",
-        CollectionOrder.UPDATED: "collections.updated_at",
-        CollectionOrder.TITLE: "collections.title",
-    }[order]
-    if search.ranking is not None:
-        sort_column = "COALESCE(collection_keyword_rank.score, 0)"
+    if recommended or search.ranking is not None:
+        match_ranks = (
+            ["collection_keyword_rank.rank"] if search.ranking is not None else []
+        )
+        sort_column = relevance_score(match_ranks)
+        if recommended:
+            preference = None
+            personal_rank = None
+            if viewer_id is not None:
+                preference = await preference_strength(project, viewer_id)
+                personal_rank = "collection_preference_rank.rank"
+            sort_column = recommendation_score(
+                sort_column,
+                item_id="collections.oid",
+                created_at="collections.created_at",
+                personal_rank=personal_rank,
+                preference=preference,
+                searching=bool(match_ranks),
+            )
+            values["seed"] = exploration_seed(viewer_id)
+    else:
+        sort_column = {
+            CollectionOrder.RELEVANCE: "collections.created_at",
+            CollectionOrder.CONTENT_COUNT: "content_count",
+            CollectionOrder.DATE: "collections.created_at",
+            CollectionOrder.UPDATED: "collections.updated_at",
+            CollectionOrder.TITLE: "collections.title",
+        }[order]
     direction = "DESC" if descending else "ASC"
     query += f" ORDER BY {sort_column} {direction}, collections.oid {direction}"
     query += " LIMIT :limit OFFSET :offset"
+    values["limit"] = limit
+    values["offset"] = offset
+
     records = await database.fetch_all(query, values)
     return [Collection(**dict(record)) for record in records]
 

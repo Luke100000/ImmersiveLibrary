@@ -1,8 +1,14 @@
+import time
 from dataclasses import dataclass
 
 from databases import Database
 
 from immersive_library.database import database
+from immersive_library.services.search import (
+    COLLECTION_CONTENT_VISIBILITY,
+    reciprocal_rank,
+    within_results,
+)
 from immersive_library.utils import DAY, RECENT_DAYS
 
 # Users and collections are described by this many of their most recent items.
@@ -17,10 +23,10 @@ PREFERENCE_PRIOR = 5
 HOT_SCORE = f"""precomputation.recent_likes
     / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS})"""
 
-# A pseudo-random number in [0, 1) per asset and :seed.
+# A pseudo-random number in [0, 1) per item and :seed.
 SEEDED_RANDOM = """ABS(
-    ((:seed + c.oid) * 1103515245 + 12345)
-    - 2147483648 * CAST(((:seed + c.oid) * 1103515245 + 12345) / 2147483648 AS INTEGER)
+    ((:seed + {item_id}) * 1103515245 + 12345)
+    - 2147483648 * CAST(((:seed + {item_id}) * 1103515245 + 12345) / 2147483648 AS INTEGER)
 ) / 2147483647.0"""
 
 
@@ -28,18 +34,13 @@ SEEDED_RANDOM = """ABS(
 class Weights:
     """How much each signal counts in the recommended order. Internal knobs."""
 
-    match: float
-    quality: float
+    relevance: float
     personal: float
     exploration: float
 
 
-BROWSE_WEIGHTS = Weights(match=0.0, quality=1.0, personal=1.0, exploration=0.005)
-SEARCH_WEIGHTS = Weights(match=2.0, quality=1.0, personal=0.5, exploration=0.01)
-SIMILAR_WEIGHTS = Weights(match=2.0, quality=0.5, personal=0.5, exploration=0.01)
-
-# Added to every rank so that agreeing signals outweigh a single top rank.
-RANK_SMOOTHING = 10
+BROWSE_WEIGHTS = Weights(relevance=1.0, personal=1.0, exploration=0.005)
+SEARCH_WEIGHTS = Weights(relevance=2.0, personal=0.5, exploration=0.01)
 
 # How much more a brand-new upload explores than old content.
 FRESH_BOOST = 4
@@ -95,16 +96,20 @@ def neighbor_scores(name: str, seeds: str, exclude_seeds: bool) -> str:
         )"""
 
 
-SIMILAR_RANK = """
-    similar_rank AS (
-        SELECT content_id, ROW_NUMBER() OVER (ORDER BY score DESC, content_id) AS rank
+PREFERENCE_SCORES = neighbor_scores("preference", PREFERENCE_SEEDS, exclude_seeds=False)
+
+CONTENT_SIMILARITY_CTES = f"""
+    {neighbor_scores("similar", SIMILAR_SEEDS, exclude_seeds=True)},
+    content_similarity_rank AS (
+        SELECT content_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
         FROM similar
     )"""
 
 # Ranks the preference pool. Each further asset of an author ranks as if its score
 # were divided by its position among them, so no author fills the pool.
-PREFERENCE_RANK = """
-    preference_rank AS (
+CONTENT_PREFERENCE_CTES = f"""
+    {PREFERENCE_SCORES},
+    content_preference_rank AS (
         SELECT content_id,
                ROW_NUMBER() OVER (ORDER BY score / author_position DESC, content_id) AS rank
         FROM (
@@ -114,6 +119,37 @@ PREFERENCE_RANK = """
             FROM preference JOIN content ON content.oid = preference.content_id
         )
     )"""
+
+
+# Use the best member's affinity so collection size does not add a boost.
+COLLECTION_PREFERENCE_CTES = f"""
+    {PREFERENCE_SCORES},
+    collection_preference AS (
+        SELECT collection_items.collection_id,
+               MAX(affinity.score) AS score
+        FROM (
+            SELECT content_id, SUM(score) AS score FROM (
+                SELECT content_id, score FROM preference
+                UNION ALL
+                SELECT content_id, weight AS score FROM preference_seeds
+            ) GROUP BY content_id
+        ) AS affinity
+        JOIN content c ON c.oid=affinity.content_id
+        JOIN collection_items ON collection_items.content_id=c.oid
+        JOIN collections ON collections.oid=collection_items.collection_id
+        JOIN users AS author ON author.oid=c.user_id
+        JOIN precomputation ON precomputation.content_id=c.oid
+        WHERE {COLLECTION_CONTENT_VISIBILITY}
+            AND collections.project=:project
+            AND (collections.user_id=:viewer_id OR collections.is_public=1)
+            AND affinity.score > 0
+        GROUP BY collection_items.collection_id
+    ),
+    collection_preference_rank AS (
+        SELECT collection_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
+        FROM collection_preference
+    )
+"""
 
 
 async def refresh_quality_ranks(database: Database) -> None:
@@ -156,48 +192,32 @@ async def preference_strength(project: str, user_id: int) -> float:
     return seeds / (seeds + PREFERENCE_PRIOR)
 
 
-def recommendation_score(keyword: bool, similar: bool, preference: float | None) -> str:
-    """
-    Adds up the evidence that an asset suits the request, each signal as
-    weight / (rank + smoothing), plus deterministic daily randomness that explores
-    new uploads most. With little evidence, exploration decides.
-    """
-    match_ranks = []
-    weights = BROWSE_WEIGHTS
-    if keyword:
-        match_ranks.append("keyword_rank.rank")
-        weights = SEARCH_WEIGHTS
-    if similar:
-        match_ranks.append("similar_rank.rank")
-        weights = SIMILAR_WEIGHTS
-    quality_rank = "precomputation.quality_rank"
-    personal_rank = "preference_rank.rank"
-    if match_ranks:
-        # Global ranks would let the best assets overall crowd out the matches, so
-        # the other signals are ranked among the results instead.
-        quality_rank = within_results(quality_rank)
-        personal_rank = within_results(personal_rank)
+def recommendation_score(
+    relevance: str,
+    item_id: str,
+    created_at: str,
+    personal_rank: str | None = None,
+    preference: float | None = None,
+    searching: bool = False,
+) -> str:
+    weights = SEARCH_WEIGHTS if searching else BROWSE_WEIGHTS
+    terms = [f"{weights.relevance} * ({relevance})"]
+    if personal_rank is not None and preference:
+        if searching:
+            personal_rank = within_results(personal_rank)
+        terms.append(
+            f"{weights.personal * preference} * ({reciprocal_rank(personal_rank)})"
+        )
 
-    signals = [(rank, weights.match / len(match_ranks)) for rank in match_ranks]
-    signals.append((quality_rank, weights.quality))
-    if preference:
-        signals.append((personal_rank, weights.personal * preference))
-
-    terms = [
-        f"COALESCE({weight} / ({rank} + {RANK_SMOOTHING}), 0)"
-        for rank, weight in signals
-    ]
     freshness = (
-        f"{RECENT_DAYS * DAY}.0 / (unixepoch() - c.created_at + {RECENT_DAYS * DAY})"
+        f"{RECENT_DAYS * DAY}.0 / (unixepoch() - {created_at} + {RECENT_DAYS * DAY})"
     )
+    random = SEEDED_RANDOM.format(item_id=item_id)
     terms.append(
-        f"{weights.exploration} * {SEEDED_RANDOM} * (1 + {FRESH_BOOST} * {freshness})"
+        f"{weights.exploration} * {random} * (1 + {FRESH_BOOST} * {freshness})"
     )
     return " + ".join(terms)
 
 
-def within_results(rank: str) -> str:
-    """Re-ranks assets by a rank among the listed ones, NULL where it is NULL."""
-    return f"""CASE WHEN {rank} IS NOT NULL THEN ROW_NUMBER() OVER (
-        PARTITION BY {rank} IS NULL ORDER BY {rank}, c.oid
-    ) END"""
+def exploration_seed(user_id: int | None) -> int:
+    return (user_id or 0) + int(time.time() / DAY)

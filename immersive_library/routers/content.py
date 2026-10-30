@@ -74,7 +74,9 @@ async def list_content(
             "term with @ for an exact username, # for an exact tag, or ~ for words "
             "in the title; unprefixed terms match words in username, title, tags, "
             "or description. "
-            "Words match from their start. Prefix any term with - to exclude it."
+            "Words match from their start. Relevance and recommendations allow "
+            "partial keyword matches; other sorts require all words. "
+            "Prefix any term with - to exclude it."
         ),
     ),
     similar_to: int | None = Query(
