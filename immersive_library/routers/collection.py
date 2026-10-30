@@ -32,7 +32,16 @@ async def list_collections(
         None, description="Filter by owner; use 'me' for your collections."
     ),
     q: str | None = Query(
-        None, description="Search collection titles, descriptions, and owner names."
+        None,
+        description=(
+            "Match every comma-separated term. Prefix a term with @ for an exact "
+            "collection owner name, ~ for words in the collection title, or # for "
+            "an exact tag on a visible asset in the collection. Unprefixed terms "
+            "search collection titles, descriptions, and owners, or a visible "
+            "asset's title, tags, description, and author. Words match from their "
+            "start. Prefix any term with - to exclude matching collections. "
+            "Separate terms may match different assets."
+        ),
     ),
     content_id: int | None = Query(
         None, ge=1, description="Include membership flags for this content ID."

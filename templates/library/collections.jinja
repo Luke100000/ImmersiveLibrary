@@ -8,7 +8,7 @@
     <div class="controls">
         {{ select_control("track", "Show", [("all", "All collections"), ("mine", "My collections")], show="authenticated") }}
         {{ limit_control(["24", "48", "96"]) }}
-        {{ search_control("Search titles, descriptions, and owners") }}
+        {{ search_control("Search: @owner, #asset-tag, ~title, -exclude") }}
         <div class="control-action" x-data='collectionCreate({{ project | tojson }})' x-show="authenticated" x-cloak>
             {{ action_button("add", "New collection", "openForm()") }}
             {% set dialog_title, submit_label = "New collection", "Create" %}

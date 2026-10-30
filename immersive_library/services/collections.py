@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from immersive_library.common import projects
 from immersive_library.database import database
 from immersive_library.models import Collection, CollectionCreate, CollectionUpdate
+from immersive_library.services.search import plan_collection_search
 from immersive_library.utils import content_guard
 
 COLLECTION_SELECT = """
@@ -32,13 +33,18 @@ async def list_collections(
     if content_id is not None:
         await content_guard(project, content_id)
 
-    query = (
-        COLLECTION_SELECT
-        + """
+    search = plan_collection_search(q)
+    query = COLLECTION_SELECT
+    if search.ranking is not None:
+        query = f"WITH {search.ranking} " + query
+        query += """
+            LEFT JOIN collection_keyword_rank
+                ON collection_keyword_rank.collection_id=collections.oid
+        """
+    query += """
         WHERE collections.project=:project
         AND (collections.user_id=:viewer_id OR collections.is_public=1)
     """
-    )
     values = {
         "project": project,
         "viewer_id": viewer_id,
@@ -50,14 +56,15 @@ async def list_collections(
         query += " AND collections.user_id=:user_id"
         values["user_id"] = user_id
 
-    if q and q.strip():
-        query += """
-            AND (collections.title LIKE :q OR collections.description LIKE :q
-                 OR users.username LIKE :q)
-        """
-        values["q"] = f"%{q.strip()}%"
+    for condition in search.conditions:
+        query += f"\n AND {condition}"
+    values.update(search.values)
 
-    query += " ORDER BY collections.oid DESC LIMIT :limit OFFSET :offset"
+    if search.ranking is not None:
+        query += " ORDER BY COALESCE(collection_keyword_rank.score, 0) DESC, collections.oid DESC"
+    else:
+        query += " ORDER BY collections.oid DESC"
+    query += " LIMIT :limit OFFSET :offset"
     records = await database.fetch_all(query, values)
     return [Collection(**dict(record)) for record in records]
 

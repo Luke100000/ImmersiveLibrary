@@ -72,7 +72,8 @@ async def list_content(
         description=(
             "Only include content that matches every comma-separated term. Prefix a "
             "term with @ for an exact username, # for an exact tag, or ~ for words "
-            "in the title; unprefixed terms match words in username, title, or tags. "
+            "in the title; unprefixed terms match words in username, title, tags, "
+            "or description. "
             "Words match from their start. Prefix any term with - to exclude it."
         ),
     ),
