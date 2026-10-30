@@ -7,6 +7,15 @@ from immersive_library.utils import content_guard, is_moderator, update_precompu
 # Reports relative to likes. Content is hidden once it exceeds 1.
 REPORT_SCORE = "precomputation.reports * 10.0 / (precomputation.likes + 10)"
 
+# Content of a collection the viewer can see: not banned, hidden or reported by them.
+COLLECTION_CONTENT_VISIBILITY = f"""
+    c.project=:project AND NOT author.banned AND {REPORT_SCORE} <= 1
+    AND NOT EXISTS (
+        SELECT 1 FROM reports WHERE reports.content_id=c.oid
+            AND reports.user_id=:viewer_id AND reports.reason='DEFAULT'
+    )
+"""
+
 
 async def set_report(
     project: str, content_id: int, user_id: int, reason: str, reported: bool

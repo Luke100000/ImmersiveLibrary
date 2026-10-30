@@ -176,7 +176,11 @@ async def list_records(
             f"\n ORDER BY precomputation.recent_likes {direction}, likes {direction}"
         )
     else:
-        sort_column = "c.oid" if order == ContentOrder.DATE else order.name
+        sort_column = {
+            ContentOrder.DATE: "c.oid",
+            ContentOrder.LIKES: "precomputation.likes",
+            ContentOrder.TITLE: "c.title",
+        }[order]
         query += f"\n ORDER BY {sort_column} {direction}"
 
     if order != ContentOrder.DATE:

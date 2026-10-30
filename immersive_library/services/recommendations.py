@@ -4,11 +4,8 @@ from dataclasses import dataclass
 from databases import Database
 
 from immersive_library.database import database
-from immersive_library.services.search import (
-    COLLECTION_CONTENT_VISIBILITY,
-    reciprocal_rank,
-    within_results,
-)
+from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
+from immersive_library.services.search import reciprocal_rank, within_results
 from immersive_library.utils import DAY, RECENT_DAYS
 
 # Users and collections are described by this many of their most recent items.

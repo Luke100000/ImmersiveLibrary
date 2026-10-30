@@ -2,7 +2,7 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from immersive_library.services.reports import REPORT_SCORE
+from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
 
 # bm25 weights of the title, tags, username and description columns.
 KEYWORD_COLUMNS = "4.0, 3.0, 2.0, 1.0"
@@ -16,14 +16,6 @@ RANK_SMOOTHING = 10
 
 # All words in what uploaders wrote, or all of them in the description.
 STRICT_QUERY = "({{title tags username}} : ({words})) OR (description : ({words}))"
-
-COLLECTION_CONTENT_VISIBILITY = f"""
-    c.project=:project AND NOT author.banned AND {REPORT_SCORE} <= 1
-    AND NOT EXISTS (
-        SELECT 1 FROM reports WHERE reports.content_id=c.oid
-            AND reports.user_id=:viewer_id AND reports.reason='DEFAULT'
-    )
-"""
 
 
 @dataclass

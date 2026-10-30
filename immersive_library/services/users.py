@@ -32,7 +32,14 @@ async def list_users(
         values["q"] = f"%{q.strip()}%"
 
     direction = "DESC" if descending else "ASC"
-    sort_column = "users.oid" if order == UserOrder.DATE else order.name
+    sort_column = {
+        UserOrder.DATE: "users.oid",
+        UserOrder.SUBMISSION_COUNT: "submission_count",
+        UserOrder.LIKES_GIVEN: "likes_given",
+        UserOrder.LIKES_RECEIVED: "likes_received",
+        UserOrder.RECENT_LIKES_RECEIVED: "recent_likes_received",
+        UserOrder.AVERAGE_REPORT_SCORE: "average_report_score",
+    }[order]
     ordering = f"{sort_column} {direction}"
     if order != UserOrder.DATE:
         ordering += f", users.oid {direction}"
