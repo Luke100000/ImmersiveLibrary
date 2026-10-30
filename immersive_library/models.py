@@ -152,6 +152,7 @@ class Collection(BaseModel):
     description: str
     is_public: bool
     created_at: int
+    updated_at: int
     content_count: int
     is_owner: bool
     contains_content: bool | SkipJsonSchema[None] = None

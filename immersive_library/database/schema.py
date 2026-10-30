@@ -117,6 +117,15 @@ COLLECTION_SEARCH_TRIGGERS = {
         END""",
 }
 
+COLLECTION_MEMBERSHIP_TRIGGERS = {
+    f"collection_membership_{operation}": f"""
+        AFTER {operation.upper()} ON collection_items BEGIN
+            UPDATE collections SET updated_at=unixepoch()
+            WHERE oid={row}.collection_id;
+        END"""
+    for operation, row in [("insert", "NEW"), ("delete", "OLD")]
+}
+
 # A description is removed as soon as its asset changes, so stale text is never used.
 DESCRIPTION_TRIGGERS = {
     "content_descriptions_content_changed": """
@@ -192,4 +201,5 @@ async def initialize_database(database: Database) -> None:
 
     await initialize_search(database)
     await initialize_collection_search(database)
+    await create_triggers(database, COLLECTION_MEMBERSHIP_TRIGGERS)
     await create_triggers(database, DESCRIPTION_TRIGGERS)

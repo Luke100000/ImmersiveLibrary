@@ -2,6 +2,7 @@ from fastapi import HTTPException
 
 from immersive_library.common import projects
 from immersive_library.database import database
+from immersive_library.enums import CollectionOrder
 from immersive_library.models import Collection, CollectionCreate, CollectionUpdate
 from immersive_library.services.search import plan_collection_search
 from immersive_library.utils import content_guard
@@ -9,7 +10,7 @@ from immersive_library.utils import content_guard
 COLLECTION_SELECT = """
     SELECT collections.oid AS collection_id, collections.user_id, users.username,
            collections.project, collections.title, collections.description,
-           collections.is_public, collections.created_at,
+           collections.is_public, collections.created_at, collections.updated_at,
            COALESCE(collections.user_id = :viewer_id, 0) AS is_owner,
            (SELECT COUNT(*) FROM collection_items
             WHERE collection_id=collections.oid) AS content_count,
@@ -29,11 +30,13 @@ async def list_collections(
     limit: int = 100,
     offset: int = 0,
     viewer_id: int | None = None,
+    order: CollectionOrder = CollectionOrder.RELEVANCE,
+    descending: bool = True,
 ) -> list[Collection]:
     if content_id is not None:
         await content_guard(project, content_id)
 
-    search = plan_collection_search(q)
+    search = plan_collection_search(q, rank=order == CollectionOrder.RELEVANCE)
     query = COLLECTION_SELECT
     if search.ranking is not None:
         query = f"WITH {search.ranking} " + query
@@ -60,10 +63,17 @@ async def list_collections(
         query += f"\n AND {condition}"
     values.update(search.values)
 
+    sort_column = {
+        CollectionOrder.RELEVANCE: "collections.created_at",
+        CollectionOrder.CONTENT_COUNT: "content_count",
+        CollectionOrder.DATE: "collections.created_at",
+        CollectionOrder.UPDATED: "collections.updated_at",
+        CollectionOrder.TITLE: "collections.title",
+    }[order]
     if search.ranking is not None:
-        query += " ORDER BY COALESCE(collection_keyword_rank.score, 0) DESC, collections.oid DESC"
-    else:
-        query += " ORDER BY collections.oid DESC"
+        sort_column = "COALESCE(collection_keyword_rank.score, 0)"
+    direction = "DESC" if descending else "ASC"
+    query += f" ORDER BY {sort_column} {direction}, collections.oid {direction}"
     query += " LIMIT :limit OFFSET :offset"
     records = await database.fetch_all(query, values)
     return [Collection(**dict(record)) for record in records]

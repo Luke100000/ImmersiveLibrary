@@ -21,6 +21,14 @@ class UserOrder(str, Enum):
     AVERAGE_REPORT_SCORE = "average_report_score"
 
 
+class CollectionOrder(str, Enum):
+    RELEVANCE = "relevance"
+    CONTENT_COUNT = "content_count"
+    DATE = "date"
+    UPDATED = "updated"
+    TITLE = "title"
+
+
 class RenderPreset(str, Enum):
     EMBED = "embed"
     ICON = "icon"

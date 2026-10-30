@@ -155,7 +155,7 @@ def collection_keyword_ranking(parameter: str, title_only: bool) -> str:
     return ", ".join(ctes)
 
 
-def plan_collection_search(q: str | None) -> SearchPlan:
+def plan_collection_search(q: str | None, rank: bool = True) -> SearchPlan:
     plan = SearchPlan()
     rankings = []
     scores = []
@@ -179,7 +179,7 @@ def plan_collection_search(q: str | None) -> SearchPlan:
                     words=plan.values[parameter]
                 )
 
-            if negated:
+            if negated or not rank:
                 condition = f"""collections.oid IN (
                     SELECT rowid FROM collection_search
                     WHERE collection_search MATCH :{parameter}

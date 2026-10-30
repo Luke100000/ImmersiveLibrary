@@ -7,6 +7,7 @@ from immersive_library.dependencies import (
     optional_user_id,
     resolve_user_filter,
 )
+from immersive_library.enums import CollectionOrder
 from immersive_library.models import (
     CollectionCreate,
     CollectionListSuccess,
@@ -46,6 +47,8 @@ async def list_collections(
     content_id: int | None = Query(
         None, ge=1, description="Include membership flags for this content ID."
     ),
+    order: CollectionOrder = CollectionOrder.RELEVANCE,
+    descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
@@ -56,6 +59,8 @@ async def list_collections(
         user_id=owner_id,
         q=q,
         content_id=content_id,
+        order=order,
+        descending=descending,
         limit=limit + 1,
         offset=offset,
         viewer_id=viewer_id,

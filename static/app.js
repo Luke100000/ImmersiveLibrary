@@ -363,11 +363,13 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'collections',
         idName: 'collection_id',
         itemUrl: (id) => sitePath(project, 'collections', id),
-        settings: {track: 'all', limit: '24', search: ''},
+        settings: {track: 'all', sort: 'relevance', descending: 'true', limit: '24', search: ''},
         query() {
             return {
                 ...filters,
                 user_id: this.track === 'mine' ? 'me' : filters.user_id,
+                order: this.sort,
+                descending: this.descending,
                 q: this.search.trim(),
             };
         },
