@@ -14,7 +14,7 @@ class ContentOrder(str, Enum):
 
 
 class UserOrder(str, Enum):
-    OID = "date"
+    DATE = "date"
     SUBMISSION_COUNT = "submissions"
     LIKES_GIVEN = "likes_given"
     LIKES_RECEIVED = "likes_received"

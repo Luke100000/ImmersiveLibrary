@@ -58,7 +58,7 @@ async def get_users_v3(
         None, description="Only include users whose name contains this text."
     ),
     order: UserOrder = Query(
-        UserOrder.OID,
+        UserOrder.DATE,
         description=(
             "Sort order; ties are resolved by user ID. Ordering by report score is "
             "for moderators."

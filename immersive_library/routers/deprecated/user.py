@@ -85,7 +85,7 @@ async def get_user(
 @cache(expire=60)
 async def get_users(
     project: str,
-    order: UserOrder = UserOrder.OID,
+    order: UserOrder = UserOrder.DATE,
     descending: bool = False,
     limit: int = 100,
     offset: int = 0,

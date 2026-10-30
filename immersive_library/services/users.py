@@ -11,7 +11,7 @@ async def list_users(
     project: str,
     user_id: int | None = None,
     q: str | None = None,
-    order: UserOrder = UserOrder.OID,
+    order: UserOrder = UserOrder.DATE,
     descending: bool = False,
     limit: int = 100,
     offset: int = 0,
@@ -32,12 +32,13 @@ async def list_users(
         values["q"] = f"%{q.strip()}%"
 
     direction = "DESC" if descending else "ASC"
-    ordering = f"{order.name} {direction}"
-    if order != UserOrder.OID:
+    sort_column = "users.oid" if order == UserOrder.DATE else order.name
+    ordering = f"{sort_column} {direction}"
+    if order != UserOrder.DATE:
         ordering += f", users.oid {direction}"
 
     # Statistics-based ordering needs all users' totals before pagination.
-    page_first = user_id is not None or order == UserOrder.OID
+    page_first = user_id is not None or order == UserOrder.DATE
 
     return await database.fetch_all(
         f"""
