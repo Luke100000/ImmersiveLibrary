@@ -39,6 +39,12 @@ def prefix_query(words: list[str], operator: str = " ") -> str:
     return operator.join(f'"{word}"*' for word in words)
 
 
+def keyword_query(term_words: list[str], rank: bool, title_only: bool) -> str:
+    if title_only:
+        return f"title : ({prefix_query(term_words)})"
+    return prefix_query(term_words, " OR " if rank else " ")
+
+
 def keyword_condition(parameter: str) -> str:
     return f"c.oid IN (SELECT rowid FROM content_search WHERE content_search MATCH :{parameter})"
 
@@ -52,8 +58,8 @@ def query_terms(q: str | None) -> Iterator[tuple[str, str, bool]]:
 
 def plan_search(q: str | None, rank: bool) -> SearchPlan:
     plan = SearchPlan()
-    terms = list(query_terms(q))
-    for parameter, search_term, negated in terms:
+    ranking_queries = []
+    for parameter, search_term, negated in query_terms(q):
         if search_term.startswith("@"):
             condition = f"username = :{parameter}"
             plan.values[parameter] = search_term[1:].strip()
@@ -64,28 +70,23 @@ def plan_search(q: str | None, rank: bool) -> SearchPlan:
                 )"""
             plan.values[parameter] = search_term[1:].strip()
         elif term_words := words(search_term):
+            title_only = search_term.startswith("~")
+            ranked = rank and not negated
+            query = keyword_query(term_words, ranked, title_only)
             condition = keyword_condition(parameter)
-            if search_term.startswith("~"):
-                plan.values[parameter] = f"title : ({prefix_query(term_words)})"
-            elif rank and not negated:
-                # Ranked results may match any word; the ranking puts the best first.
-                plan.values[parameter] = prefix_query(term_words, " OR ")
+            if ranked or title_only:
+                plan.values[parameter] = query
             else:
-                plan.values[parameter] = STRICT_QUERY.format(
-                    words=prefix_query(term_words)
-                )
+                plan.values[parameter] = STRICT_QUERY.format(words=query)
+            if ranked:
+                ranking_queries.append(f"({query})")
         else:
             condition = "0"
 
         plan.conditions.append(f"{'NOT ' if negated else ''}{condition}")
 
-    # Every positive term ranks. Each contributes words that every result contains,
-    # which the inner ranking join relies on.
-    ranking_words = [
-        word for _, term, negated in terms if not negated for word in words(term)
-    ]
-    if rank and ranking_words:
-        plan.values["ranking_keywords"] = prefix_query(ranking_words, " OR ")
+    if ranking_queries:
+        plan.values["ranking_keywords"] = " OR ".join(ranking_queries)
         plan.ranking = f"""
             keyword_rank AS (
                 SELECT rowid AS content_id, ROW_NUMBER() OVER (
@@ -170,16 +171,16 @@ def plan_collection_search(q: str | None, rank: bool = True) -> SearchPlan:
             plan.values[parameter] = search_term[1:].strip()
         elif term_words := words(search_term):
             title_only = search_term.startswith("~")
-            plan.values[parameter] = prefix_query(term_words)
-            if title_only:
-                plan.values[parameter] = f"title : ({plan.values[parameter]})"
-            else:
+            ranked = rank and not negated
+            query = keyword_query(term_words, ranked, title_only)
+            plan.values[parameter] = query
+            if not title_only:
                 content_parameter = f"{parameter}_content"
-                plan.values[content_parameter] = STRICT_QUERY.format(
-                    words=plan.values[parameter]
+                plan.values[content_parameter] = (
+                    query if ranked else STRICT_QUERY.format(words=query)
                 )
 
-            if negated or not rank:
+            if not ranked:
                 condition = f"""collections.oid IN (
                     SELECT rowid FROM collection_search
                     WHERE collection_search MATCH :{parameter}
