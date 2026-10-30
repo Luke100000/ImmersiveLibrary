@@ -9,12 +9,12 @@ from immersive_library.utils import is_moderator
 
 async def list_users(
     project: str,
-    limit: int,
-    offset: int,
-    order: UserOrder,
-    descending: bool,
     user_id: int | None = None,
     q: str | None = None,
+    order: UserOrder = UserOrder.OID,
+    descending: bool = False,
+    limit: int = 100,
+    offset: int = 0,
     viewer_id: int | None = None,
 ) -> list[Record]:
     if order == UserOrder.AVERAGE_REPORT_SCORE and (

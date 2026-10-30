@@ -57,12 +57,6 @@ async def get_users_v3(
     q: str | None = Query(
         None, description="Only include users whose name contains this text."
     ),
-    limit: int = Query(
-        100, ge=1, le=500, description="The maximum number of users to fetch."
-    ),
-    offset: int = Query(
-        0, ge=0, description="The offset to start fetching users from."
-    ),
     order: UserOrder = Query(
         UserOrder.OID,
         description=(
@@ -71,10 +65,22 @@ async def get_users_v3(
         ),
     ),
     descending: bool = Query(False, description="Sort in descending order."),
+    limit: int = Query(
+        100, ge=1, le=500, description="The maximum number of users to fetch."
+    ),
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching users from."
+    ),
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> UserListSuccess:
     rows = await user_service.list_users(
-        project, limit + 1, offset, order, descending, q=q, viewer_id=viewer_id
+        project,
+        q=q,
+        order=order,
+        descending=descending,
+        limit=limit + 1,
+        offset=offset,
+        viewer_id=viewer_id,
     )
     moderator = viewer_id is not None and await is_moderator(database, viewer_id)
     return UserListSuccess(
@@ -96,9 +102,7 @@ async def get_user_v3(
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> UserSuccess:
     target_user_id = resolve_user_filter(user_id, viewer_id)
-    rows = await user_service.list_users(
-        project, 1, 0, UserOrder.OID, False, target_user_id
-    )
+    rows = await user_service.list_users(project, user_id=target_user_id, limit=1)
     if not rows:
         raise HTTPException(404, "User doesn't exist")
     moderator = viewer_id is not None and await is_moderator(database, viewer_id)

@@ -91,11 +91,11 @@ async def list_content(
     ),
     order: ContentOrder = ContentOrder.DATE,
     descending: bool = Query(False, description="Sort in descending order."),
-    offset: int = Query(
-        0, ge=0, description="The offset to start fetching content from."
-    ),
     limit: int = Query(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
+    ),
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching content from."
     ),
     include_meta: bool = Query(
         False,
@@ -119,13 +119,13 @@ async def list_content(
         filter_reported=filter_reported,
         order=order,
         descending=descending,
-        offset=offset,
         limit=limit + 1,
+        offset=offset,
         include_meta=include_meta,
         include_data=include_data,
+        include_personal=True,
         viewer_id=viewer_id,
         recommendation_user_id=viewer_id,
-        include_personal=True,
     )
     return ContentListSuccess(
         contents=[

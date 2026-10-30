@@ -57,15 +57,15 @@ async def get_user(
     submissions = await legacy_content.list_content(
         project,
         track=ContentTrack.SUBMISSIONS,
-        limit=200,
         user_id=user_id,
+        limit=200,
     )
 
     likes = await legacy_content.list_content(
         project,
         track=ContentTrack.LIKES,
-        limit=200,
         user_id=user_id,
+        limit=200,
     )
 
     return LegacyUserSuccess(
@@ -85,12 +85,14 @@ async def get_user(
 @cache(expire=60)
 async def get_users(
     project: str,
-    limit: int = 100,
-    offset: int = 0,
     order: UserOrder = UserOrder.OID,
     descending: bool = False,
+    limit: int = 100,
+    offset: int = 0,
 ) -> LegacyUserListSuccess:
-    content = await user_service.list_users(project, limit, offset, order, descending)
+    content = await user_service.list_users(
+        project, order=order, descending=descending, limit=limit, offset=offset
+    )
     return LegacyUserListSuccess(
         users=[legacy_content.get_lite_user_class(c) for c in content]
     )
@@ -104,9 +106,7 @@ async def get_users(
 @public_cache()
 @cache(expire=60)
 async def get_user_v2(project: str, user_id: int) -> LegacyLiteUserSuccess:
-    content = await user_service.list_users(
-        project, 1, 0, UserOrder.OID, False, user_id
-    )
+    content = await user_service.list_users(project, user_id=user_id, limit=1)
     if not content:
         raise HTTPException(404, "User doesn't exist")
     return LegacyLiteUserSuccess(user=legacy_content.get_lite_user_class(content[0]))

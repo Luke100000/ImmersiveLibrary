@@ -44,13 +44,13 @@ async def list_collections(
             "Separate terms may match different assets."
         ),
     ),
-    content_id: int | None = Query(
-        None, ge=1, description="Include membership flags for this content ID."
-    ),
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    content_id: int | None = Query(
+        None, ge=1, description="Include membership flags for this content ID."
+    ),
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> CollectionListSuccess:
     owner_id = resolve_user_filter(user_id, viewer_id)
@@ -58,11 +58,11 @@ async def list_collections(
         project,
         user_id=owner_id,
         q=q,
-        content_id=content_id,
         order=order,
         descending=descending,
         limit=limit + 1,
         offset=offset,
+        content_id=content_id,
         viewer_id=viewer_id,
     )
     return CollectionListSuccess(

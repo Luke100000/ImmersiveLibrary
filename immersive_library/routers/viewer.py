@@ -9,7 +9,6 @@ from starlette.responses import FileResponse, HTMLResponse
 
 from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import projects, templates
-from immersive_library.enums import UserOrder
 from immersive_library.services import content as content_service
 from immersive_library.services import descriptions as description_service
 from immersive_library.services import statistics as statistics_service
@@ -139,7 +138,7 @@ async def get_user_front(request: Request, project: str, user_id: int):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
 
-    rows = await user_service.list_users(project, 1, 0, UserOrder.OID, False, user_id)
+    rows = await user_service.list_users(project, user_id=user_id, limit=1)
     if not rows:
         return HTMLResponse("User not found", status_code=404)
 

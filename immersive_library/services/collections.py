@@ -26,12 +26,12 @@ async def list_collections(
     project: str,
     user_id: int | None = None,
     q: str | None = None,
-    content_id: int | None = None,
-    limit: int = 100,
-    offset: int = 0,
-    viewer_id: int | None = None,
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = True,
+    limit: int = 100,
+    offset: int = 0,
+    content_id: int | None = None,
+    viewer_id: int | None = None,
 ) -> list[Collection]:
     if content_id is not None:
         await content_guard(project, content_id)

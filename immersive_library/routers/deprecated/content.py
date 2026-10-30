@@ -82,14 +82,14 @@ async def list_content_v2(
     filter_reported: bool = Query(
         True, description="Exclude content which has been reported by several users."
     ),
-    offset: int = Query(
-        0, ge=0, description="The offset to start fetching content from."
-    ),
+    order: ContentOrder = ContentOrder.DATE,
+    descending: bool = False,
     limit: int = Query(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
     ),
-    order: ContentOrder = ContentOrder.DATE,
-    descending: bool = False,
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching content from."
+    ),
     include_meta: bool = Query(
         False, description="Include the meta field in the response."
     ),
@@ -109,10 +109,10 @@ async def list_content_v2(
         whitelist=merge_tag_filters(whitelist, blacklist),
         filter_banned=filter_banned,
         filter_reported=filter_reported,
-        offset=offset,
-        limit=limit,
         order=order,
         descending=descending,
+        limit=limit,
+        offset=offset,
         include_meta=include_meta,
         parse_meta=parse_meta,
         viewer_id=viewer_id,
