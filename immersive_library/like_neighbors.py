@@ -99,7 +99,7 @@ def project_neighbors(
         yield content_ids[start : start + CHUNK_SIZE].tolist(), list(neighbors)
 
 
-def compute_neighbors() -> None:
+def compute_like_neighbors() -> None:
     with closing(
         sqlite3.connect(database.url.database, factory=Connection)
     ) as connection:
@@ -112,26 +112,28 @@ def compute_neighbors() -> None:
             for content_ids, neighbors in project_neighbors(connection, project):
                 with connection:
                     connection.execute(
-                        "DELETE FROM content_neighbors "
+                        "DELETE FROM content_like_neighbors "
                         "WHERE content_id IN (SELECT value FROM json_each(?))",
                         (json.dumps(content_ids),),
                     )
                     connection.executemany(
-                        "INSERT INTO content_neighbors VALUES (?, ?, ?)", neighbors
+                        "INSERT INTO content_like_neighbors VALUES (?, ?, ?)", neighbors
                     )
                     connection.executemany(
                         "INSERT INTO computed VALUES (?)", ((i,) for i in content_ids)
                     )
             logger.info(
-                "Computed {} neighbors in {:.1f} s", project, time.monotonic() - start
+                "Computed {} like neighbors in {:.1f} s",
+                project,
+                time.monotonic() - start,
             )
 
         with connection:
             connection.execute(
-                "DELETE FROM content_neighbors "
+                "DELETE FROM content_like_neighbors "
                 "WHERE content_id NOT IN (SELECT content_id FROM computed)"
             )
 
 
 if __name__ == "__main__":
-    compute_neighbors()
+    compute_like_neighbors()

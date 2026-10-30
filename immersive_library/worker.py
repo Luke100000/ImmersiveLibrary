@@ -7,9 +7,10 @@ from loguru import logger
 
 from immersive_library.database import database
 from immersive_library.database.backup import create_daily_backup
-from immersive_library.neighbors import compute_neighbors
+from immersive_library.image_neighbors import compute_image_neighbors
+from immersive_library.like_neighbors import compute_like_neighbors
 from immersive_library.projects import register_projects
-from immersive_library.services import descriptions
+from immersive_library.services import analysis
 from immersive_library.services.recommendations import refresh_quality_ranks
 from immersive_library.utils import DAY, refresh_recent_likes
 
@@ -17,9 +18,9 @@ HOUR = 3600
 RETRY_SECONDS = 300
 CHECK_SECONDS = 60
 
-DESCRIPTION_IDLE_SECONDS = 30
-DESCRIPTION_ATTEMPTS = 3
-DESCRIPTION_MAX_BACKOFF_SECONDS = 3600
+ANALYSIS_IDLE_SECONDS = 30
+ANALYSIS_ATTEMPTS = 3
+ANALYSIS_MAX_BACKOFF_SECONDS = 3600
 
 
 async def refresh_rankings() -> None:
@@ -31,8 +32,12 @@ async def backup() -> None:
     await asyncio.to_thread(create_daily_backup)
 
 
-async def neighbors() -> None:
-    await asyncio.to_thread(compute_neighbors)
+async def like_neighbors() -> None:
+    await asyncio.to_thread(compute_like_neighbors)
+
+
+async def image_neighbors() -> None:
+    await asyncio.to_thread(compute_image_neighbors)
 
 
 # Jobs and their intervals. All run at startup, which also covers missed runs.
@@ -40,7 +45,8 @@ async def neighbors() -> None:
 JOBS: dict[Callable[[], Awaitable[None]], int] = {
     backup: HOUR,
     refresh_rankings: HOUR,
-    neighbors: DAY,
+    like_neighbors: DAY,
+    image_neighbors: DAY,
 }
 
 
@@ -61,10 +67,11 @@ async def run_jobs() -> None:
         await asyncio.sleep(CHECK_SECONDS)
 
 
-async def describe_assets() -> None:
-    """Describes one asset after another, rendering each through the app."""
+async def analyze_assets() -> None:
+    """Analyzes one asset after another, rendering each through the app."""
     base_url = os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-    empty_preview = descriptions.blank_preview()
+    empty_preview = analysis.blank_preview()
+    await analysis.add_missing()
 
     # Failures other than AssetError, such as an unreachable API, usually affect
     # every asset, so the worker backs off and retries the same asset. One that
@@ -77,23 +84,24 @@ async def describe_assets() -> None:
         postponed = {i: until for i, until in postponed.items() if until > now}
         job = None
         try:
-            job = await descriptions.take_next(set(postponed))
-            if job is None:
-                await asyncio.sleep(DESCRIPTION_IDLE_SECONDS)
+            jobs = await analysis.take_next(set(postponed))
+            if not jobs:
+                await asyncio.sleep(ANALYSIS_IDLE_SECONDS)
                 continue
-            await descriptions.describe_asset(*job, base_url, empty_preview)
-            failures = 0
-            attempts.pop(job[0]["content_id"], None)
+            for job in jobs:
+                await analysis.analyze(job, base_url, empty_preview)
+                failures = 0
+                attempts.pop(job.content_id, None)
         except Exception:
             delay = min(
-                DESCRIPTION_IDLE_SECONDS * 2**failures, DESCRIPTION_MAX_BACKOFF_SECONDS
+                ANALYSIS_IDLE_SECONDS * 2**failures, ANALYSIS_MAX_BACKOFF_SECONDS
             )
             failures += 1
-            logger.exception("Description failed, retrying in {} s", delay)
+            logger.exception("Analysis failed, retrying in {} s", delay)
             if job is not None:
-                content_id = job[0]["content_id"]
+                content_id = job.content_id
                 attempts[content_id] = attempts.get(content_id, 0) + 1
-                if attempts[content_id] >= DESCRIPTION_ATTEMPTS:
+                if attempts[content_id] >= ANALYSIS_ATTEMPTS:
                     logger.warning("Postponing asset {} for a day", content_id)
                     postponed[content_id] = time.monotonic() + DAY
                     del attempts[content_id]
@@ -108,9 +116,9 @@ async def run() -> None:
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(run_jobs())
             if os.getenv("OPENROUTER_API_KEY"):
-                tasks.create_task(describe_assets())
+                tasks.create_task(analyze_assets())
             else:
-                logger.info("OPENROUTER_API_KEY is not set, assets are not described")
+                logger.info("OPENROUTER_API_KEY is not set, assets are not analyzed")
     finally:
         await database.disconnect()
 

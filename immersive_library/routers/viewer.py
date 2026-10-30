@@ -184,7 +184,5 @@ async def get_content_front(request: Request, project: str, content_id: int):
         get_template(project, "view"),
         section="content",
         content=content,
-        description=await description_service.get_description(
-            content_id, content.version
-        ),
+        description=await description_service.get_description(content_id),
     )

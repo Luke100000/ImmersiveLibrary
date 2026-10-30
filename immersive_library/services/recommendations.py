@@ -42,6 +42,10 @@ SEARCH_WEIGHTS = Weights(relevance=2.0, personal=0.5, exploration=0.01)
 # How much more a brand-new upload explores than old content.
 FRESH_BOOST = 4
 
+# Weights between visual similarity and like similarity.
+IMAGE_SIMILARITY_WEIGHT = 0.75
+LIKE_SIMILARITY_WEIGHT = 0.25
+
 
 SIMILAR_SEEDS = """
     SELECT oid AS content_id, 1.0 AS weight FROM content WHERE oid = :similar_to
@@ -73,33 +77,47 @@ PREFERENCE_SEEDS = f"""
 """
 
 
-def neighbor_scores(name: str, seeds: str, exclude_seeds: bool) -> str:
-    """CTEs scoring content by its summed neighbor scores to the seeds."""
+def neighbor_scores(name: str, seeds: str, table: str, exclude_seeds: bool) -> str:
+    """A CTE scoring content by its summed neighbor scores to the seeds CTE."""
     exclusion = (
-        f"WHERE neighbors.neighbor_id NOT IN (SELECT content_id FROM {name}_seeds)"
+        f"WHERE neighbors.neighbor_id NOT IN (SELECT content_id FROM {seeds})"
         if exclude_seeds
         else ""
     )
     return f"""
-        {name}_seeds AS ({seeds}),
         {name} AS (
-            SELECT neighbors.neighbor_id AS content_id,
-                   SUM({name}_seeds.weight * neighbors.score) AS score
-            FROM {name}_seeds
-            JOIN content_neighbors AS neighbors
-                ON neighbors.content_id = {name}_seeds.content_id
+            SELECT neighbors.neighbor_id AS content_id, SUM({seeds}.weight * neighbors.score) AS score
+            FROM {seeds}
+            JOIN {table} AS neighbors ON neighbors.content_id = {seeds}.content_id
             {exclusion}
             GROUP BY neighbors.neighbor_id
         )"""
 
 
-PREFERENCE_SCORES = neighbor_scores("preference", PREFERENCE_SEEDS, exclude_seeds=False)
+PREFERENCE_SCORES = f"""
+    preference_seeds AS ({PREFERENCE_SEEDS}),
+    {neighbor_scores("preference", "preference_seeds", "content_like_neighbors", exclude_seeds=False)}"""
+
+
+def weighted_rank(weight: float, scores: str) -> str:
+    rank = "DENSE_RANK() OVER (ORDER BY score DESC)"
+    return (
+        f"SELECT content_id, {weight} * {reciprocal_rank(rank)} AS score FROM {scores}"
+    )
+
 
 CONTENT_SIMILARITY_CTES = f"""
-    {neighbor_scores("similar", SIMILAR_SEEDS, exclude_seeds=True)},
+    similar_seeds AS ({SIMILAR_SEEDS}),
+    {neighbor_scores("similar_images", "similar_seeds", "content_image_neighbors", exclude_seeds=True)},
+    {neighbor_scores("similar_likes", "similar_seeds", "content_like_neighbors", exclude_seeds=True)},
     content_similarity_rank AS (
-        SELECT content_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
-        FROM similar
+        SELECT content_id, DENSE_RANK() OVER (ORDER BY SUM(score) DESC) AS rank
+        FROM (
+            {weighted_rank(IMAGE_SIMILARITY_WEIGHT, "similar_images")}
+            UNION ALL
+            {weighted_rank(LIKE_SIMILARITY_WEIGHT, "similar_likes")}
+        )
+        GROUP BY content_id
     )"""
 
 # Ranks the preference pool. Each further asset of an author ranks as if its score

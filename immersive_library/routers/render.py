@@ -14,19 +14,18 @@ from starlette.responses import Response
 from immersive_library.common import projects
 from immersive_library.database import database
 from immersive_library.enums import RenderPreset
-from immersive_library.previews import JPEG_QUALITY, MASTER_SIZE, make_preview
+from immersive_library.previews import (
+    JPEG_QUALITY,
+    MASTER_SIZE,
+    PRESET_SIZES,
+    make_preview,
+)
 from immersive_library.ratelimit import RENDER, client_ip
 from immersive_library.rendering import BrowserRenderer
 from immersive_library.services import content as content_service
 
 router = APIRouter(tags=["Content"])
 
-
-RENDER_PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
-    RenderPreset.ICON: (256, 256),
-    RenderPreset.THUMBNAIL: (512, 512),
-    RenderPreset.EMBED: MASTER_SIZE,
-}
 
 CACHE_DIR = Path(database.url.database).parent / "cache"
 PREVIEW_CACHE_SECONDS = 300
@@ -104,7 +103,7 @@ async def render_content(
     if record is None:
         raise HTTPException(404, "Content not found")
 
-    size = RENDER_PRESET_SIZES[preset]
+    size = PRESET_SIZES[preset]
     asset_key = f"{project}:{content_id}"
     cache_key = (
         f"{FastAPICache.get_prefix()}:render:{asset_key}:"

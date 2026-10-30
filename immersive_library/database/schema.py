@@ -20,6 +20,8 @@ INDEXES = (
     "CREATE UNIQUE INDEX IF NOT EXISTS tags_unique ON tags (content_id, tag)",
     "CREATE INDEX IF NOT EXISTS tags_tag_content_id ON tags (tag, content_id)",
     "CREATE INDEX IF NOT EXISTS likes_created_at ON likes (created_at)",
+    "CREATE INDEX IF NOT EXISTS content_descriptions_dirty ON content_descriptions (content_id) WHERE dirty > 0",
+    "CREATE INDEX IF NOT EXISTS content_embeddings_dirty ON content_embeddings (content_id) WHERE dirty > 0",
 )
 
 # Keyword index over the fields free-text search matches. The rowid is the content ID.
@@ -33,7 +35,7 @@ SEARCH_TAGS = (
     "COALESCE((SELECT group_concat(tag, ' ') FROM tags WHERE content_id={id}), '')"
 )
 SEARCH_DESCRIPTION = """COALESCE((
-    SELECT description FROM content_descriptions WHERE content_id={id} AND error IS NULL
+    SELECT description FROM content_descriptions WHERE content_id={id}
 ), '')"""
 SEARCH_ROW = f"""
     SELECT content.oid, content.title, {SEARCH_TAGS.format(id="content.oid")},
@@ -126,23 +128,45 @@ COLLECTION_MEMBERSHIP_TRIGGERS = {
     for operation, row in [("insert", "NEW"), ("delete", "OLD")]
 }
 
-# A description is removed as soon as its asset changes, so stale text is never used.
-DESCRIPTION_TRIGGERS = {
-    "content_descriptions_content_changed": """
-        AFTER UPDATE OF project, title, meta, data, version ON content BEGIN
-            DELETE FROM content_descriptions WHERE content_id=NEW.oid;
+
+def mark_dirty(content_id: str, table: str, column: str) -> str:
+    return f"""
+        INSERT INTO {table} (content_id)
+        SELECT oid FROM content WHERE oid = {content_id}
+        ON CONFLICT DO UPDATE SET dirty = dirty + 1, {column} = NULL, error = NULL;"""
+
+
+DESCRIPTION = ("content_descriptions", "description")
+EMBEDDING = ("content_embeddings", "vector")
+
+# Descriptions read the title, tags, metadata and the rendered image.
+# Embeddings read only the rendered data.
+ANALYSIS_TRIGGERS = {
+    "analysis_content_insert": f"""
+        AFTER INSERT ON content BEGIN
+            {mark_dirty("NEW.oid", *DESCRIPTION)}
+            {mark_dirty("NEW.oid", *EMBEDDING)}
         END""",
-    "content_descriptions_tag_insert": """
+    "analysis_description_content_changed": f"""
+        AFTER UPDATE OF title, meta, data ON content BEGIN
+            {mark_dirty("NEW.oid", *DESCRIPTION)}
+        END""",
+    "analysis_embedding_content_changed": f"""
+        AFTER UPDATE OF data ON content BEGIN
+            {mark_dirty("NEW.oid", *EMBEDDING)}
+        END""",
+    "analysis_description_tag_insert": f"""
         AFTER INSERT ON tags BEGIN
-            DELETE FROM content_descriptions WHERE content_id IN (NEW.content_id);
+            {mark_dirty("NEW.content_id", *DESCRIPTION)}
         END""",
-    "content_descriptions_tag_delete": """
+    "analysis_description_tag_delete": f"""
         AFTER DELETE ON tags BEGIN
-            DELETE FROM content_descriptions WHERE content_id IN (OLD.content_id);
+            {mark_dirty("OLD.content_id", *DESCRIPTION)}
         END""",
-    "content_descriptions_tag_update": """
+    "analysis_description_tag_update": f"""
         AFTER UPDATE ON tags BEGIN
-            DELETE FROM content_descriptions WHERE content_id IN (OLD.content_id, NEW.content_id);
+            {mark_dirty("OLD.content_id", *DESCRIPTION)}
+            {mark_dirty("NEW.content_id", *DESCRIPTION)}
         END""",
 }
 
@@ -202,4 +226,4 @@ async def initialize_database(database: Database) -> None:
     await initialize_search(database)
     await initialize_collection_search(database)
     await create_triggers(database, COLLECTION_MEMBERSHIP_TRIGGERS)
-    await create_triggers(database, DESCRIPTION_TRIGGERS)
+    await create_triggers(database, ANALYSIS_TRIGGERS)

@@ -4,8 +4,16 @@ from io import BytesIO
 import numpy as np
 from PIL import Image, ImageOps
 
+from immersive_library.enums import RenderPreset
+
 MASTER_SIZE = (1200, 630)
 JPEG_QUALITY = 95
+
+PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
+    RenderPreset.ICON: (256, 256),
+    RenderPreset.THUMBNAIL: (512, 512),
+    RenderPreset.EMBED: MASTER_SIZE,
+}
 
 
 @lru_cache(maxsize=3)
