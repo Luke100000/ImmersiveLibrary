@@ -1,0 +1,35 @@
+{# Expects project; optional filters (fixed API parameters) and browse (track and create). #}
+{% from "components/macros.jinja" import select_control, search_control, order_control, action_button %}
+<section class="list-section" x-data='collectionList({{ project | tojson }}, {{ (filters or {}) | tojson }})'>
+    <div class="controls">
+        {% if browse %}
+            {{ select_control("track", "Show", [("all", "All collections"), ("mine", "My collections")], show="authenticated") }}
+        {% endif %}
+        {{ select_control("sort", "Sort by", [
+            ("relevance", "Relevance"),
+            ("recommendations", "Recommendations"),
+            ("content_count", "Content count"),
+            ("date", "Date"),
+            ("updated", "Last updated"),
+            ("title", "Title"),
+        ]) }}
+        {{ order_control() }}
+        {{ search_control("Search: @owner, #asset-tag, ~title, -exclude") }}
+        {% if browse %}
+            <div class="control-action" x-data='collectionCreate({{ project | tojson }})' x-show="authenticated" x-cloak>
+                {{ action_button("add", "New collection", "openForm()") }}
+                {% set dialog_title, submit_label = "New collection", "Create" %}
+                {% include "components/collection-dialog.jinja" %}
+            </div>
+        {% endif %}
+    </div>
+
+    {% include "components/similar-notice.jinja" %}
+
+    <div class="grid list-grid">
+        {% include "components/list-status.jinja" %}
+        {% include "components/collection-cards.jinja" %}
+    </div>
+
+    {% include "components/pagination.jinja" %}
+</section>

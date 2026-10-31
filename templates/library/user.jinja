@@ -19,16 +19,19 @@
     {% include "components/user-stats.jinja" %}
 </section>
 
-<section class="list-section" x-data='collectionList({{ project | tojson }}, {author_id: {{ user.user_id }}}, false)'
-         x-show="loading || items.length > 0">
-    <h2 class="section-title">Collections</h2>
-    <div class="grid list-grid">
-        {% include "components/collection-cards.jinja" %}
-    </div>
-    {% include "components/pagination.jinja" %}
-</section>
-
-<h2 class="section-title">Submissions</h2>
 {% set filters = {"author_id": user.user_id} %}
-{% include "components/content-grid.jinja" %}
+<div x-data='userLists({{ project | tojson }}, {{ user.user_id }}, {{ user.submission_count }})'>
+    <nav class="list-tabs" aria-label="Lists" x-show="view" x-cloak>
+        <button class="tab" type="button" :class="{active: view === 'submissions'}"
+                x-show="hasSubmissions || view === 'submissions'" @click="show('submissions')">Submissions</button>
+        <button class="tab" type="button" :class="{active: view === 'collections'}"
+                x-show="hasCollections || view === 'collections'" @click="show('collections')">Collections</button>
+    </nav>
+    <template x-if="view === 'submissions'">
+        {% include "components/content-grid.jinja" %}
+    </template>
+    <template x-if="view === 'collections'">
+        {% include "components/collection-list.jinja" %}
+    </template>
+</div>
 {% endblock %}

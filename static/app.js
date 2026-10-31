@@ -103,8 +103,8 @@ function similarFilter(project) {
     };
 }
 
-// Shared state for a paged API list. Settings mirror the controls and, with syncUrl, the query string.
-function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, settings, query, syncUrl = true}) {
+// Shared state for a paged API list. Settings mirror the controls and the query string.
+function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, settings, query}) {
     let loadVersion = 0;
 
     return {
@@ -118,9 +118,7 @@ function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, sett
         authenticated: false,
 
         async init() {
-            if (syncUrl) {
-                this.readUrl();
-            }
+            this.readUrl();
             this.authenticated = Boolean(await this.$store.auth.loadUser(project));
             if (!this.authenticated && 'track' in settings) {
                 this.track = settings.track;
@@ -170,9 +168,7 @@ function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, sett
             const version = ++loadVersion;
             this.loading = true;
             this.error = '';
-            if (syncUrl) {
-                this.writeUrl();
-            }
+            this.writeUrl();
 
             const url = new URL(endpoint, window.location.origin);
             const parameters = {
@@ -376,10 +372,9 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('collectionList', (project, filters = {}, syncUrl = true) => ({
+    Alpine.data('collectionList', (project, filters = {}) => ({
         ...pagedList({
             project,
-            syncUrl,
             endpoint: sitePath('v3', 'collection', project),
             itemsKey: 'collections',
             idName: 'collection_id',
@@ -462,6 +457,35 @@ document.addEventListener('alpine:init', () => {
             },
         };
     });
+
+    // Submissions or collections of one user, picking whichever exists unless the URL names one.
+    Alpine.data('userLists', (project, userId, submissionCount) => ({
+        view: null,
+        hasSubmissions: submissionCount > 0,
+        hasCollections: false,
+
+        async init() {
+            const requested = new URLSearchParams(window.location.search).get('view');
+            const url = new URL(sitePath('v3', 'collection', project), window.location.origin);
+            url.search = new URLSearchParams({author_id: userId, limit: 1});
+            const data = await fetchJson(url).catch(() => ({collections: []}));
+            this.hasCollections = data.collections.length > 0;
+            if (['submissions', 'collections'].includes(requested)) {
+                this.view = requested;
+            } else {
+                this.view = !this.hasSubmissions && this.hasCollections ? 'collections' : 'submissions';
+            }
+        },
+
+        // Both lists use the same query parameters, so switching starts from a clean URL.
+        show(view) {
+            if (view === this.view) return;
+            const url = new URL(window.location.href);
+            url.search = new URLSearchParams({view});
+            window.history.replaceState(null, '', url);
+            this.view = view;
+        },
+    }));
 
     Alpine.data('userDetail', (project, user) => ({
         item: user,
