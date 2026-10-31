@@ -17,10 +17,8 @@ from immersive_library.models import (
     PlainSuccess,
     UserListSuccess,
 )
-from immersive_library.routers.deprecated.models import LegacyBanEntry
 from immersive_library.services import users as user_service
 from immersive_library.utils import (
-    is_moderator,
     moderator_guard,
     user_from_record,
     set_banned,
@@ -30,19 +28,6 @@ from immersive_library.utils import (
 )
 
 router = APIRouter(tags=["Users"])
-
-
-@router.get("/v1/bans", dependencies=[Depends(moderator_guard)])
-async def get_banned() -> list[LegacyBanEntry]:
-    content = await database.fetch_all(
-        """
-        SELECT oid, username
-        FROM users
-        WHERE banned == 1
-    """
-    )
-
-    return [LegacyBanEntry(userid=u[0], username=u[1]) for u in content]
 
 
 @router.get(
@@ -59,8 +44,9 @@ async def get_users_v3(
     ),
     order: UserOrder = Query(
         UserOrder.LIKES_RECEIVED,
-        description=("Sort order; ties are resolved by user ID."),
+        description="Sort order; ties are resolved by user ID.",
     ),
+    filter_banned: bool = Query(True, description="Exclude banned users."),
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
         10, ge=1, le=500, description="The maximum number of users to fetch."
@@ -68,19 +54,18 @@ async def get_users_v3(
     offset: int = Query(
         0, ge=0, description="The offset to start fetching users from."
     ),
-    viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> UserListSuccess:
     rows = await user_service.list_users(
         project,
         q=q,
+        filter_banned=filter_banned,
         order=order,
         descending=descending,
         limit=limit + 1,
         offset=offset,
     )
-    moderator = viewer_id is not None and await is_moderator(database, viewer_id)
     return UserListSuccess(
-        users=[user_from_record(row, moderator) for row in rows[:limit]],
+        users=[user_from_record(row) for row in rows[:limit]],
         has_more=len(rows) > limit,
     )
 
@@ -101,8 +86,7 @@ async def get_user_v3(
     rows = await user_service.list_users(project, user_id=target_user_id, limit=1)
     if not rows:
         raise HTTPException(404, "User doesn't exist")
-    moderator = viewer_id is not None and await is_moderator(database, viewer_id)
-    return UserSuccess(user=user_from_record(rows[0], moderator))
+    return UserSuccess(user=user_from_record(rows[0]))
 
 
 @router.put(

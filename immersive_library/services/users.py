@@ -9,6 +9,7 @@ async def list_users(
     project: str,
     user_id: int | None = None,
     q: str | None = None,
+    filter_banned: bool = True,
     order: UserOrder = UserOrder.DATE,
     descending: bool = False,
     limit: int = 100,
@@ -19,6 +20,8 @@ async def list_users(
     if user_id is not None:
         user_filter = "AND users.oid = :user_id"
         values["user_id"] = user_id
+    elif filter_banned:
+        user_filter = "AND NOT users.banned"
     if q and q.strip():
         user_filter += " AND users.username LIKE :q"
         values["q"] = f"%{q.strip()}%"
@@ -42,15 +45,16 @@ async def list_users(
     return await database.fetch_all(
         f"""
             WITH selected_users AS (
-                SELECT oid, username, moderator
+                SELECT oid, username, moderator, banned
                 FROM users
-                WHERE users.banned = 0
+                WHERE true
                 {user_filter}
                 {f"ORDER BY oid {direction} LIMIT :limit OFFSET :offset" if page_first else ""}
             )
             SELECT users.oid,
                    users.username,
                    users.moderator,
+                   users.banned,
                    COALESCE(submitted_content.submission_count, 0) as submission_count,
                    COALESCE(likes_given.count, 0) as likes_given,
                    COALESCE(submitted_content.likes_received, 0) as likes_received,

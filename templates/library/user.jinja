@@ -7,10 +7,12 @@
     <div class="detail-heading">
         <h1>{{ user.username }}</h1>
         <span class="badge" x-show="item.moderator"{% if not user.moderator %} x-cloak{% endif %}>Moderator</span>
+        <span class="badge" x-show="item.banned"{% if not user.banned %} x-cloak{% endif %}>Banned</span>
         <div class="button-row detail-actions" x-show="canModerate" x-cloak>
             <button class="btn" type="button" :disabled="pending" x-show="!item.moderator" @click="setModerator(true)">Promote</button>
             <button class="btn" type="button" :disabled="pending" x-show="item.moderator" @click="setModerator(false)">Demote</button>
-            <button class="btn" type="button" :disabled="pending" data-danger @click="ban()">Ban</button>
+            <button class="btn" type="button" :disabled="pending" x-show="!item.banned" data-danger @click="setBanned(true)">Ban</button>
+            <button class="btn" type="button" :disabled="pending" x-show="item.banned" @click="setBanned(false)">Unban</button>
             <button class="btn" type="button" :disabled="pending" data-danger @click="purge()">Purge</button>
         </div>
     </div>

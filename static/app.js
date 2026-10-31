@@ -350,9 +350,14 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'users',
         idName: 'user_id',
         itemUrl: (id) => sitePath(project, 'users', id),
-        settings: {sort: 'likes_received', descending: 'true', limit: '24', search: ''},
+        settings: {sort: 'likes_received', descending: 'true', limit: '24', search: '', filter_banned: 'true'},
         query() {
-            return {order: this.sort, descending: this.descending, q: this.search.trim()};
+            return {
+                order: this.sort,
+                descending: this.descending,
+                q: this.search.trim(),
+                filter_banned: this.filter_banned,
+            };
         },
     }));
 
@@ -436,15 +441,6 @@ document.addEventListener('alpine:init', () => {
 
         async init() {
             await this.$store.auth.loadUser(project);
-            // The page is rendered without moderator-only statistics.
-            if (this.$store.auth.user?.moderator) {
-                try {
-                    const data = await fetchJson(sitePath('v3', 'user', project, user.user_id));
-                    this.item = data.user;
-                } catch {
-                    // The rendered statistics stay.
-                }
-            }
         },
 
         get canModerate() {
@@ -480,14 +476,18 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        ban() {
+        setBanned(banned) {
             return this.moderate({
-                title: 'Ban user',
-                message: `Ban ${this.item.username}? Banned users can no longer sign in, and their content is hidden.`,
-                confirmLabel: 'Ban',
-                danger: true,
-                parameters: {banned: true},
-                done: () => window.location.assign(sitePath(project, 'users')),
+                title: banned ? 'Ban user' : 'Unban user',
+                message: banned
+                    ? `Ban ${this.item.username}? Banned users can no longer sign in, and their content is hidden.`
+                    : `Unban ${this.item.username}? Their content becomes visible again.`,
+                confirmLabel: banned ? 'Ban' : 'Unban',
+                danger: banned,
+                parameters: {banned},
+                done: () => {
+                    this.item.banned = banned;
+                },
             });
         },
 

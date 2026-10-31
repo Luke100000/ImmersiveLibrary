@@ -41,9 +41,9 @@ class User(BaseModel):
     likes_given: int
     likes_received: int
     recent_likes_received: int
-    # The average report score of their uploads, only shown to moderators.
-    average_report_score: float | SkipJsonSchema[None] = None
+    average_report_score: float
     moderator: bool
+    banned: bool
 
 
 class ProjectSummary(BaseModel):

@@ -7,15 +7,22 @@ from immersive_library.enums import ContentTrack, UserOrder
 from immersive_library.models import Error
 from immersive_library.routers.deprecated import serialization as legacy_content
 from immersive_library.routers.deprecated.models import (
+    LegacyBanEntry,
     LegacyLiteUserSuccess,
     LegacyUser,
     LegacyUserListSuccess,
     LegacyUserSuccess,
 )
 from immersive_library.services import users as user_service
-from immersive_library.utils import logged_in_guard
+from immersive_library.utils import logged_in_guard, moderator_guard
 
 router = APIRouter(tags=["Users"], deprecated=True)
+
+
+@router.get("/v1/bans", dependencies=[Depends(moderator_guard)])
+async def get_banned() -> list[LegacyBanEntry]:
+    rows = await database.fetch_all("SELECT oid, username FROM users WHERE banned")
+    return [LegacyBanEntry(userid=row[0], username=row[1]) for row in rows]
 
 
 @router.get(
