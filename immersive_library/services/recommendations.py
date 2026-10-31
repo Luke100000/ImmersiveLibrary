@@ -45,9 +45,9 @@ SEARCH_WEIGHTS = Weights(relevance=2.0, personal=0.5, exploration=0.01)
 # How much more a brand-new upload explores than old content.
 FRESH_BOOST = 4
 
-# Weights between visual similarity and like similarity.
-IMAGE_SIMILARITY_WEIGHT = 0.75
-LIKE_SIMILARITY_WEIGHT = 0.25
+# Image shares of the blends with like-based neighbours.
+SIMILAR_IMAGE_SHARE = 0.75
+PREFERENCE_IMAGE_SHARE = 0.25
 
 
 SIMILAR_SEEDS = """
@@ -97,11 +97,6 @@ def neighbor_scores(name: str, seeds: str, table: str, exclude_seeds: bool) -> s
         )"""
 
 
-PREFERENCE_SCORES = f"""
-    preference_seeds AS ({PREFERENCE_SEEDS}),
-    {neighbor_scores("preference", "preference_seeds", "content_like_neighbors", exclude_seeds=False)}"""
-
-
 def weighted_rank(weight: float, scores: str) -> str:
     rank = "DENSE_RANK() OVER (ORDER BY score DESC)"
     return (
@@ -109,18 +104,34 @@ def weighted_rank(weight: float, scores: str) -> str:
     )
 
 
+def blended_neighbor_scores(
+    name: str, seeds: str, image_share: float, exclude_seeds: bool
+) -> str:
+    """CTEs scoring content by its image and like-based neighbors, blended by rank."""
+    images, likes = f"{name}_images", f"{name}_likes"
+    return f"""
+        {neighbor_scores(images, seeds, "content_image_neighbors", exclude_seeds)},
+        {neighbor_scores(likes, seeds, "content_like_neighbors", exclude_seeds)},
+        {name} AS (
+            SELECT content_id, SUM(score) AS score FROM (
+                {weighted_rank(image_share, images)}
+                UNION ALL
+                {weighted_rank(1 - image_share, likes)}
+            )
+            GROUP BY content_id
+        )"""
+
+
+PREFERENCE_SCORES = f"""
+    preference_seeds AS ({PREFERENCE_SEEDS}),
+    {blended_neighbor_scores("preference", "preference_seeds", PREFERENCE_IMAGE_SHARE, exclude_seeds=False)}"""
+
 CONTENT_SIMILARITY_CTES = f"""
     similar_seeds AS ({SIMILAR_SEEDS}),
-    {neighbor_scores("similar_images", "similar_seeds", "content_image_neighbors", exclude_seeds=True)},
-    {neighbor_scores("similar_likes", "similar_seeds", "content_like_neighbors", exclude_seeds=True)},
+    {blended_neighbor_scores("similar", "similar_seeds", SIMILAR_IMAGE_SHARE, exclude_seeds=True)},
     content_similarity_rank AS (
-        SELECT content_id, DENSE_RANK() OVER (ORDER BY SUM(score) DESC) AS rank
-        FROM (
-            {weighted_rank(IMAGE_SIMILARITY_WEIGHT, "similar_images")}
-            UNION ALL
-            {weighted_rank(LIKE_SIMILARITY_WEIGHT, "similar_likes")}
-        )
-        GROUP BY content_id
+        SELECT content_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
+        FROM similar
     )"""
 
 # Ranks the preference pool. Each further asset of an author ranks as if its score

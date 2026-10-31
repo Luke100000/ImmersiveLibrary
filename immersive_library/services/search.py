@@ -106,7 +106,7 @@ def collection_content_condition(condition: str) -> str:
 
 
 def collection_keyword_ranking(parameter: str, title_only: bool) -> str:
-    """Ranks metadata and each collection's best asset separately before fusion."""
+    """Ranks collection metadata and matching assets separately before fusion."""
     metadata_hits = f"{parameter}_metadata_hits"
     asset_hits = f"{parameter}_asset_hits"
     matches = f"{parameter}_matches"
@@ -130,7 +130,11 @@ def collection_keyword_ranking(parameter: str, title_only: bool) -> str:
         )""")
         sources += f"""
             UNION ALL
-            SELECT collection_items.collection_id, 1 AS source, MIN(hits.score)
+            SELECT collection_items.collection_id, 1 AS source,
+                SUM(hits.score) / sqrt((
+                    SELECT count(*) FROM collection_items AS members
+                    WHERE members.collection_id = collection_items.collection_id
+                ))
             FROM {asset_hits} hits
             JOIN content c ON c.oid=hits.rowid
             JOIN collection_items ON collection_items.content_id=c.oid
