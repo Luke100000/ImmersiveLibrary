@@ -58,15 +58,12 @@ async def get_users_v3(
         None, description="Only include users whose name contains this text."
     ),
     order: UserOrder = Query(
-        UserOrder.DATE,
-        description=(
-            "Sort order; ties are resolved by user ID. Ordering by report score is "
-            "for moderators."
-        ),
+        UserOrder.LIKES_RECEIVED,
+        description=("Sort order; ties are resolved by user ID."),
     ),
-    descending: bool = Query(False, description="Sort in descending order."),
+    descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
-        100, ge=1, le=500, description="The maximum number of users to fetch."
+        10, ge=1, le=500, description="The maximum number of users to fetch."
     ),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching users from."
@@ -80,7 +77,6 @@ async def get_users_v3(
         descending=descending,
         limit=limit + 1,
         offset=offset,
-        viewer_id=viewer_id,
     )
     moderator = viewer_id is not None and await is_moderator(database, viewer_id)
     return UserListSuccess(

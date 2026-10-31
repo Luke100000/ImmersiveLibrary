@@ -53,7 +53,7 @@ async def list_records(
         raise HTTPException(400, "Added ordering requires a collection")
 
     # The moderation queue needs to be able to show banned or reported content
-    if order == ContentOrder.REPORTS:
+    if order == ContentOrder.REPORT_SCORE:
         filter_banned = False
         filter_reported = False
 
@@ -131,7 +131,7 @@ async def list_records(
             """
             values["viewer_id"] = viewer_id
 
-    if order == ContentOrder.REPORTS:
+    if order == ContentOrder.REPORT_SCORE:
         query += f"\n AND {REPORT_SCORE} > 1"
 
     for condition in search.conditions:
@@ -167,7 +167,7 @@ async def list_records(
         query += f"\n ORDER BY {score} {direction}"
     elif order == ContentOrder.ADDED:
         query += f"\n ORDER BY collection_membership.created_at {direction}"
-    elif order == ContentOrder.REPORTS:
+    elif order == ContentOrder.REPORT_SCORE:
         query += f"\n ORDER BY {REPORT_SCORE} {direction}"
     elif order == ContentOrder.HOT:
         query += f"\n ORDER BY {HOT_SCORE} {direction}, likes {direction}"

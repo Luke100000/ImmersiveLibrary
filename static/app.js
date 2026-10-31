@@ -322,7 +322,7 @@ document.addEventListener('alpine:init', () => {
             try {
                 const data = contentId
                     ? await fetchJson(sitePath('v3', 'content', project, contentId))
-                    : await fetchJson(sitePath('v1', 'collection', project, collectionId));
+                    : await fetchJson(sitePath('v3', 'collection', project, collectionId));
                 if (contentId === this.similar_to && collectionId === this.similar_to_collection) {
                     this.similarSource = (data.content ?? data.collection).title;
                 }
@@ -359,7 +359,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('collectionList', (project, filters = {}, syncUrl = true) => pagedList({
         project,
         syncUrl,
-        endpoint: sitePath('v1', 'collection', project),
+        endpoint: sitePath('v3', 'collection', project),
         itemsKey: 'collections',
         idName: 'collection_id',
         itemUrl: (id) => sitePath(project, 'collections', id),
@@ -367,7 +367,7 @@ document.addEventListener('alpine:init', () => {
         query() {
             return {
                 ...filters,
-                user_id: this.track === 'mine' ? 'me' : filters.user_id,
+                author_id: this.track === 'mine' ? 'me' : filters.author_id,
                 order: this.sort,
                 descending: this.descending,
                 q: this.search.trim(),
@@ -376,12 +376,12 @@ document.addEventListener('alpine:init', () => {
     }));
 
     Alpine.data('collectionCreate', (project) => collectionForm(
-        (form) => sendJson(sitePath('v1', 'collection', project), 'POST', form, 'Unable to create collection'),
+        (form) => sendJson(sitePath('v3', 'collection', project), 'POST', form, 'Unable to create collection'),
         (collection) => window.location.assign(sitePath(project, 'collections', collection.collection_id)),
     ));
 
     Alpine.data('collectionDetail', (project, collectionId) => {
-        const collectionUrl = sitePath('v1', 'collection', project, collectionId);
+        const collectionUrl = sitePath('v3', 'collection', project, collectionId);
 
         return {
             project,
@@ -611,7 +611,7 @@ document.addEventListener('alpine:init', () => {
 
             async editCollections() {
                 if (!this.requireUser()) return;
-                const collectionsUrl = sitePath('v1', 'collection', project);
+                const collectionsUrl = sitePath('v3', 'collection', project);
                 try {
                     const parameters = new URLSearchParams({user_id: 'me', content_id: contentId, limit: 500});
                     const {collections} = await fetchJson(`${collectionsUrl}?${parameters}`, {
@@ -632,7 +632,7 @@ document.addEventListener('alpine:init', () => {
                             const {collection} = await sendJson(collectionsUrl, 'POST', {title}, 'Unable to create collection');
                             return {id: collection.collection_id, label: collection.title};
                         },
-                        onChange: (item) => fetchJson(sitePath('v1', 'collection', project, item.id, 'content', contentId), {
+                        onChange: (item) => fetchJson(sitePath('v3', 'collection', project, item.id, 'content', contentId), {
                             method: item.selected ? 'PUT' : 'DELETE',
                             errorMessage: 'Unable to update collection',
                         }),

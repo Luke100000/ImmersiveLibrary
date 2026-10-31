@@ -91,8 +91,8 @@ async def list_content(
         True,
         description="Exclude content hidden by its reports, and content you reported.",
     ),
-    order: ContentOrder = ContentOrder.DATE,
-    descending: bool = Query(False, description="Sort in descending order."),
+    order: ContentOrder = ContentOrder.RELEVANCE,
+    descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
         10, ge=1, le=500, description="The maximum amount of content to fetch."
     ),

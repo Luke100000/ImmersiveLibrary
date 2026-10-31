@@ -1,10 +1,8 @@
 from databases.interfaces import Record
-from fastapi import HTTPException
 
 from immersive_library.database import database
 from immersive_library.enums import UserOrder
 from immersive_library.services.reports import REPORT_SCORE
-from immersive_library.utils import is_moderator
 
 
 async def list_users(
@@ -15,13 +13,7 @@ async def list_users(
     descending: bool = False,
     limit: int = 100,
     offset: int = 0,
-    viewer_id: int | None = None,
 ) -> list[Record]:
-    if order == UserOrder.AVERAGE_REPORT_SCORE and (
-        viewer_id is None or not await is_moderator(database, viewer_id)
-    ):
-        raise HTTPException(403, "Ordering by report score requires a moderator")
-
     values = {"limit": limit, "offset": offset, "project": project}
     user_filter = ""
     if user_id is not None:
@@ -38,7 +30,7 @@ async def list_users(
         UserOrder.LIKES_GIVEN: "likes_given",
         UserOrder.LIKES_RECEIVED: "likes_received",
         UserOrder.RECENT_LIKES_RECEIVED: "recent_likes_received",
-        UserOrder.AVERAGE_REPORT_SCORE: "average_report_score",
+        UserOrder.REPORT_SCORE: "average_report_score",
     }[order]
     ordering = f"{sort_column} {direction}"
     if order != UserOrder.DATE:

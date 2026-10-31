@@ -17,7 +17,7 @@
     {% include "components/user-stats.jinja" %}
 </section>
 
-<section class="list-section" x-data='collectionList({{ project | tojson }}, {user_id: {{ user.user_id }}}, false)'
+<section class="list-section" x-data='collectionList({{ project | tojson }}, {author_id: {{ user.user_id }}}, false)'
          x-show="loading || items.length > 0">
     <h2 class="section-title">Collections</h2>
     <div class="grid">

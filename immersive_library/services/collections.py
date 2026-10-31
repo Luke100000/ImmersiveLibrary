@@ -33,7 +33,7 @@ COLLECTION_SELECT = """
 
 async def list_collections(
     project: str,
-    user_id: int | None = None,
+    author_id: int | None = None,
     q: str | None = None,
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = True,
@@ -77,9 +77,9 @@ async def list_collections(
         WHERE collections.project=:project
         AND (collections.user_id=:viewer_id OR collections.is_public=1)
     """
-    if user_id is not None:
-        query += " AND collections.user_id=:user_id"
-        values["user_id"] = user_id
+    if author_id is not None:
+        query += " AND collections.user_id=:author_id"
+        values["author_id"] = author_id
 
     for condition in search.conditions:
         query += f"\n AND {condition}"

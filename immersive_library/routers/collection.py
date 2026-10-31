@@ -26,11 +26,12 @@ router = APIRouter(
 )
 
 
-@router.get("/v1/collection/{project}", response_model_exclude_none=True)
+@router.get("/v3/collection/{project}", response_model_exclude_none=True)
 async def list_collections(
     project: str,
-    user_id: UserFilter | None = Query(
-        None, description="Filter by owner; use 'me' for your collections."
+    author_id: UserFilter | None = Query(
+        None,
+        description="Only include collections by this user ID; use 'me' for yours.",
     ),
     q: str | None = Query(
         None,
@@ -47,17 +48,20 @@ async def list_collections(
     ),
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = Query(True, description="Sort in descending order."),
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    limit: int = Query(
+        10, ge=1, le=500, description="The maximum number of collections to fetch."
+    ),
+    offset: int = Query(
+        0, ge=0, description="The offset to start fetching collections from."
+    ),
     content_id: int | None = Query(
         None, ge=1, description="Include membership flags for this content ID."
     ),
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> CollectionListSuccess:
-    owner_id = resolve_user_filter(user_id, viewer_id)
     collections = await collection_service.list_collections(
         project,
-        user_id=owner_id,
+        author_id=resolve_user_filter(author_id, viewer_id),
         q=q,
         order=order,
         descending=descending,
@@ -72,7 +76,7 @@ async def list_collections(
 
 
 @router.post(
-    "/v1/collection/{project}",
+    "/v3/collection/{project}",
     status_code=201,
     response_model_exclude_none=True,
     dependencies=[Depends(INTERACT)],
@@ -90,7 +94,7 @@ async def create_collection(
 
 
 @router.get(
-    "/v1/collection/{project}/{collection_id}", response_model_exclude_none=True
+    "/v3/collection/{project}/{collection_id}", response_model_exclude_none=True
 )
 async def get_collection(
     project: str,
@@ -105,7 +109,7 @@ async def get_collection(
 
 
 @router.patch(
-    "/v1/collection/{project}/{collection_id}",
+    "/v3/collection/{project}/{collection_id}",
     response_model_exclude_none=True,
     dependencies=[Depends(INTERACT)],
 )
@@ -123,7 +127,7 @@ async def update_collection(
 
 
 @router.delete(
-    "/v1/collection/{project}/{collection_id}", dependencies=[Depends(INTERACT)]
+    "/v3/collection/{project}/{collection_id}", dependencies=[Depends(INTERACT)]
 )
 async def delete_collection(
     project: str,
@@ -135,7 +139,7 @@ async def delete_collection(
 
 
 @router.put(
-    "/v1/collection/{project}/{collection_id}/content/{content_id}",
+    "/v3/collection/{project}/{collection_id}/content/{content_id}",
     dependencies=[Depends(INTERACT)],
 )
 async def add_content(
@@ -151,7 +155,7 @@ async def add_content(
 
 
 @router.delete(
-    "/v1/collection/{project}/{collection_id}/content/{content_id}",
+    "/v3/collection/{project}/{collection_id}/content/{content_id}",
     dependencies=[Depends(INTERACT)],
 )
 async def remove_content(
