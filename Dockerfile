@@ -24,6 +24,10 @@ COPY immersive_library/ /app/immersive_library/
 COPY static/ /app/static/
 COPY templates/ /app/templates/
 
+# Fetch furniture assets
+COPY scripts/fetch_textures.sh /app/scripts/
+RUN /app/scripts/fetch_textures.sh && rm -rf /app/.cache
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --all-groups --no-group dev
 

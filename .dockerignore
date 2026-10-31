@@ -17,3 +17,5 @@ docs
 node_modules
 prometheus
 redis_data
+static/vendor/pixel-perfection
+.cache

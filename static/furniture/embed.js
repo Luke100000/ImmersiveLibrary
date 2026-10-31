@@ -152,6 +152,56 @@ function listTextures(elements) {
     return textures;
 }
 
+const SPRITE_ROOT = '/static/vendor/pixel-perfection/assets/minecraft/textures/';
+
+const spriteCache = new Map();
+
+// Resolves to null for textures the pack does not have, e.g. those of other mods
+function loadSprite(id) {
+    if (!spriteCache.has(id)) spriteCache.set(id, fetchSprite(id));
+    return spriteCache.get(id);
+}
+
+async function fetchSprite(id) {
+    const [namespace, path] = id.split(':');
+    if (namespace !== 'minecraft' || !/^(block|item)\/[a-z0-9_]+$/.test(path)) return null;
+
+    const image = new Image();
+    image.src = `${SPRITE_ROOT}${path}.png`;
+    try {
+        await image.decode();
+    } catch {
+        return null;
+    }
+
+    // Animated textures are strips of square frames, only the first one is shown
+    const size = image.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const context = canvas.getContext('2d', {willReadFrequently: true});
+    context.drawImage(image, 0, 0);
+
+    let cutout = false;
+    let translucent = false;
+    const {data} = context.getImageData(0, 0, size, size);
+    for (let i = 3; i < data.length; i += 4) {
+        if (data[i] === 0) cutout = true;
+        else if (data[i] < 255) translucent = true;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.magFilter = texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    return {texture, cutout, translucent};
+}
+
+async function loadSprites(elements) {
+    const ids = new Set(elements
+        .filter(element => element.Type.value === 'sprite')
+        .map(element => element.Sprite.value.Sprite.value));
+    return new Map(await Promise.all([...ids].map(async id => [id, await loadSprite(id)])));
+}
+
 // Deterministic pseudo-random value in [-1, 1) for an integer seed
 function hashToUnit(seed) {
     let h = Math.imul(seed ^ (seed >>> 16), 0x45d9f3b);
@@ -159,7 +209,76 @@ function hashToUnit(seed) {
     return ((h ^ (h >>> 16)) >>> 0) / 0x80000000 - 1;
 }
 
-function createSceneFromObject(data, options = {}) {
+// Offsets each element slightly so coplanar faces of different elements do not z-fight
+function jitteredCenter(from, to, idx) {
+    const jitter = 0.0003;
+    return new THREE.Vector3(
+        (from[0] + to[0]) / 32 + hashToUnit(idx * 3) * jitter,
+        (from[1] + to[1]) / 32 + hashToUnit(idx * 3 + 1) * jitter,
+        (from[2] + to[2]) / 32 + hashToUnit(idx * 3 + 2) * jitter,
+    );
+}
+
+function rotateElement(object, element) {
+    object.rotation[element.Axis.value] = element.Rotation.value * (Math.PI / 180);
+}
+
+// Sprites are flat and show their texture unmirrored from the north. Tiled ones repeat from the top left.
+function addSprite(group, element, idx, sprites) {
+    const loaded = sprites.get(element.Sprite.value.Sprite.value);
+    if (!loaded) return;
+
+    const {Rotation, Size, Tiled} = element.Sprite.value;
+    const from = element.From.value.value;
+    const to = element.To.value.value;
+    const width = Math.trunc(Math.abs(to[0] - from[0]));
+    const height = Math.trunc(Math.abs(to[1] - from[1]));
+
+    // One texture covers 16 * size pixels
+    const scale = 16 * (Size?.value ?? 1);
+    const tile = Math.max(1, Math.round(scale));
+    const stepX = Tiled?.value ? tile : width;
+    const stepY = Tiled?.value ? tile : height;
+    if (Math.ceil(width / stepX) * Math.ceil(height / stepY) > 1024) return;
+
+    const material = new THREE.MeshStandardMaterial({
+        map: loaded.texture,
+        color: element.Color.value,
+        side: THREE.DoubleSide,
+        transparent: loaded.translucent,
+        alphaTest: loaded.cutout ? 0.5 : 0,
+        emissive: 0xffffff,
+        emissiveIntensity: element.Emission ? element.Emission.value / 16.0 : 0.0,
+    });
+    const shift = Math.round((Rotation?.value ?? 0) / 90) & 3;
+
+    const pivot = new THREE.Group();
+    pivot.position.copy(jitteredCenter(from, to, idx));
+    rotateElement(pivot, element);
+
+    for (let x = 0; x < width; x += stepX) {
+        for (let y = 0; y < height; y += stepY) {
+            const w = Math.min(width - x, stepX);
+            const h = Math.min(height - y, stepY);
+            const geometry = new THREE.PlaneGeometry(w / 16, h / 16).rotateY(Math.PI);
+
+            // Partial tiles show the top left of the texture, in the order top left, bottom left, bottom right, top right
+            const fx = Math.min(1, w / scale);
+            const fy = Math.min(1, h / scale);
+            const corners = [[0, 1], [0, 1 - fy], [fx, 1 - fy], [fx, 1]];
+            [0, 3, 1, 2].forEach((corner, vertex) => {
+                geometry.attributes.uv.setXY(vertex, ...corners[(corner + shift) % 4]);
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set((x + w / 2 - width / 2) / 16, -(y + h / 2 - height / 2) / 16, 0);
+            pivot.add(mesh);
+        }
+    }
+    group.add(pivot);
+}
+
+function createSceneFromObject(data, options = {}, sprites = new Map()) {
     const {Elements} = data.parsed.value;
     let elements = Elements.value.value;
 
@@ -187,6 +306,10 @@ function createSceneFromObject(data, options = {}) {
     const group = new THREE.Group();
     elements.forEach((element, idx) => {
         const {From, To, Material, Type} = element;
+        if (Type.value === "sprite") {
+            addSprite(group, element, idx, sprites);
+            return;
+        }
         if (Type.value !== "element") return;
 
         const from = From.value.value;
@@ -196,12 +319,6 @@ function createSceneFromObject(data, options = {}) {
         const width = Math.abs(to[0] - from[0]);
         const height = Math.abs(to[1] - from[1]);
         const depth = Math.abs(to[2] - from[2]);
-
-        // Offset each element slightly so coplanar faces of different elements do not z-fight
-        const jitter = 0.0003;
-        const x = (from[0] + to[0]) / 32 + hashToUnit(idx * 3) * jitter;
-        const y = (from[1] + to[1]) / 32 + hashToUnit(idx * 3 + 1) * jitter;
-        const z = (from[2] + to[2]) / 32 + hashToUnit(idx * 3 + 2) * jitter;
 
         // Create material
         const material = new THREE.MeshStandardMaterial({
@@ -236,14 +353,8 @@ function createSceneFromObject(data, options = {}) {
             }
         });
         const cube = new THREE.Mesh(geometry, material);
-        cube.position.set(x, y, z);
-
-        // Apply rotation if specified
-        const axis = element.Axis.value;
-        const rotation = element.Rotation.value * (Math.PI / 180);
-        if (axis === "x") cube.rotation.x = rotation;
-        else if (axis === "y") cube.rotation.y = rotation;
-        else if (axis === "z") cube.rotation.z = rotation;
+        cube.position.copy(jitteredCenter(from, to, idx));
+        rotateElement(cube, element);
 
         group.add(cube);
     });
@@ -312,5 +423,6 @@ export async function embed(element, content, options = {}) {
     const {Buffer} = load('buffer');
 
     const parsedData = await nbt.parse(Buffer.from(atob(content.data), 'binary'));
-    return createSceneFromObject(parsedData, options);
+    const sprites = await loadSprites(parsedData.parsed.value.Elements.value.value);
+    return createSceneFromObject(parsedData, options, sprites);
 }

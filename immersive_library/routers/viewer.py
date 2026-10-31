@@ -69,6 +69,11 @@ async def get_contact(request: Request):
     return templates.TemplateResponse(request, "contact.jinja")
 
 
+@router.get("/credits", response_class=HTMLResponse)
+async def get_credits(request: Request):
+    return templates.TemplateResponse(request, "credits.jinja")
+
+
 @router.get("/render", response_class=HTMLResponse)
 async def get_render_shell(request: Request):
     return templates.TemplateResponse(
