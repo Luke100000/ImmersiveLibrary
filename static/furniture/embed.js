@@ -1,5 +1,7 @@
 // noinspection JSCheckFunctionSignatures
 
+import {animateSprite, createSprite, loadSprites} from './sprites.js';
+
 function intArrayToRGBA(pixelsInt, width, height) {
     const pixelsRGBA = new Uint8Array(width * height * 4);
     for (let i = 0; i < pixelsInt.length; i++) {
@@ -152,108 +154,6 @@ function listTextures(elements) {
     return textures;
 }
 
-const SPRITE_ROOT = '/static/vendor/pixel-perfection/assets/minecraft/textures/';
-
-const spriteCache = new Map();
-
-// Resolves to null for textures the pack does not have, e.g. those of other mods
-function loadSprite(id) {
-    if (!spriteCache.has(id)) spriteCache.set(id, fetchSprite(id));
-    return spriteCache.get(id);
-}
-
-async function fetchSprite(id) {
-    const [namespace, path] = id.split(':');
-    if (namespace !== 'minecraft' || !/^(block|item)\/[a-z0-9_]+$/.test(path)) return null;
-
-    const image = new Image();
-    image.src = `${SPRITE_ROOT}${path}.png`;
-    try {
-        await image.decode();
-    } catch {
-        return null;
-    }
-
-    // Transparency is judged over all frames
-    const strip = document.createElement('canvas');
-    strip.width = image.naturalWidth;
-    strip.height = image.naturalHeight;
-    const stripContext = strip.getContext('2d', {willReadFrequently: true});
-    stripContext.drawImage(image, 0, 0);
-
-    let cutout = false;
-    let translucent = false;
-    const {data} = stripContext.getImageData(0, 0, strip.width, strip.height);
-    for (let i = 3; i < data.length; i += 4) {
-        if (data[i] === 0) cutout = true;
-        else if (data[i] < 255) translucent = true;
-    }
-
-    // Animated textures are strips of frames, the texture shows one frame at a time
-    const animation = image.naturalHeight > image.naturalWidth ? await fetchAnimation(path, image) : null;
-    const canvas = document.createElement('canvas');
-    canvas.width = animation?.width ?? image.naturalWidth;
-    canvas.height = animation?.height ?? image.naturalWidth;
-    canvas.getContext('2d').drawImage(image, 0, 0);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.magFilter = texture.minFilter = THREE.NearestFilter;
-    texture.generateMipmaps = false;
-    return {texture, cutout, translucent, animation: animation && {...animation, image, canvas, shown: null}};
-}
-
-// Frames last the given amount of game ticks, which are 50ms
-const TICK = 50;
-
-async function fetchAnimation(path, image) {
-    const response = await fetch(`${SPRITE_ROOT}${path}.png.mcmeta`);
-    const meta = response.ok ? (await response.json().catch(() => ({}))).animation ?? {} : {};
-
-    const width = meta.width ?? image.naturalWidth;
-    const height = meta.height ?? width;
-    const frametime = meta.frametime ?? 1;
-    const indices = meta.frames ?? Array.from({length: Math.floor(image.naturalHeight / height)}, (_, i) => i);
-    const sequence = indices.map(frame => typeof frame === 'number'
-        ? {index: frame, time: frametime}
-        : {index: frame.index, time: frame.time ?? frametime});
-    const duration = sequence.reduce((sum, frame) => sum + frame.time, 0);
-    return duration > 0 ? {width, height, sequence, duration, interpolate: !!meta.interpolate} : null;
-}
-
-function animateSprite({texture, animation}, time) {
-    if (!animation) return;
-
-    let ticks = (time / TICK) % animation.duration;
-    let current = 0;
-    while (ticks >= animation.sequence[current].time) ticks -= animation.sequence[current++].time;
-
-    const {index, time: length} = animation.sequence[current];
-    const next = animation.sequence[(current + 1) % animation.sequence.length].index;
-    const blend = animation.interpolate ? ticks / length : 0;
-
-    const shown = `${index}:${next}:${blend}`;
-    if (shown === animation.shown) return;
-    animation.shown = shown;
-
-    const {image, canvas, width, height} = animation;
-    const context = canvas.getContext('2d');
-    context.clearRect(0, 0, width, height);
-    context.globalAlpha = 1;
-    context.drawImage(image, 0, index * height, width, height, 0, 0, width, height);
-    if (blend) {
-        context.globalAlpha = blend;
-        context.drawImage(image, 0, next * height, width, height, 0, 0, width, height);
-    }
-    texture.needsUpdate = true;
-}
-
-async function loadSprites(elements) {
-    const ids = new Set(elements
-        .filter(element => element.Type.value === 'sprite')
-        .map(element => element.Sprite.value.Sprite.value));
-    return new Map(await Promise.all([...ids].map(async id => [id, await loadSprite(id)])));
-}
-
 // Deterministic pseudo-random value in [-1, 1) for an integer seed
 function hashToUnit(seed) {
     let h = Math.imul(seed ^ (seed >>> 16), 0x45d9f3b);
@@ -261,78 +161,89 @@ function hashToUnit(seed) {
     return ((h ^ (h >>> 16)) >>> 0) / 0x80000000 - 1;
 }
 
+function createMaterial(element, properties) {
+    return new THREE.MeshStandardMaterial({
+        color: element.Color.value,
+        emissive: 0xffffff,
+        emissiveIntensity: element.Emission ? element.Emission.value / 16.0 : 0.0,
+        ...properties,
+    });
+}
+
 // Offsets each element slightly so coplanar faces of different elements do not z-fight
-function jitteredCenter(from, to, idx) {
+function placeElement(object, element, idx) {
     const jitter = 0.0003;
-    return new THREE.Vector3(
+    const from = element.From.value.value;
+    const to = element.To.value.value;
+    object.position.set(
         (from[0] + to[0]) / 32 + hashToUnit(idx * 3) * jitter,
         (from[1] + to[1]) / 32 + hashToUnit(idx * 3 + 1) * jitter,
         (from[2] + to[2]) / 32 + hashToUnit(idx * 3 + 2) * jitter,
     );
-}
-
-function rotateElement(object, element) {
     object.rotation[element.Axis.value] = element.Rotation.value * (Math.PI / 180);
+    return object;
 }
 
-// Sprites are flat and show their texture unmirrored from the north. Tiled ones repeat from the top left.
-function addSprite(group, element, idx, sprites) {
-    const loaded = sprites.get(element.Sprite.value.Sprite.value);
-    if (!loaded) return;
-
-    const {Rotation, Size, Tiled} = element.Sprite.value;
+function createCube(element, idx, texture, regions, atlasSize) {
     const from = element.From.value.value;
     const to = element.To.value.value;
-    const width = Math.trunc(Math.abs(to[0] - from[0]));
-    const height = Math.trunc(Math.abs(to[1] - from[1]));
+    const width = Math.abs(to[0] - from[0]);
+    const height = Math.abs(to[1] - from[1]);
+    const depth = Math.abs(to[2] - from[2]);
 
-    // One texture covers 16 * size pixels
-    const scale = 16 * (Size?.value ?? 1);
-    const tile = Math.max(1, Math.round(scale));
-    const stepX = Tiled?.value ? tile : width;
-    const stepY = Tiled?.value ? tile : height;
-    if (Math.ceil(width / stepX) * Math.ceil(height / stepY) > 1024) return;
-
-    const material = new THREE.MeshStandardMaterial({
-        map: loaded.texture,
-        color: element.Color.value,
-        side: THREE.DoubleSide,
-        transparent: loaded.translucent,
-        alphaTest: loaded.cutout ? 0.5 : 0,
-        emissive: 0xffffff,
-        emissiveIntensity: element.Emission ? element.Emission.value / 16.0 : 0.0,
+    const transparency = element.Material.value.Transparency;
+    const material = createMaterial(element, {
+        map: texture,
+        transparent: !!(transparency && transparency.value !== "SOLID"),
     });
-    const shift = Math.round((Rotation?.value ?? 0) / 90) & 3;
 
-    const pivot = new THREE.Group();
-    pivot.position.copy(jitteredCenter(from, to, idx));
-    rotateElement(pivot, element);
+    const geometry = new THREE.BoxGeometry(width / 16.0, height / 16.0, depth / 16.0);
+    const faces = ["east", "west", "up", "down", "south", "north"];
+    faces.forEach((face, faceIndex) => {
+        const region = regions[`${idx}_${face}`];
 
-    for (let x = 0; x < width; x += stepX) {
-        for (let y = 0; y < height; y += stepY) {
-            const w = Math.min(width - x, stepX);
-            const h = Math.min(height - y, stepY);
-            const geometry = new THREE.PlaneGeometry(w / 16, h / 16).rotateY(Math.PI);
-
-            // Partial tiles show the top left of the texture, in the order top left, bottom left, bottom right, top right
-            const fx = Math.min(1, w / scale);
-            const fy = Math.min(1, h / scale);
-            const corners = [[0, 1], [0, 1 - fy], [fx, 1 - fy], [fx, 1]];
-            [0, 3, 1, 2].forEach((corner, vertex) => {
-                geometry.attributes.uv.setXY(vertex, ...corners[(corner + shift) % 4]);
-            });
-
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set((x + w / 2 - width / 2) / 16, -(y + h / 2 - height / 2) / 16, 0);
-            pivot.add(mesh);
+        const i = faceIndex * 4;
+        if (region) {
+            const [u, v, u2, v2] = createUVMapping(region, atlasSize);
+            const uv = geometry.attributes.uv;
+            uv.setXY(i, u, v2);
+            uv.setXY(i + 1, u2, v2);
+            uv.setXY(i + 2, u, v);
+            uv.setXY(i + 3, u2, v);
+        } else {
+            const pos = geometry.attributes.position;
+            pos.setXYZ(i, 0, 0, 0);
+            pos.setXYZ(i + 1, 0, 0, 0);
+            pos.setXYZ(i + 2, 0, 0, 0);
+            pos.setXYZ(i + 3, 0, 0, 0);
         }
-    }
-    group.add(pivot);
+    });
+    return new THREE.Mesh(geometry, material);
+}
+
+// Fits the model, which rotates around the y axis, into the view at any angle
+function positionCamera(camera, halfSize) {
+    const elevation = Math.atan(0.625);
+    const minHalfSize = 0.25;
+    const radius = Math.max(Math.hypot(halfSize.x, halfSize.z), minHalfSize);
+    const halfHeight = Math.max(halfSize.y, minHalfSize);
+    const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const tanX = tanY * camera.aspect;
+    const projectedHeight = halfHeight * Math.cos(elevation) + radius * Math.sin(elevation);
+    const distance = radius + Math.max(projectedHeight / tanY, radius / tanX);
+    camera.position.set(0, distance * Math.sin(elevation), distance * Math.cos(elevation));
+    camera.lookAt(0, 0, 0);
+
+    // Tight clipping planes keep the depth buffer precise
+    const sphereRadius = Math.max(halfSize.length(), minHalfSize);
+    camera.near = Math.max(distance - sphereRadius, 0.05);
+    camera.far = distance + sphereRadius;
+    camera.updateProjectionMatrix();
 }
 
 function createSceneFromObject(data, options = {}, sprites = new Map()) {
     const {Elements} = data.parsed.value;
-    let elements = Elements.value.value;
+    const elements = Elements.value.value;
 
     // Collect all textures from elements
     const textures = listTextures(elements);
@@ -355,66 +266,28 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     const camera = new THREE.PerspectiveCamera(50, options.width / options.height, 0.1, 16.0);
 
     // Create a group to hold all elements
-    const group = new THREE.Group();1
+    const group = new THREE.Group();
     elements.forEach((element, idx) => {
-        const {From, To, Material, Type} = element;
-        if (Type.value === "sprite") {
-            addSprite(group, element, idx, sprites);
-            return;
+        const type = element.Type.value;
+        if (type === "element") {
+            group.add(placeElement(createCube(element, idx, texture, regions, atlasSize), element, idx));
+        } else if (type === "sprite") {
+            const sprite = sprites.get(element.Sprite.value.Sprite.value);
+            if (!sprite) return;
+
+            const material = createMaterial(element, {
+                map: sprite.texture,
+                side: THREE.DoubleSide,
+                transparent: sprite.translucent,
+                alphaTest: sprite.cutout ? 0.5 : 0,
+            });
+            group.add(placeElement(createSprite(element, material), element, idx));
         }
-        if (Type.value !== "element") return;
-
-        const from = From.value.value;
-        const to = To.value.value;
-
-        // Calculate dimensions
-        const width = Math.abs(to[0] - from[0]);
-        const height = Math.abs(to[1] - from[1]);
-        const depth = Math.abs(to[2] - from[2]);
-
-        // Create material
-        const material = new THREE.MeshStandardMaterial({
-            map: texture,
-            color: element.Color.value,
-            transparent: !!(Material.value.Transparency && Material.value.Transparency.value !== "SOLID"),
-            emissive: 0xffffff,
-            emissiveIntensity: element.Emission ? element.Emission.value / 16.0 : 0.0,
-        });
-
-        // Create mesh
-        const geometry = new THREE.BoxGeometry(width / 16.0, height / 16.0, depth / 16.0);
-        const faces = ["east", "west", "up", "down", "south", "north"];
-        faces.forEach((face, faceIndex) => {
-            const key = `${idx}_${face}`;
-            const region = regions[key];
-
-            const i = faceIndex * 4;
-            if (region) {
-                const [u, v, u2, v2] = createUVMapping(region, atlasSize);
-                const uv = geometry.attributes.uv;
-                uv.setXY(i, u, v2);
-                uv.setXY(i + 1, u2, v2);
-                uv.setXY(i + 2, u, v);
-                uv.setXY(i + 3, u2, v);
-            } else {
-                const pos = geometry.attributes.position;
-                pos.setXYZ(i, 0, 0, 0);
-                pos.setXYZ(i + 1, 0, 0, 0);
-                pos.setXYZ(i + 2, 0, 0, 0);
-                pos.setXYZ(i + 3, 0, 0, 0);
-            }
-        });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.copy(jitteredCenter(from, to, idx));
-        rotateElement(cube, element);
-
-        group.add(cube);
     });
 
     const bounds = new THREE.Box3().setFromObject(group, true);
     if (bounds.isEmpty()) bounds.set(new THREE.Vector3(), new THREE.Vector3(1, 1, 1));
     const center = bounds.getCenter(new THREE.Vector3());
-    const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
     group.position.copy(center).negate();
 
     const pivot = new THREE.Object3D();
@@ -422,23 +295,7 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     pivot.add(group);
     scene.add(pivot);
 
-    // Position the camera so the model, which rotates around the y axis, fits the view at any angle
-    const elevation = Math.atan(0.625);
-    const minHalfSize = 0.25;
-    const radius = Math.max(Math.hypot(halfSize.x, halfSize.z), minHalfSize);
-    const halfHeight = Math.max(halfSize.y, minHalfSize);
-    const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    const tanX = tanY * camera.aspect;
-    const projectedHeight = halfHeight * Math.cos(elevation) + radius * Math.sin(elevation);
-    const distance = radius + Math.max(projectedHeight / tanY, radius / tanX);
-    camera.position.set(0, distance * Math.sin(elevation), distance * Math.cos(elevation));
-    camera.lookAt(0, 0, 0);
-
-    // Tight clipping planes keep the depth buffer precise
-    const sphereRadius = Math.max(halfSize.length(), minHalfSize);
-    camera.near = Math.max(distance - sphereRadius, 0.05);
-    camera.far = distance + sphereRadius;
-    camera.updateProjectionMatrix();
+    positionCamera(camera, bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5));
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
