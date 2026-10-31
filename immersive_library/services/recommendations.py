@@ -14,6 +14,9 @@ RECENT_ITEM_LIMIT = 200
 # A collection counts like this many users liking all its members.
 COLLECTION_WEIGHT = 3
 
+# A collection's quality is that of the assets most recently added to it.
+COLLECTION_QUALITY_ITEMS = 20
+
 # Trust in a preference grows as seeds / (seeds + this): half at this many seeds.
 PREFERENCE_PRIOR = 5
 
@@ -168,7 +171,7 @@ COLLECTION_PREFERENCE_CTES = f"""
 
 
 async def refresh_quality_ranks(database: Database) -> None:
-    """Ranks every asset in its project by hot, popular and all-time likes."""
+    """Ranks assets by hot, popular and all-time likes, and collections by their assets."""
     await database.execute(
         f"""
         UPDATE precomputation SET quality_rank=ranked.quality_rank
@@ -180,7 +183,8 @@ async def refresh_quality_ranks(database: Database) -> None:
             FROM (
                 SELECT c.oid AS content_id, c.project,
                        ROW_NUMBER() OVER (
-                           PARTITION BY c.project ORDER BY {HOT_SCORE} DESC, c.oid
+                           PARTITION BY c.project
+                           ORDER BY {HOT_SCORE} DESC, likes DESC, c.oid
                        ) AS hot,
                        ROW_NUMBER() OVER (
                            PARTITION BY c.project
@@ -194,6 +198,31 @@ async def refresh_quality_ranks(database: Database) -> None:
         ) AS ranked
         WHERE ranked.content_id = precomputation.content_id
             AND precomputation.quality_rank IS NOT ranked.quality_rank
+        """
+    )
+    await database.execute(
+        f"""
+        UPDATE collections SET quality_rank=ranked.quality_rank
+        FROM (
+            SELECT collections.oid AS collection_id, ROW_NUMBER() OVER (
+                PARTITION BY collections.project
+                ORDER BY AVG({reciprocal_rank("precomputation.quality_rank")}) DESC,
+                    collections.oid
+            ) AS quality_rank
+            FROM collections
+            LEFT JOIN (
+                SELECT collection_id, content_id, ROW_NUMBER() OVER (
+                    PARTITION BY collection_id ORDER BY created_at DESC
+                ) AS position
+                FROM collection_items
+            ) AS items
+                ON items.collection_id = collections.oid
+                AND items.position <= {COLLECTION_QUALITY_ITEMS}
+            LEFT JOIN precomputation ON precomputation.content_id = items.content_id
+            GROUP BY collections.oid
+        ) AS ranked
+        WHERE ranked.collection_id = collections.oid
+            AND collections.quality_rank IS NOT ranked.quality_rank
         """
     )
 

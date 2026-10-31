@@ -13,6 +13,7 @@ from immersive_library.services.recommendations import (
 from immersive_library.services.search import (
     plan_collection_search,
     relevance_score,
+    within_results,
 )
 from immersive_library.utils import content_guard
 
@@ -84,11 +85,14 @@ async def list_collections(
     for condition in search.conditions:
         query += f"\n AND {condition}"
 
-    if recommended or search.ranking is not None:
+    if ranked:
         match_ranks = (
             ["collection_keyword_rank.rank"] if search.ranking is not None else []
         )
-        sort_column = relevance_score(match_ranks)
+        quality_rank = "collections.quality_rank"
+        if match_ranks:
+            quality_rank = within_results(quality_rank)
+        sort_column = relevance_score(match_ranks, quality_rank)
         if recommended:
             preference = None
             personal_rank = None
@@ -106,7 +110,6 @@ async def list_collections(
             values["seed"] = exploration_seed(viewer_id)
     else:
         sort_column = {
-            CollectionOrder.RELEVANCE: "collections.created_at",
             CollectionOrder.CONTENT_COUNT: "content_count",
             CollectionOrder.DATE: "collections.created_at",
             CollectionOrder.UPDATED: "collections.updated_at",

@@ -36,7 +36,8 @@ TABLES = {
         description TEXT NOT NULL DEFAULT '' CHECK(length(description) <= 2000),
         is_public INTEGER NOT NULL DEFAULT 0 CHECK(is_public IN (0, 1)),
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        quality_rank INTEGER
     )""",
     "collection_items": """(
         collection_id INTEGER NOT NULL REFERENCES collections(oid) ON DELETE CASCADE,
