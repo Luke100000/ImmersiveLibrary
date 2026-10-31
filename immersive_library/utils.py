@@ -15,6 +15,14 @@ DAY = 24 * HOUR
 RECENT_DAYS = 14
 
 
+def recent_like(likes: str, author: str) -> str:
+    """Self-likes don't count."""
+    return (
+        f"{likes}.created_at > unixepoch() - {RECENT_DAYS * DAY} "
+        f"AND {likes}.user_id != {author}"
+    )
+
+
 async def update_precomputation(
     database: Database, content_id: int | None = None
 ) -> None:
@@ -34,8 +42,8 @@ async def update_precomputation(
         FROM content
 
          LEFT JOIN (SELECT likes.content_id, COUNT(*) as c_likes,
-                           SUM(likes.created_at > unixepoch() - {RECENT_DAYS * DAY}) as c_recent_likes
-                    FROM likes
+                           SUM({recent_like("likes", "liked.user_id")}) as c_recent_likes
+                    FROM likes JOIN content AS liked ON liked.oid = likes.content_id
                     {"" if content_id is None else "WHERE likes.content_id = :content_id"}
                     GROUP BY likes.content_id) liked_content ON liked_content.content_id = content.oid
 
@@ -62,9 +70,9 @@ async def refresh_recent_likes(database: Database) -> None:
     await database.execute(
         f"""
         UPDATE precomputation SET recent_likes=(
-            SELECT COUNT(*) FROM likes
-            WHERE content_id=precomputation.content_id
-              AND created_at > unixepoch() - {RECENT_DAYS * DAY}
+            SELECT COUNT(*) FROM likes JOIN content AS liked ON liked.oid = likes.content_id
+            WHERE likes.content_id=precomputation.content_id
+              AND {recent_like("likes", "liked.user_id")}
         )
         WHERE recent_likes > 0 OR content_id IN (
             SELECT content_id FROM likes WHERE created_at > unixepoch() - {RECENT_DAYS * DAY}

@@ -20,8 +20,12 @@ COLLECTION_QUALITY_ITEMS = 20
 # Trust in a preference grows as seeds / (seeds + this): half at this many seeds.
 PREFERENCE_PRIOR = 5
 
+# Trust in a hot score grows as recent likes / (recent likes + this)
+HOT_PRIOR = 10
+
 HOT_SCORE = f"""precomputation.recent_likes
-    / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS})"""
+    / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS})
+    * precomputation.recent_likes / (precomputation.recent_likes + {HOT_PRIOR}.0)"""
 
 # A pseudo-random number in [0, 1) per item and :seed.
 SEEDED_RANDOM = """ABS(
@@ -51,8 +55,8 @@ class Weights:
     exploration: float
 
 
-BROWSE_WEIGHTS = Weights(relevance=1.0, personal=1.0, exploration=0.5)
-SEARCH_WEIGHTS = Weights(relevance=2.0, personal=0.5, exploration=0.5)
+BROWSE_WEIGHTS = Weights(relevance=1.0, personal=1.5, exploration=0.5)
+SEARCH_WEIGHTS = Weights(relevance=2.0, personal=1.5, exploration=0.5)
 
 # Image shares of the blends with like-based neighbours.
 SIMILAR_IMAGE_SHARE = 0.75
