@@ -7,6 +7,10 @@
             {% for key, label, path in [("content", "Content", ""), ("users", "Users", "/users"), ("collections", "Collections", "/collections")] %}
                 <a class="tab{% if section == key %} active{% endif %}" href="/{{ project | urlencode }}{{ path }}">{{ label }}</a>
             {% endfor %}
+            <a class="tab" href="/{{ project | urlencode }}?sort=report_score&reported=only&banned=include"
+               title="Content hidden by reports" x-show="$store.auth.user?.moderator" x-cloak>
+                {{ icon("report") }}
+            </a>
         </nav>
     {% endif %}
     <button class="btn site-login" type="button"
