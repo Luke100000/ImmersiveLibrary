@@ -46,6 +46,13 @@ async def list_collections(
             "Separate terms may match different assets."
         ),
     ),
+    similar_to: int | None = Query(
+        None, description="Only include collections similar to this content ID."
+    ),
+    similar_to_collection: int | None = Query(
+        None,
+        description="Only include collections similar to this accessible collection.",
+    ),
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
@@ -63,6 +70,8 @@ async def list_collections(
         project,
         author_id=resolve_user_filter(author_id, viewer_id),
         q=q,
+        similar_to=similar_to,
+        similar_to_collection=similar_to_collection,
         order=order,
         descending=descending,
         limit=limit + 1,

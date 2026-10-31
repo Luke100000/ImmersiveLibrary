@@ -6,6 +6,7 @@ from immersive_library.enums import CollectionOrder
 from immersive_library.models import Collection, CollectionCreate, CollectionUpdate
 from immersive_library.services.recommendations import (
     COLLECTION_PREFERENCE_CTES,
+    COLLECTION_SIMILARITY_CTES,
     preference_strength,
     recommendation_score,
 )
@@ -36,6 +37,8 @@ async def list_collections(
     project: str,
     author_id: int | None = None,
     q: str | None = None,
+    similar_to: int | None = None,
+    similar_to_collection: int | None = None,
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = True,
     limit: int = 100,
@@ -49,6 +52,7 @@ async def list_collections(
     recommended = order == CollectionOrder.RECOMMENDATIONS
     ranked = order in (CollectionOrder.RELEVANCE, CollectionOrder.RECOMMENDATIONS)
     personalized = recommended and viewer_id is not None
+    similar = similar_to is not None or similar_to_collection is not None
     search = plan_collection_search(q, rank=ranked)
     query = COLLECTION_SELECT
     values: dict[str, str | int | float | None] = {
@@ -72,6 +76,15 @@ async def list_collections(
             LEFT JOIN collection_keyword_rank
                 ON collection_keyword_rank.collection_id=collections.oid
         """
+    if similar:
+        ctes.append(COLLECTION_SIMILARITY_CTES)
+        query += """
+            JOIN collection_similarity_rank
+                ON collection_similarity_rank.collection_id=collections.oid
+        """
+        values["similar_to"] = similar_to
+        values["similar_to_collection"] = similar_to_collection
+        values["similar_viewer_id"] = viewer_id
     if ctes:
         query = "WITH " + ", ".join(ctes) + query
     query += """
@@ -85,7 +98,11 @@ async def list_collections(
     for condition in search.conditions:
         query += f"\n AND {condition}"
 
-    match_ranks = ["collection_keyword_rank.rank"] if search.ranking is not None else []
+    match_ranks = []
+    if search.ranking is not None:
+        match_ranks.append("collection_keyword_rank.rank")
+    if similar:
+        match_ranks.append("collection_similarity_rank.rank")
     direction = "DESC" if descending else "ASC"
     if ranked:
         if recommended or match_ranks:

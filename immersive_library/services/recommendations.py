@@ -140,9 +140,12 @@ PREFERENCE_SCORES = f"""
     preference_seeds AS ({PREFERENCE_SEEDS}),
     {blended_neighbor_scores("preference", "preference_seeds", PREFERENCE_IMAGE_SHARE, exclude_seeds=False)}"""
 
-CONTENT_SIMILARITY_CTES = f"""
+SIMILAR_SCORES = f"""
     similar_seeds AS ({SIMILAR_SEEDS}),
-    {blended_neighbor_scores("similar", "similar_seeds", SIMILAR_IMAGE_SHARE, exclude_seeds=True)},
+    {blended_neighbor_scores("similar", "similar_seeds", SIMILAR_IMAGE_SHARE, exclude_seeds=True)}"""
+
+CONTENT_SIMILARITY_CTES = f"""
+    {SIMILAR_SCORES},
     content_similarity_rank AS (
         SELECT content_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
         FROM similar
@@ -164,38 +167,64 @@ CONTENT_PREFERENCE_CTES = f"""
     )"""
 
 
-# Sums the affinity of a collection's assets over the root of its size.
+def collection_affinity(name: str, scores: str) -> str:
+    """
+    A CTE scoring the viewer's visible collections by the scores of their visible
+    assets, summed over the root of the collection's size.
+    """
+    return f"""
+        {name} AS (
+            SELECT collection_items.collection_id,
+                   SUM({scores}.score) / sqrt((
+                       SELECT count(*) FROM collection_items AS members
+                       WHERE members.collection_id = collection_items.collection_id
+                   )) AS score
+            FROM {scores}
+            JOIN content c ON c.oid={scores}.content_id
+            JOIN collection_items ON collection_items.content_id=c.oid
+            JOIN collections ON collections.oid=collection_items.collection_id
+            JOIN users AS author ON author.oid=c.user_id
+            JOIN precomputation ON precomputation.content_id=c.oid
+            WHERE {COLLECTION_CONTENT_VISIBILITY}
+                AND collections.project=:project
+                AND (collections.user_id=:viewer_id OR collections.is_public=1)
+                AND {scores}.score > 0
+            GROUP BY collection_items.collection_id
+        )"""
+
+
 COLLECTION_PREFERENCE_CTES = f"""
     {PREFERENCE_SCORES},
-    collection_preference AS (
-        SELECT collection_items.collection_id,
-               SUM(affinity.score) / sqrt((
-                   SELECT count(*) FROM collection_items AS members
-                   WHERE members.collection_id = collection_items.collection_id
-               )) AS score
-        FROM (
-            SELECT content_id, SUM(score) AS score FROM (
-                SELECT content_id, score FROM preference
-                UNION ALL
-                SELECT content_id, weight AS score FROM preference_seeds
-            ) GROUP BY content_id
-        ) AS affinity
-        JOIN content c ON c.oid=affinity.content_id
-        JOIN collection_items ON collection_items.content_id=c.oid
-        JOIN collections ON collections.oid=collection_items.collection_id
-        JOIN users AS author ON author.oid=c.user_id
-        JOIN precomputation ON precomputation.content_id=c.oid
-        WHERE {COLLECTION_CONTENT_VISIBILITY}
-            AND collections.project=:project
-            AND (collections.user_id=:viewer_id OR collections.is_public=1)
-            AND affinity.score > 0
-        GROUP BY collection_items.collection_id
+    preference_affinity AS (
+        SELECT content_id, SUM(score) AS score FROM (
+            SELECT content_id, score FROM preference
+            UNION ALL
+            SELECT content_id, weight FROM preference_seeds
+        ) GROUP BY content_id
     ),
+    {collection_affinity("collection_preference", "preference_affinity")},
     collection_preference_rank AS (
         SELECT collection_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
         FROM collection_preference
-    )
-"""
+    )"""
+
+# The seeds count as the best possible neighbor, so collections holding them rank
+# first. The collection the search starts from is left out.
+COLLECTION_SIMILARITY_CTES = f"""
+    {SIMILAR_SCORES},
+    similar_affinity AS (
+        SELECT content_id, SUM(score) AS score FROM (
+            SELECT content_id, score FROM similar
+            UNION ALL
+            SELECT content_id, weight * {reciprocal_rank("1")} FROM similar_seeds
+        ) GROUP BY content_id
+    ),
+    {collection_affinity("collection_similarity", "similar_affinity")},
+    collection_similarity_rank AS (
+        SELECT collection_id, DENSE_RANK() OVER (ORDER BY score DESC) AS rank
+        FROM collection_similarity
+        WHERE collection_id IS NOT :similar_to_collection
+    )"""
 
 
 async def refresh_ranks(database: Database) -> None:
