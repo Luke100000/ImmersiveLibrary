@@ -121,7 +121,9 @@ a:hover {
     color: var(--text-primary);
 }
 
-.site-login {
+.site-account {
+    display: flex;
+    gap: 8px;
     margin-left: auto;
 }
 

@@ -13,12 +13,20 @@
             </a>
         </nav>
     {% endif %}
-    <button class="btn site-login" type="button"
-            :title="$store.auth.hasToken ? 'Sign out' : 'Sign in with Google'"
-            @click="$store.auth.hasToken ? $store.auth.logout() : $store.auth.login()">
-        {{ icon("login") }}
-        <span x-text="$store.auth.hasToken ? 'Log out' : 'Login'">Login</span>
-    </button>
+    <div class="site-account">
+        {% if project %}
+            <a class="btn" x-show="$store.auth.user" x-cloak
+               :href="$store.auth.user && `/{{ project | urlencode }}/users/${$store.auth.user.user_id}`">
+                {{ icon("profile") }}<span>Profile</span>
+            </a>
+        {% endif %}
+        <button class="btn" type="button"
+                :title="$store.auth.hasToken ? 'Sign out' : 'Sign in with Google'"
+                @click="$store.auth.hasToken ? $store.auth.logout() : $store.auth.login()">
+            {{ icon("login") }}
+            <span x-text="$store.auth.hasToken ? 'Log out' : 'Login'">Login</span>
+        </button>
+    </div>
 </header>
 {% include "components/consent.jinja" %}
 {% include "components/dialogs.jinja" %}
