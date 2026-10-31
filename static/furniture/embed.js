@@ -152,6 +152,13 @@ function listTextures(elements) {
     return textures;
 }
 
+// Deterministic pseudo-random value in [-1, 1) for an integer seed
+function hashToUnit(seed) {
+    let h = Math.imul(seed ^ (seed >>> 16), 0x45d9f3b);
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+    return ((h ^ (h >>> 16)) >>> 0) / 0x80000000 - 1;
+}
+
 function createSceneFromObject(data, options = {}) {
     const {Elements} = data.parsed.value;
     let elements = Elements.value.value;
@@ -190,10 +197,11 @@ function createSceneFromObject(data, options = {}) {
         const height = Math.abs(to[1] - from[1]);
         const depth = Math.abs(to[2] - from[2]);
 
-        // Calculate position
-        const x = (from[0] + to[0]) / 32 + ((idx * 23) % 7) * 0.0001;
-        const y = (from[1] + to[1]) / 32 + ((idx * 23) % 13) * 0.0001;
-        const z = (from[2] + to[2]) / 32 + ((idx * 23) % 17) * 0.0001;
+        // Offset each element slightly so coplanar faces of different elements do not z-fight
+        const jitter = 0.0003;
+        const x = (from[0] + to[0]) / 32 + hashToUnit(idx * 3) * jitter;
+        const y = (from[1] + to[1]) / 32 + hashToUnit(idx * 3 + 1) * jitter;
+        const z = (from[2] + to[2]) / 32 + hashToUnit(idx * 3 + 2) * jitter;
 
         // Create material
         const material = new THREE.MeshStandardMaterial({
@@ -262,6 +270,12 @@ function createSceneFromObject(data, options = {}) {
     const distance = radius + Math.max(projectedHeight / tanY, radius / tanX);
     camera.position.set(0, distance * Math.sin(elevation), distance * Math.cos(elevation));
     camera.lookAt(0, 0, 0);
+
+    // Tight clipping planes keep the depth buffer precise
+    const sphereRadius = Math.max(halfSize.length(), minHalfSize);
+    camera.near = Math.max(distance - sphereRadius, 0.05);
+    camera.far = distance + sphereRadius;
+    camera.updateProjectionMatrix();
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
