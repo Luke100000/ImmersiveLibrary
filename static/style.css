@@ -286,7 +286,7 @@ a:hover {
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-    gap: 10px;
+    gap: 16px;
 }
 
 .card {
@@ -294,7 +294,6 @@ a:hover {
     flex-direction: column;
     position: relative;
     padding: 12px;
-    margin: 4px;
     min-height: 220px;
     border-radius: 12px;
 }
@@ -676,6 +675,16 @@ a.btn {
 
 .card-interactive .btn-label {
     display: none;
+}
+
+.card-interactive .content-actions {
+    gap: 6px;
+}
+
+.card-interactive .content-actions .btn {
+    flex: 1 1 auto;
+    gap: 6px;
+    padding: 9px 6px;
 }
 
 .detail-heading {
