@@ -12,7 +12,6 @@ from immersive_library.models import Content, ContentSummary, ContentUpload
 from immersive_library.services.recommendations import (
     CONTENT_PREFERENCE_CTES,
     CONTENT_SIMILARITY_CTES,
-    HOT_SCORE,
     exploration_seed,
     preference_strength,
     recommendation_score,
@@ -20,6 +19,7 @@ from immersive_library.services.recommendations import (
 from immersive_library.services.reports import REPORT_SCORE
 from immersive_library.services.search import (
     plan_content_search,
+    rank_ordering,
     relevance_score,
     within_results,
 )
@@ -27,6 +27,21 @@ from immersive_library.utils import (
     set_tags,
     update_precomputation,
 )
+
+
+# Orders by columns, most with an index. Ties are resolved by content ID.
+COLUMN_ORDERS = {
+    ContentOrder.DATE: ["c.oid"],
+    ContentOrder.TITLE: ["c.title", "c.oid"],
+    ContentOrder.LIKES: ["precomputation.likes", "precomputation.content_id"],
+    ContentOrder.POPULAR: [
+        "precomputation.recent_likes",
+        "precomputation.likes",
+        "precomputation.content_id",
+    ],
+    ContentOrder.ADDED: ["collection_membership.created_at", "c.oid"],
+    ContentOrder.REPORT_SCORE: [REPORT_SCORE, "c.oid"],
+}
 
 
 async def list_records(
@@ -133,54 +148,55 @@ async def list_records(
     for condition in search.conditions:
         query += f"\n AND {condition}"
 
-    direction = "DESC" if descending else "ASC"
+    match_ranks = []
+    if search.ranking is not None:
+        match_ranks.append("content_keyword_rank.rank")
+    if similar:
+        match_ranks.append("content_similarity_rank.rank")
 
+    direction = "DESC" if descending else "ASC"
     if ranked:
-        match_ranks = []
-        if search.ranking is not None:
-            match_ranks.append("content_keyword_rank.rank")
-        if similar:
-            match_ranks.append("content_similarity_rank.rank")
-        quality_rank = "precomputation.quality_rank"
-        if match_ranks:
-            quality_rank = within_results(quality_rank)
-        score = relevance_score(match_ranks, quality_rank)
-        if recommended:
-            preference = None
-            personal_rank = None
-            if recommendation_user_id is not None:
-                preference = await preference_strength(project, recommendation_user_id)
-                personal_rank = "content_preference_rank.rank"
-            score = recommendation_score(
-                score,
-                item_id="c.oid",
-                created_at="c.created_at",
-                personal_rank=personal_rank,
-                preference=preference,
-                searching=bool(match_ranks),
+        if recommended or match_ranks:
+            quality_rank = "precomputation.quality_rank"
+            if match_ranks:
+                quality_rank = within_results(quality_rank)
+            score = relevance_score(match_ranks, quality_rank)
+            if recommended:
+                preference = None
+                personal_rank = None
+                if recommendation_user_id is not None:
+                    preference = await preference_strength(
+                        project, recommendation_user_id
+                    )
+                    personal_rank = "content_preference_rank.rank"
+                score = recommendation_score(
+                    score,
+                    item_id="c.oid",
+                    created_at="c.created_at",
+                    personal_rank=personal_rank,
+                    preference=preference,
+                    searching=bool(match_ranks),
+                )
+                values["seed"] = exploration_seed(recommendation_user_id)
+            ordering = f"{score} {direction}, c.oid {direction}"
+        else:
+            # Without matches, relevance is the stored quality order, which an index
+            # serves.
+            ordering = rank_ordering(
+                "precomputation.quality_rank", "precomputation.content_id", descending
             )
-            values["seed"] = exploration_seed(recommendation_user_id)
-        query += f"\n ORDER BY {score} {direction}"
-    elif order == ContentOrder.ADDED:
-        query += f"\n ORDER BY collection_membership.created_at {direction}"
-    elif order == ContentOrder.REPORT_SCORE:
-        query += f"\n ORDER BY {REPORT_SCORE} {direction}"
     elif order == ContentOrder.HOT:
-        query += f"\n ORDER BY {HOT_SCORE} {direction}, likes {direction}"
-    elif order == ContentOrder.POPULAR:
-        query += (
-            f"\n ORDER BY precomputation.recent_likes {direction}, likes {direction}"
+        ordering = rank_ordering(
+            "precomputation.hot_rank", "precomputation.content_id", descending
         )
     else:
-        sort_column = {
-            ContentOrder.DATE: "c.oid",
-            ContentOrder.LIKES: "precomputation.likes",
-            ContentOrder.TITLE: "c.title",
-        }[order]
-        query += f"\n ORDER BY {sort_column} {direction}"
+        ordering = ", ".join(f"{c} {direction}" for c in COLUMN_ORDERS[order])
 
-    if order != ContentOrder.DATE:
-        query += f", c.oid {direction}"
+    # The precomputation indexes need the project filtered on that table. Other plans
+    # get slower with it.
+    if ordering.startswith("precomputation."):
+        query += "\n AND precomputation.project = :project"
+    query += f"\n ORDER BY {ordering}"
 
     query += "\n LIMIT :limit OFFSET :offset"
     values["limit"] = limit
@@ -213,17 +229,14 @@ def get_content_select(
 ) -> str:
     personal_fields = ""
     if include_personal:
-        # Keep relationship values structured, including reasons or tags with commas.
+        # JSON keeps reasons that contain commas intact.
         personal_fields = """,
             EXISTS (SELECT 1 FROM likes
                     WHERE likes.content_id=c.oid AND likes.user_id=:viewer_id) AS is_liked,
             (SELECT json_group_array(reason) FROM (
                 SELECT reason FROM reports
                 WHERE content_id=c.oid AND user_id=:viewer_id ORDER BY reason
-            )) AS viewer_reports,
-            (SELECT json_group_array(tag) FROM (
-                SELECT tag FROM tags WHERE content_id=c.oid ORDER BY tag
-            )) AS content_tags"""
+            )) AS viewer_reports"""
     return f"""
         SELECT c.oid,
                c.user_id,
@@ -233,8 +246,10 @@ def get_content_select(
                {"c.meta," if include_meta else ""}
                {"c.data," if include_data else ""}
                precomputation.likes,
-               precomputation.tags,
-               precomputation.reports
+               precomputation.reports,
+               (SELECT json_group_array(tag) FROM (
+                   SELECT tag FROM tags WHERE content_id=c.oid ORDER BY rowid
+               )) AS content_tags
                {personal_fields}
         FROM content c
             INNER JOIN users ON c.user_id = users.oid

@@ -90,8 +90,9 @@ def neighbor_scores(name: str, seeds: str, table: str, exclude_seeds: bool) -> s
     return f"""
         {name} AS (
             SELECT neighbors.neighbor_id AS content_id, SUM({seeds}.weight * neighbors.score) AS score
+            -- CROSS JOIN keeps the seeds first, so neighbors are looked up, not scanned.
             FROM {seeds}
-            JOIN {table} AS neighbors ON neighbors.content_id = {seeds}.content_id
+            CROSS JOIN {table} AS neighbors ON neighbors.content_id = {seeds}.content_id
             {exclusion}
             GROUP BY neighbors.neighbor_id
         )"""
@@ -185,10 +186,11 @@ async def refresh_quality_ranks(database: Database) -> None:
     """Ranks assets by hot, popular and all-time likes, and collections by their assets."""
     await database.execute(
         f"""
-        UPDATE precomputation SET quality_rank=ranked.quality_rank
+        UPDATE precomputation
+        SET hot_rank=ranked.hot, quality_rank=ranked.quality_rank
         FROM (
             -- Interleaves the three orders by each asset's best rank among them.
-            SELECT content_id, ROW_NUMBER() OVER (
+            SELECT content_id, hot, ROW_NUMBER() OVER (
                 PARTITION BY project ORDER BY min(hot, popular, liked), content_id
             ) AS quality_rank
             FROM (
@@ -208,7 +210,8 @@ async def refresh_quality_ranks(database: Database) -> None:
             )
         ) AS ranked
         WHERE ranked.content_id = precomputation.content_id
-            AND precomputation.quality_rank IS NOT ranked.quality_rank
+            AND (precomputation.hot_rank IS NOT ranked.hot
+                OR precomputation.quality_rank IS NOT ranked.quality_rank)
         """
     )
     await database.execute(

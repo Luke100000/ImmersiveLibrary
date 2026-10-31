@@ -61,13 +61,14 @@ TABLES = {
         tag TEXT NOT NULL,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
+    # Derived, see utils.update_precomputation.
     "precomputation": """(
         content_id INTEGER PRIMARY KEY REFERENCES content(oid) ON DELETE CASCADE,
-        tags TEXT NOT NULL,
+        project TEXT NOT NULL,
         likes INTEGER NOT NULL,
         reports INTEGER NOT NULL,
         recent_likes INTEGER NOT NULL DEFAULT 0,
-        -- Rank by hot, popular and all-time likes, refreshed hourly.
+        hot_rank INTEGER,
         quality_rank INTEGER
     ) WITHOUT ROWID""",
     # Results of the analysis steps, see services/analysis.py.

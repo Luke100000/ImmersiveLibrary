@@ -20,6 +20,11 @@ INDEXES = (
     "CREATE UNIQUE INDEX IF NOT EXISTS tags_unique ON tags (content_id, tag)",
     "CREATE INDEX IF NOT EXISTS tags_tag_content_id ON tags (tag, content_id)",
     "CREATE INDEX IF NOT EXISTS likes_created_at ON likes (created_at)",
+    "CREATE INDEX IF NOT EXISTS precomputation_likes ON precomputation (project, likes)",
+    "CREATE INDEX IF NOT EXISTS precomputation_popular ON precomputation (project, recent_likes, likes)",
+    "CREATE INDEX IF NOT EXISTS precomputation_hot_rank ON precomputation (project, hot_rank)",
+    "CREATE INDEX IF NOT EXISTS precomputation_quality_rank ON precomputation (project, quality_rank)",
+    "CREATE INDEX IF NOT EXISTS collections_project_quality_rank ON collections (project, quality_rank)",
     "CREATE INDEX IF NOT EXISTS content_descriptions_dirty ON content_descriptions (content_id) WHERE dirty > 0",
     "CREATE INDEX IF NOT EXISTS content_embeddings_dirty ON content_embeddings (content_id) WHERE dirty > 0",
 )

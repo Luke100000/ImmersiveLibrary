@@ -12,6 +12,7 @@ from immersive_library.services.recommendations import (
 )
 from immersive_library.services.search import (
     plan_collection_search,
+    rank_ordering,
     relevance_score,
     within_results,
 )
@@ -85,29 +86,35 @@ async def list_collections(
     for condition in search.conditions:
         query += f"\n AND {condition}"
 
+    match_ranks = ["collection_keyword_rank.rank"] if search.ranking is not None else []
+    direction = "DESC" if descending else "ASC"
     if ranked:
-        match_ranks = (
-            ["collection_keyword_rank.rank"] if search.ranking is not None else []
-        )
-        quality_rank = "collections.quality_rank"
-        if match_ranks:
-            quality_rank = within_results(quality_rank)
-        sort_column = relevance_score(match_ranks, quality_rank)
-        if recommended:
-            preference = None
-            personal_rank = None
-            if viewer_id is not None:
-                preference = await preference_strength(project, viewer_id)
-                personal_rank = "collection_preference_rank.rank"
-            sort_column = recommendation_score(
-                sort_column,
-                item_id="collections.oid",
-                created_at="collections.created_at",
-                personal_rank=personal_rank,
-                preference=preference,
-                searching=bool(match_ranks),
+        if recommended or match_ranks:
+            quality_rank = "collections.quality_rank"
+            if match_ranks:
+                quality_rank = within_results(quality_rank)
+            score = relevance_score(match_ranks, quality_rank)
+            if recommended:
+                preference = None
+                personal_rank = None
+                if viewer_id is not None:
+                    preference = await preference_strength(project, viewer_id)
+                    personal_rank = "collection_preference_rank.rank"
+                score = recommendation_score(
+                    score,
+                    item_id="collections.oid",
+                    created_at="collections.created_at",
+                    personal_rank=personal_rank,
+                    preference=preference,
+                    searching=bool(match_ranks),
+                )
+                values["seed"] = exploration_seed(viewer_id)
+            ordering = f"{score} {direction}, collections.oid {direction}"
+        else:
+            # Without matches, relevance is the stored quality order.
+            ordering = rank_ordering(
+                "collections.quality_rank", "collections.oid", descending
             )
-            values["seed"] = exploration_seed(viewer_id)
     else:
         sort_column = {
             CollectionOrder.CONTENT_COUNT: "content_count",
@@ -115,9 +122,8 @@ async def list_collections(
             CollectionOrder.UPDATED: "collections.updated_at",
             CollectionOrder.TITLE: "collections.title",
         }[order]
-    direction = "DESC" if descending else "ASC"
-    query += f" ORDER BY {sort_column} {direction}, collections.oid {direction}"
-    query += " LIMIT :limit OFFSET :offset"
+        ordering = f"{sort_column} {direction}, collections.oid {direction}"
+    query += f" ORDER BY {ordering} LIMIT :limit OFFSET :offset"
     values["limit"] = limit
     values["offset"] = offset
 

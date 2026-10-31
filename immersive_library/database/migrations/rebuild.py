@@ -7,6 +7,7 @@ from immersive_library.database.tables import (
     TABLES,
     create_table_sql,
 )
+from immersive_library.utils import update_precomputation
 
 # Columns renamed since the original schema.
 LEGACY_NAMES = {
@@ -16,6 +17,8 @@ LEGACY_NAMES = {
 }
 # Columns whose values move to another table during the rebuild.
 MOVED_COLUMNS = {"users": ("token",)}
+# Computed from other tables, so they are recreated and refilled instead of copied.
+DERIVED_TABLES = {"precomputation": update_precomputation}
 # Must match the unique indexes in schema.py.
 UNIQUE_KEYS = {
     "likes": ("user_id", "content_id"),
@@ -69,6 +72,12 @@ async def _rebuild(connection) -> bool:
         if _definition(current) == _definition(definition):
             continue
         rebuilt = True
+
+        if table in DERIVED_TABLES:
+            await connection.execute(f"DROP TABLE {table}")
+            await connection.execute(create_table_sql(table))
+            await DERIVED_TABLES[table](connection)
+            continue
 
         columns = await _table_columns(connection, table)
         if table == "users" and "token" in columns:

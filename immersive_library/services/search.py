@@ -229,6 +229,12 @@ def relevance_score(match_ranks: list[str], quality_rank: str | None = None) -> 
     return score
 
 
+def rank_ordering(rank: str, tiebreak: str, descending: bool) -> str:
+    """Orders by a stored rank, where 1 is best and unranked items come last."""
+    direction = "ASC" if descending else "DESC"
+    return f"{rank} {direction} NULLS LAST, {tiebreak} {direction}"
+
+
 def within_results(rank: str) -> str:
     """Re-ranks items among the listed ones, NULL where the input rank is NULL."""
     return f"""CASE WHEN {rank} IS NOT NULL THEN DENSE_RANK() OVER (

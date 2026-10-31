@@ -24,9 +24,9 @@ async def update_precomputation(
     """
     await database.execute(
         f"""
-        INSERT INTO precomputation (content_id, tags, likes, reports, recent_likes)
+        INSERT INTO precomputation (content_id, project, likes, reports, recent_likes)
         SELECT content.oid,
-               COALESCE(tagged_content.c_tags, '') as tags,
+               content.project,
                COALESCE(liked_content.c_likes, 0) as likes,
                COALESCE(reported_c.reports, 0) as reports,
                COALESCE(liked_content.c_recent_likes, 0) as recent_likes
@@ -37,11 +37,6 @@ async def update_precomputation(
                     FROM likes
                     {"" if content_id is None else "WHERE likes.content_id = :content_id"}
                     GROUP BY likes.content_id) liked_content ON liked_content.content_id = content.oid
-
-         LEFT JOIN (SELECT tags.content_id, GROUP_CONCAT(tag, ',' ORDER BY rowid) as c_tags
-                    FROM tags
-                    {"" if content_id is None else "WHERE tags.content_id = :content_id"}
-                    GROUP BY tags.content_id) tagged_content on tagged_content.content_id = content.oid
 
          LEFT JOIN (SELECT reports.content_id, COUNT(*) as reports
                     FROM reports
@@ -55,7 +50,7 @@ async def update_precomputation(
                     GROUP BY reports.content_id) reported_c on reported_c.content_id = content.oid
 
         WHERE {"true" if content_id is None else "content.oid = :content_id"}
-        ON CONFLICT (content_id) DO UPDATE SET tags=excluded.tags, likes=excluded.likes,
+        ON CONFLICT (content_id) DO UPDATE SET likes=excluded.likes,
             reports=excluded.reports, recent_likes=excluded.recent_likes
     """,
         {} if content_id is None else {"content_id": content_id},
