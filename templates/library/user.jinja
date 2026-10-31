@@ -19,19 +19,23 @@
     {% include "components/user-stats.jinja" %}
 </section>
 
-{% set filters = {"author_id": user.user_id} %}
-<div x-data='userLists({{ project | tojson }}, {{ user.user_id }}, {{ user.submission_count }})'>
+<div x-data='userLists({{ project | tojson }}, {{ user.user_id }}, {{ user.submission_count }}, {{ user.likes_given }})'>
     <nav class="list-tabs" aria-label="Lists" x-show="view" x-cloak>
-        <button class="tab" type="button" :class="{active: view === 'submissions'}"
-                x-show="hasSubmissions || view === 'submissions'" @click="show('submissions')">Submissions</button>
-        <button class="tab" type="button" :class="{active: view === 'collections'}"
-                x-show="hasCollections || view === 'collections'" @click="show('collections')">Collections</button>
+        {% for view, label in [("submissions", "Submissions"), ("collections", "Collections"), ("likes", "Liked")] %}
+            <button class="tab" type="button" :class="{active: view === '{{ view }}'}"
+                    x-show="available.{{ view }} || view === '{{ view }}'" @click="show('{{ view }}')">{{ label }}</button>
+        {% endfor %}
     </nav>
     <template x-if="view === 'submissions'">
+        {% set filters = {"author_id": user.user_id} %}
         {% include "components/content-grid.jinja" %}
     </template>
     <template x-if="view === 'collections'">
         {% include "components/collection-list.jinja" %}
+    </template>
+    <template x-if="view === 'likes'">
+        {% set filters = {"liked_by": user.user_id} %}
+        {% include "components/content-grid.jinja" %}
     </template>
 </div>
 {% endblock %}

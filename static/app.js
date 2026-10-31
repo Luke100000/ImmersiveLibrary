@@ -458,26 +458,25 @@ document.addEventListener('alpine:init', () => {
         };
     });
 
-    // Submissions or collections of one user, picking whichever exists unless the URL names one.
-    Alpine.data('userLists', (project, userId, submissionCount) => ({
+    // Submissions, collections or likes of one user, picking the first that exists unless the URL names one.
+    Alpine.data('userLists', (project, userId, submissionCount, likesGiven) => ({
         view: null,
-        hasSubmissions: submissionCount > 0,
-        hasCollections: false,
+        available: {submissions: submissionCount > 0, collections: false, likes: likesGiven > 0},
 
         async init() {
             const requested = new URLSearchParams(window.location.search).get('view');
             const url = new URL(sitePath('v3', 'collection', project), window.location.origin);
             url.search = new URLSearchParams({author_id: userId, limit: 1});
             const data = await fetchJson(url).catch(() => ({collections: []}));
-            this.hasCollections = data.collections.length > 0;
-            if (['submissions', 'collections'].includes(requested)) {
+            this.available.collections = data.collections.length > 0;
+            if (requested in this.available) {
                 this.view = requested;
             } else {
-                this.view = !this.hasSubmissions && this.hasCollections ? 'collections' : 'submissions';
+                this.view = Object.keys(this.available).find((view) => this.available[view]) ?? 'submissions';
             }
         },
 
-        // Both lists use the same query parameters, so switching starts from a clean URL.
+        // The lists use the same query parameters, so switching starts from a clean URL.
         show(view) {
             if (view === this.view) return;
             const url = new URL(window.location.href);
