@@ -85,7 +85,7 @@ async def list_content_v2(
     order: ContentOrder = ContentOrder.DATE,
     descending: bool = False,
     limit: int = Query(
-        10, ge=1, le=500, description="The maximum amount of content to fetch."
+        10, ge=1, le=100, description="The maximum amount of content to fetch."
     ),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching content from."

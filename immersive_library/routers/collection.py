@@ -49,7 +49,7 @@ async def list_collections(
     order: CollectionOrder = CollectionOrder.RELEVANCE,
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
-        10, ge=1, le=500, description="The maximum number of collections to fetch."
+        10, ge=1, le=100, description="The maximum number of collections to fetch."
     ),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching collections from."

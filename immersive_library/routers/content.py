@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -26,6 +26,8 @@ from immersive_library.services import content as content_service
 from immersive_library.utils import logged_in_guard, owner_guard
 
 router = APIRouter(tags=["Content"])
+
+MAX_DATA_LIMIT = 10
 
 
 @router.get(
@@ -95,7 +97,10 @@ async def list_content(
     order: ContentOrder = ContentOrder.RELEVANCE,
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
-        10, ge=1, le=500, description="The maximum amount of content to fetch."
+        10,
+        ge=1,
+        le=100,
+        description="The maximum amount of content to fetch, at most 10 with data.",
     ),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching content from."
@@ -106,10 +111,19 @@ async def list_content(
     ),
     include_data: bool = Query(
         False,
-        description="Include the Base64 content data in each list item.",
+        description=(
+            "Include the Base64 content data in each list item. Meant for pages that "
+            "show all items at once; clients that cache data per item should fetch it "
+            "from the content endpoint instead."
+        ),
     ),
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> ContentListSuccess:
+    if include_data and limit > MAX_DATA_LIMIT:
+        raise HTTPException(
+            400, f"At most {MAX_DATA_LIMIT} items can include their data"
+        )
+
     records = await content_service.list_records(
         project,
         author_id=resolve_user_filter(author_id, viewer_id),

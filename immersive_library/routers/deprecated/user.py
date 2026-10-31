@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -94,8 +94,8 @@ async def get_users(
     project: str,
     order: UserOrder = UserOrder.DATE,
     descending: bool = False,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> LegacyUserListSuccess:
     content = await user_service.list_users(
         project, order=order, descending=descending, limit=limit, offset=offset

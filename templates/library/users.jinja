@@ -1,5 +1,5 @@
 {% extends "library/base.jinja" %}
-{% from "components/macros.jinja" import select_control, search_control, limit_control, order_control, inclusion_control %}
+{% from "components/macros.jinja" import select_control, search_control, order_control, inclusion_control %}
 
 {% block title %}Users – {{ project_info.title or project }}{% endblock %}
 
@@ -16,7 +16,6 @@
         ]) }}
         {{ order_control() }}
         {{ inclusion_control("banned", "Banned users") }}
-        {{ limit_control(["24", "48", "96"]) }}
         {{ search_control("Search users by name") }}
     </div>
 

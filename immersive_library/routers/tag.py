@@ -23,7 +23,7 @@ router = APIRouter(tags=["Tags"])
 async def list_project_tags_v3(
     project: str,
     limit: int = Query(
-        100, ge=1, le=500, description="The maximum number of tags to fetch."
+        100, ge=1, le=100, description="The maximum number of tags to fetch."
     ),
     offset: int = Query(0, ge=0, description="The offset to start fetching tags from."),
 ) -> TagListPage:

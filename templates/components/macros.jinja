@@ -21,10 +21,6 @@
     </div>
 {% endmacro %}
 
-{% macro limit_control(options) %}
-    {{ select_control("limit", "Items per page", options) }}
-{% endmacro %}
-
 {# Moderation filters, shown to moderators only. #}
 {% macro inclusion_control(name, label) %}
     {{ select_control(name, label, [("exclude", "Hidden"), ("include", "Shown"), ("only", "Only")], show="$store.auth.user?.moderator") }}

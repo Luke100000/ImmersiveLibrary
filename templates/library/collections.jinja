@@ -1,5 +1,5 @@
 {% extends "library/base.jinja" %}
-{% from "components/macros.jinja" import select_control, search_control, limit_control, order_control, action_button %}
+{% from "components/macros.jinja" import select_control, search_control, order_control, action_button %}
 
 {% block title %}Collections – {{ project_info.title or project }}{% endblock %}
 
@@ -16,7 +16,6 @@
             ("title", "Title"),
         ]) }}
         {{ order_control() }}
-        {{ limit_control(["24", "48", "96"]) }}
         {{ search_control("Search: @owner, #asset-tag, ~title, -exclude") }}
         <div class="control-action" x-data='collectionCreate({{ project | tojson }})' x-show="authenticated" x-cloak>
             {{ action_button("add", "New collection", "openForm()") }}

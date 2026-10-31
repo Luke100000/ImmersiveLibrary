@@ -49,7 +49,7 @@ async def get_users_v3(
     banned: Inclusion = Query(Inclusion.EXCLUDE, description="Banned users."),
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
-        10, ge=1, le=500, description="The maximum number of users to fetch."
+        10, ge=1, le=100, description="The maximum number of users to fetch."
     ),
     offset: int = Query(
         0, ge=0, description="The offset to start fetching users from."

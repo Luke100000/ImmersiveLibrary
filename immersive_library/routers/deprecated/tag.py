@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -14,7 +14,9 @@ router = APIRouter(tags=["Tags"], deprecated=True)
 @public_cache()
 @cache(expire=60)
 async def list_project_tags(
-    project: str, limit: int = 100, offset: int = 0
+    project: str,
+    limit: int = Query(100, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> LegacyTagDictSuccess:
     rows = await tag_service.list_project_tags(project, limit, offset)
     return LegacyTagDictSuccess(tags={row["tag"]: row["count"] for row in rows})

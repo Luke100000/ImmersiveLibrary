@@ -62,7 +62,7 @@ function collectionForm(submit, onSaved) {
 }
 
 // Shared state for a paged API list. Settings mirror the controls and, with syncUrl, the query string.
-function pagedList({project, endpoint, itemsKey, idName, itemUrl, settings, query, syncUrl = true}) {
+function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, settings, query, syncUrl = true}) {
     let loadVersion = 0;
 
     return {
@@ -135,8 +135,8 @@ function pagedList({project, endpoint, itemsKey, idName, itemUrl, settings, quer
             const url = new URL(endpoint, window.location.origin);
             const parameters = {
                 ...query.call(this),
-                limit: this.limit,
-                offset: (this.page - 1) * Number(this.limit),
+                limit: pageSize,
+                offset: (this.page - 1) * pageSize,
             };
             for (const [name, value] of Object.entries(parameters)) {
                 if (value !== undefined && value !== '') {
@@ -286,8 +286,9 @@ document.addEventListener('alpine:init', () => {
             itemsKey: 'contents',
             idName: 'content_id',
             itemUrl: (id) => sitePath(project, id),
+            pageSize: 8,
             settings: {
-                track: 'all', sort: 'recommendations', descending: 'true', limit: '8', search: '',
+                track: 'all', sort: 'recommendations', descending: 'true', search: '',
                 similar_to: '', similar_to_collection: '', banned: 'exclude', reported: 'exclude',
             },
             query() {
@@ -352,7 +353,8 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'users',
         idName: 'user_id',
         itemUrl: (id) => sitePath(project, 'users', id),
-        settings: {sort: 'likes_received', descending: 'true', limit: '24', search: '', banned: 'exclude'},
+        pageSize: 24,
+        settings: {sort: 'likes_received', descending: 'true', search: '', banned: 'exclude'},
         query() {
             return {
                 order: this.sort,
@@ -370,7 +372,8 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'collections',
         idName: 'collection_id',
         itemUrl: (id) => sitePath(project, 'collections', id),
-        settings: {track: 'all', sort: 'relevance', descending: 'true', limit: '24', search: ''},
+        pageSize: 24,
+        settings: {track: 'all', sort: 'relevance', descending: 'true', search: ''},
         query() {
             return {
                 ...filters,
@@ -615,7 +618,7 @@ document.addEventListener('alpine:init', () => {
                 if (!this.requireUser()) return;
                 const collectionsUrl = sitePath('v3', 'collection', project);
                 try {
-                    const parameters = new URLSearchParams({user_id: 'me', content_id: contentId, limit: 500});
+                    const parameters = new URLSearchParams({author_id: 'me', content_id: contentId, limit: 100});
                     const {collections} = await fetchJson(`${collectionsUrl}?${parameters}`, {
                         errorMessage: 'Unable to load collections',
                     });
