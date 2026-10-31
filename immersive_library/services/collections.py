@@ -6,7 +6,6 @@ from immersive_library.enums import CollectionOrder
 from immersive_library.models import Collection, CollectionCreate, CollectionUpdate
 from immersive_library.services.recommendations import (
     COLLECTION_PREFERENCE_CTES,
-    exploration_seed,
     preference_strength,
     recommendation_score,
 )
@@ -102,13 +101,11 @@ async def list_collections(
                     personal_rank = "collection_preference_rank.rank"
                 score = recommendation_score(
                     score,
-                    item_id="collections.oid",
-                    created_at="collections.created_at",
+                    exploration_rank="collections.exploration_rank",
                     personal_rank=personal_rank,
                     preference=preference,
                     searching=bool(match_ranks),
                 )
-                values["seed"] = exploration_seed(viewer_id)
             ordering = f"{score} {direction}, collections.oid {direction}"
         else:
             # Without matches, relevance is the stored quality order.

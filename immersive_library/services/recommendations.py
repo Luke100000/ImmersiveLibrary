@@ -6,7 +6,7 @@ from databases import Database
 from immersive_library.database import database
 from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
 from immersive_library.services.search import reciprocal_rank, within_results
-from immersive_library.utils import DAY, RECENT_DAYS
+from immersive_library.utils import DAY, HOUR, RECENT_DAYS
 
 # Users and collections are described by this many of their most recent items.
 RECENT_ITEM_LIMIT = 200
@@ -29,6 +29,18 @@ SEEDED_RANDOM = """ABS(
     - 2147483648 * CAST(((:seed + {item_id}) * 1103515245 + 12345) / 2147483648 AS INTEGER)
 ) / 2147483647.0"""
 
+# How much more a brand-new upload explores than old content.
+FRESH_BOOST = 4
+
+
+def exploration_draw(item_id: str, created_at: str) -> str:
+    """A random value per item and :seed, boosted for new items. Ranked, it explores."""
+    freshness = (
+        f"{RECENT_DAYS * DAY}.0 / (unixepoch() - {created_at} + {RECENT_DAYS * DAY})"
+    )
+    random = SEEDED_RANDOM.format(item_id=item_id)
+    return f"{random} * (1 + {FRESH_BOOST} * {freshness})"
+
 
 @dataclass(frozen=True)
 class Weights:
@@ -39,11 +51,8 @@ class Weights:
     exploration: float
 
 
-BROWSE_WEIGHTS = Weights(relevance=1.0, personal=1.0, exploration=0.005)
-SEARCH_WEIGHTS = Weights(relevance=2.0, personal=0.5, exploration=0.01)
-
-# How much more a brand-new upload explores than old content.
-FRESH_BOOST = 4
+BROWSE_WEIGHTS = Weights(relevance=1.0, personal=1.0, exploration=0.5)
+SEARCH_WEIGHTS = Weights(relevance=2.0, personal=0.5, exploration=0.5)
 
 # Image shares of the blends with like-based neighbours.
 SIMILAR_IMAGE_SHARE = 0.75
@@ -182,47 +191,69 @@ COLLECTION_PREFERENCE_CTES = f"""
 """
 
 
-async def refresh_quality_ranks(database: Database) -> None:
-    """Ranks assets by hot, popular and all-time likes, and collections by their assets."""
+async def refresh_ranks(database: Database) -> None:
+    """
+    Ranks assets by hot, quality, exploration and anonymous recommendation, and
+    collections by quality and exploration. Exploration is reseeded every hour.
+    """
+    seed = {"seed": int(time.time() / HOUR)}
+    anonymous = recommendation_score(reciprocal_rank("quality"), "exploration")
     await database.execute(
         f"""
         UPDATE precomputation
-        SET hot_rank=ranked.hot, quality_rank=ranked.quality_rank
+        SET hot_rank=ranked.hot, quality_rank=ranked.quality,
+            exploration_rank=ranked.exploration,
+            recommendation_rank=ranked.recommendation
         FROM (
-            -- Interleaves the three orders by each asset's best rank among them.
-            SELECT content_id, hot, ROW_NUMBER() OVER (
-                PARTITION BY project ORDER BY min(hot, popular, liked), content_id
-            ) AS quality_rank
+            SELECT content_id, hot, quality, exploration, ROW_NUMBER() OVER (
+                PARTITION BY project ORDER BY {anonymous} DESC, content_id
+            ) AS recommendation
             FROM (
-                SELECT c.oid AS content_id, c.project,
+                SELECT content_id, project, hot,
+                       -- Interleaves the three orders by each asset's best rank.
                        ROW_NUMBER() OVER (
-                           PARTITION BY c.project
-                           ORDER BY {HOT_SCORE} DESC, likes DESC, c.oid
-                       ) AS hot,
+                           PARTITION BY project ORDER BY min(hot, popular, liked), content_id
+                       ) AS quality,
                        ROW_NUMBER() OVER (
-                           PARTITION BY c.project
-                           ORDER BY precomputation.recent_likes DESC, likes DESC, c.oid
-                       ) AS popular,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY c.project ORDER BY likes DESC, c.oid
-                       ) AS liked
-                FROM content c JOIN precomputation ON precomputation.content_id = c.oid
+                           PARTITION BY project ORDER BY draw DESC, content_id
+                       ) AS exploration
+                FROM (
+                    SELECT c.oid AS content_id, c.project,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY c.project
+                               ORDER BY {HOT_SCORE} DESC, likes DESC, c.oid
+                           ) AS hot,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY c.project
+                               ORDER BY precomputation.recent_likes DESC, likes DESC, c.oid
+                           ) AS popular,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY c.project ORDER BY likes DESC, c.oid
+                           ) AS liked,
+                           {exploration_draw("c.oid", "c.created_at")} AS draw
+                    FROM content c
+                    JOIN precomputation ON precomputation.content_id = c.oid
+                )
             )
         ) AS ranked
         WHERE ranked.content_id = precomputation.content_id
-            AND (precomputation.hot_rank IS NOT ranked.hot
-                OR precomputation.quality_rank IS NOT ranked.quality_rank)
-        """
+        """,
+        seed,
     )
     await database.execute(
         f"""
-        UPDATE collections SET quality_rank=ranked.quality_rank
+        UPDATE collections
+        SET quality_rank=ranked.quality, exploration_rank=ranked.exploration
         FROM (
             SELECT collections.oid AS collection_id, ROW_NUMBER() OVER (
                 PARTITION BY collections.project
                 ORDER BY AVG({reciprocal_rank("precomputation.quality_rank")}) DESC,
                     collections.oid
-            ) AS quality_rank
+            ) AS quality, ROW_NUMBER() OVER (
+                PARTITION BY collections.project
+                ORDER BY {exploration_draw("collections.oid", "collections.created_at")}
+                    DESC, collections.oid
+            ) AS exploration
             FROM collections
             LEFT JOIN (
                 SELECT collection_id, content_id, ROW_NUMBER() OVER (
@@ -236,8 +267,8 @@ async def refresh_quality_ranks(database: Database) -> None:
             GROUP BY collections.oid
         ) AS ranked
         WHERE ranked.collection_id = collections.oid
-            AND collections.quality_rank IS NOT ranked.quality_rank
-        """
+        """,
+        seed,
     )
 
 
@@ -252,30 +283,22 @@ async def preference_strength(project: str, user_id: int) -> float:
 
 def recommendation_score(
     relevance: str,
-    item_id: str,
-    created_at: str,
+    exploration_rank: str,
     personal_rank: str | None = None,
     preference: float | None = None,
     searching: bool = False,
 ) -> str:
     weights = SEARCH_WEIGHTS if searching else BROWSE_WEIGHTS
-    terms = [f"{weights.relevance} * ({relevance})"]
+    if searching:
+        exploration_rank = within_results(exploration_rank)
+    terms = [
+        f"{weights.relevance} * ({relevance})",
+        f"{weights.exploration} * {reciprocal_rank(exploration_rank)}",
+    ]
     if personal_rank is not None and preference:
         if searching:
             personal_rank = within_results(personal_rank)
         terms.append(
             f"{weights.personal * preference} * ({reciprocal_rank(personal_rank)})"
         )
-
-    freshness = (
-        f"{RECENT_DAYS * DAY}.0 / (unixepoch() - {created_at} + {RECENT_DAYS * DAY})"
-    )
-    random = SEEDED_RANDOM.format(item_id=item_id)
-    terms.append(
-        f"{weights.exploration} * {random} * (1 + {FRESH_BOOST} * {freshness})"
-    )
     return " + ".join(terms)
-
-
-def exploration_seed(user_id: int | None) -> int:
-    return (user_id or 0) + int(time.time() / DAY)

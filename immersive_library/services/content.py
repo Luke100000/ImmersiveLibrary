@@ -12,7 +12,6 @@ from immersive_library.models import Content, ContentSummary, ContentUpload
 from immersive_library.services.recommendations import (
     CONTENT_PREFERENCE_CTES,
     CONTENT_SIMILARITY_CTES,
-    exploration_seed,
     preference_strength,
     recommendation_score,
 )
@@ -156,34 +155,28 @@ async def list_records(
 
     direction = "DESC" if descending else "ASC"
     if ranked:
-        if recommended or match_ranks:
+        preference = None
+        if personalized:
+            preference = await preference_strength(project, recommendation_user_id)
+        if match_ranks or preference:
             quality_rank = "precomputation.quality_rank"
             if match_ranks:
                 quality_rank = within_results(quality_rank)
             score = relevance_score(match_ranks, quality_rank)
             if recommended:
-                preference = None
-                personal_rank = None
-                if recommendation_user_id is not None:
-                    preference = await preference_strength(
-                        project, recommendation_user_id
-                    )
-                    personal_rank = "content_preference_rank.rank"
                 score = recommendation_score(
                     score,
-                    item_id="c.oid",
-                    created_at="c.created_at",
-                    personal_rank=personal_rank,
+                    exploration_rank="precomputation.exploration_rank",
+                    personal_rank="content_preference_rank.rank",
                     preference=preference,
                     searching=bool(match_ranks),
                 )
-                values["seed"] = exploration_seed(recommendation_user_id)
             ordering = f"{score} {direction}, c.oid {direction}"
         else:
-            # Without matches, relevance is the stored quality order, which an index
-            # serves.
+            # Without matches or taste, both orders are stored ranks an index serves.
+            rank = "recommendation_rank" if recommended else "quality_rank"
             ordering = rank_ordering(
-                "precomputation.quality_rank", "precomputation.content_id", descending
+                f"precomputation.{rank}", "precomputation.content_id", descending
             )
     elif order == ContentOrder.HOT:
         ordering = rank_ordering(

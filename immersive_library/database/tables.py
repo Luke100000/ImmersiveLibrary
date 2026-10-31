@@ -37,7 +37,8 @@ TABLES = {
         is_public INTEGER NOT NULL DEFAULT 0 CHECK(is_public IN (0, 1)),
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
         updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-        quality_rank INTEGER
+        quality_rank INTEGER,
+        exploration_rank INTEGER
     )""",
     "collection_items": """(
         collection_id INTEGER NOT NULL REFERENCES collections(oid) ON DELETE CASCADE,
@@ -69,7 +70,9 @@ TABLES = {
         reports INTEGER NOT NULL,
         recent_likes INTEGER NOT NULL DEFAULT 0,
         hot_rank INTEGER,
-        quality_rank INTEGER
+        quality_rank INTEGER,
+        exploration_rank INTEGER,
+        recommendation_rank INTEGER
     ) WITHOUT ROWID""",
     # Results of the analysis steps, see services/analysis.py.
     "content_descriptions": """(

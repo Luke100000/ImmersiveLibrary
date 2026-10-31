@@ -10,7 +10,8 @@ from immersive_library.database import database as app_database
 from immersive_library.models import User
 
 MAX_USER_TOKENS = 10
-DAY = 86400
+HOUR = 3600
+DAY = 24 * HOUR
 RECENT_DAYS = 14
 
 

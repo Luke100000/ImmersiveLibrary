@@ -11,10 +11,9 @@ from immersive_library.image_neighbors import compute_image_neighbors
 from immersive_library.like_neighbors import compute_like_neighbors
 from immersive_library.projects import register_projects
 from immersive_library.services import analysis
-from immersive_library.services.recommendations import refresh_quality_ranks
-from immersive_library.utils import DAY, refresh_recent_likes
+from immersive_library.services.recommendations import refresh_ranks
+from immersive_library.utils import DAY, HOUR, refresh_recent_likes
 
-HOUR = 3600
 RETRY_SECONDS = 300
 CHECK_SECONDS = 60
 
@@ -25,7 +24,7 @@ ANALYSIS_MAX_BACKOFF_SECONDS = 3600
 
 async def refresh_rankings() -> None:
     await refresh_recent_likes(database)
-    await refresh_quality_ranks(database)
+    await refresh_ranks(database)
 
 
 async def backup() -> None:
