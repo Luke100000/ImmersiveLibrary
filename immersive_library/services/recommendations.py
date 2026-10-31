@@ -164,12 +164,15 @@ CONTENT_PREFERENCE_CTES = f"""
     )"""
 
 
-# Use the best member's affinity so collection size does not add a boost.
+# Sums the affinity of a collection's assets over the root of its size.
 COLLECTION_PREFERENCE_CTES = f"""
     {PREFERENCE_SCORES},
     collection_preference AS (
         SELECT collection_items.collection_id,
-               MAX(affinity.score) AS score
+               SUM(affinity.score) / sqrt((
+                   SELECT count(*) FROM collection_items AS members
+                   WHERE members.collection_id = collection_items.collection_id
+               )) AS score
         FROM (
             SELECT content_id, SUM(score) AS score FROM (
                 SELECT content_id, score FROM preference
