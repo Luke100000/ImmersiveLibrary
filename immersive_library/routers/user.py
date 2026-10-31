@@ -10,7 +10,7 @@ from immersive_library.dependencies import (
     optional_user_id,
     resolve_user_filter,
 )
-from immersive_library.enums import UserOrder
+from immersive_library.enums import Inclusion, UserOrder
 from immersive_library.models import (
     Error,
     UserSuccess,
@@ -46,7 +46,7 @@ async def get_users_v3(
         UserOrder.LIKES_RECEIVED,
         description="Sort order; ties are resolved by user ID.",
     ),
-    filter_banned: bool = Query(True, description="Exclude banned users."),
+    banned: Inclusion = Query(Inclusion.EXCLUDE, description="Banned users."),
     descending: bool = Query(True, description="Sort in descending order."),
     limit: int = Query(
         10, ge=1, le=500, description="The maximum number of users to fetch."
@@ -58,7 +58,7 @@ async def get_users_v3(
     rows = await user_service.list_users(
         project,
         q=q,
-        filter_banned=filter_banned,
+        banned=banned,
         order=order,
         descending=descending,
         limit=limit + 1,

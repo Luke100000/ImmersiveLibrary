@@ -7,7 +7,7 @@ from fastapi import HTTPException
 
 from immersive_library.common import get_project
 from immersive_library.database import database
-from immersive_library.enums import ContentOrder
+from immersive_library.enums import ContentOrder, Inclusion
 from immersive_library.models import Content, ContentSummary, ContentUpload
 from immersive_library.services.recommendations import (
     CONTENT_PREFERENCE_CTES,
@@ -37,8 +37,8 @@ async def list_records(
     q: str | None = None,
     similar_to: int | None = None,
     similar_to_collection: int | None = None,
-    filter_banned: bool = True,
-    filter_reported: bool = True,
+    banned: Inclusion = Inclusion.EXCLUDE,
+    reported: Inclusion = Inclusion.EXCLUDE,
     order: ContentOrder = ContentOrder.DATE,
     descending: bool = False,
     limit: int = 100,
@@ -51,11 +51,6 @@ async def list_records(
 ) -> list[Record]:
     if order == ContentOrder.ADDED and collection_id is None:
         raise HTTPException(400, "Added ordering requires a collection")
-
-    # The moderation queue needs to be able to show banned or reported content
-    if order == ContentOrder.REPORT_SCORE:
-        filter_banned = False
-        filter_reported = False
 
     recommended = order == ContentOrder.RECOMMENDATIONS
     ranked = order in (ContentOrder.RELEVANCE, ContentOrder.RECOMMENDATIONS)
@@ -118,10 +113,12 @@ async def list_records(
         query += "\n AND EXISTS (SELECT 1 FROM likes WHERE likes.content_id=c.oid AND likes.user_id=:liked_by)"
         values["liked_by"] = liked_by
 
-    if filter_banned:
+    if banned == Inclusion.EXCLUDE:
         query += "\n AND NOT users.banned"
+    elif banned == Inclusion.ONLY:
+        query += "\n AND users.banned"
 
-    if filter_reported:
+    if reported == Inclusion.EXCLUDE:
         query += f"\n AND {REPORT_SCORE} <= 1"
         if viewer_id is not None:
             query += """
@@ -130,8 +127,7 @@ async def list_records(
                     AND reports.user_id = :viewer_id)
             """
             values["viewer_id"] = viewer_id
-
-    if order == ContentOrder.REPORT_SCORE:
+    elif reported == Inclusion.ONLY:
         query += f"\n AND {REPORT_SCORE} > 1"
 
     for condition in search.conditions:

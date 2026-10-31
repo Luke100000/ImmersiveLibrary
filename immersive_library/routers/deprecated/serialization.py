@@ -5,7 +5,7 @@ import orjson
 from databases.interfaces import Record
 from fastapi import HTTPException
 
-from immersive_library.enums import ContentOrder, ContentTrack
+from immersive_library.enums import ContentOrder, ContentTrack, Inclusion
 from immersive_library.routers.deprecated.models import (
     LegacyContent,
     LegacyContentListSuccess,
@@ -106,8 +106,8 @@ async def list_content(
         author_id=author_id,
         liked_by=liked_by,
         q=whitelist,
-        filter_banned=filter_banned,
-        filter_reported=filter_reported,
+        banned=Inclusion.EXCLUDE if filter_banned else Inclusion.INCLUDE,
+        reported=Inclusion.EXCLUDE if filter_reported else Inclusion.INCLUDE,
         order=order,
         descending=descending,
         limit=limit,

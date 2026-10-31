@@ -1,7 +1,7 @@
 from databases.interfaces import Record
 
 from immersive_library.database import database
-from immersive_library.enums import UserOrder
+from immersive_library.enums import Inclusion, UserOrder
 from immersive_library.services.reports import REPORT_SCORE
 
 
@@ -9,7 +9,7 @@ async def list_users(
     project: str,
     user_id: int | None = None,
     q: str | None = None,
-    filter_banned: bool = True,
+    banned: Inclusion = Inclusion.EXCLUDE,
     order: UserOrder = UserOrder.DATE,
     descending: bool = False,
     limit: int = 100,
@@ -20,8 +20,10 @@ async def list_users(
     if user_id is not None:
         user_filter = "AND users.oid = :user_id"
         values["user_id"] = user_id
-    elif filter_banned:
+    elif banned == Inclusion.EXCLUDE:
         user_filter = "AND NOT users.banned"
+    elif banned == Inclusion.ONLY:
+        user_filter = "AND users.banned"
     if q and q.strip():
         user_filter += " AND users.username LIKE :q"
         values["q"] = f"%{q.strip()}%"

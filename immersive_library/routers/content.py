@@ -10,7 +10,7 @@ from immersive_library.dependencies import (
     optional_user_id,
     resolve_user_filter,
 )
-from immersive_library.enums import ContentOrder
+from immersive_library.enums import ContentOrder, Inclusion
 from immersive_library.models import (
     ContentListSuccess,
     ContentSuccess,
@@ -86,10 +86,11 @@ async def list_content(
         None,
         description="Only include content similar to this accessible collection.",
     ),
-    filter_banned: bool = Query(True, description="Exclude content from banned users."),
-    filter_reported: bool = Query(
-        True,
-        description="Exclude content hidden by its reports, and content you reported.",
+    banned: Inclusion = Query(
+        Inclusion.EXCLUDE, description="Content from banned users."
+    ),
+    reported: Inclusion = Query(
+        Inclusion.EXCLUDE, description="Content hidden by its reports."
     ),
     order: ContentOrder = ContentOrder.RELEVANCE,
     descending: bool = Query(True, description="Sort in descending order."),
@@ -117,8 +118,8 @@ async def list_content(
         q=q,
         similar_to=similar_to,
         similar_to_collection=similar_to_collection,
-        filter_banned=filter_banned,
-        filter_reported=filter_reported,
+        banned=banned,
+        reported=reported,
         order=order,
         descending=descending,
         limit=limit + 1,

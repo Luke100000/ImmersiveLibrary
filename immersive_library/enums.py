@@ -31,6 +31,12 @@ class CollectionOrder(str, Enum):
     TITLE = "title"
 
 
+class Inclusion(str, Enum):
+    EXCLUDE = "exclude"
+    INCLUDE = "include"
+    ONLY = "only"
+
+
 class RenderPreset(str, Enum):
     EMBED = "embed"
     ICON = "icon"

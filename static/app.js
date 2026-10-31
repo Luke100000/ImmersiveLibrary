@@ -288,7 +288,7 @@ document.addEventListener('alpine:init', () => {
             itemUrl: (id) => sitePath(project, id),
             settings: {
                 track: 'all', sort: 'recommendations', descending: 'true', limit: '8', search: '',
-                similar_to: '', similar_to_collection: '',
+                similar_to: '', similar_to_collection: '', banned: 'exclude', reported: 'exclude',
             },
             query() {
                 return {
@@ -300,6 +300,8 @@ document.addEventListener('alpine:init', () => {
                     q: this.search.trim(),
                     similar_to: this.similar_to,
                     similar_to_collection: this.similar_to_collection,
+                    banned: this.banned,
+                    reported: this.reported,
                     include_data: true,
                 };
             },
@@ -350,13 +352,13 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'users',
         idName: 'user_id',
         itemUrl: (id) => sitePath(project, 'users', id),
-        settings: {sort: 'likes_received', descending: 'true', limit: '24', search: '', filter_banned: 'true'},
+        settings: {sort: 'likes_received', descending: 'true', limit: '24', search: '', banned: 'exclude'},
         query() {
             return {
                 order: this.sort,
                 descending: this.descending,
                 q: this.search.trim(),
-                filter_banned: this.filter_banned,
+                banned: this.banned,
             };
         },
     }));

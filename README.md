@@ -73,7 +73,7 @@ public. Deleting a collection leaves its content in the library.
 ### Reports
 
 Reports flag content for moderation, with reasons defined per project.
-`DEFAULT` reports hide content once they outweigh its likes. Moderators list reported content with `order=report_score` and
+`DEFAULT` reports hide content once they outweigh its likes. Moderators list it with `reported=only&order=report_score` and
 clear it for good with `REVIEWED`. Additional reasons can be handled in the project validators.
 
 ### Projects
