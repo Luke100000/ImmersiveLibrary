@@ -61,6 +61,44 @@ function collectionForm(submit, onSaved) {
     };
 }
 
+// The similar_to and similar_to_collection filter of a paged list, shown as a notice
+// naming what the list is similar to.
+function similarFilter(project) {
+    return {
+        similarSource: '',
+
+        similarSourceUrl() {
+            return this.similar_to
+                ? sitePath(project, this.similar_to)
+                : sitePath(project, 'collections', this.similar_to_collection);
+        },
+
+        // Shows the title of what the list is similar to, falling back to a generic label.
+        async loadSimilarSource() {
+            const contentId = this.similar_to;
+            const collectionId = this.similar_to_collection;
+            this.similarSource = contentId ? 'this content' : 'this collection';
+            if (!contentId && !collectionId) return;
+            try {
+                const data = contentId
+                    ? await fetchJson(sitePath('v3', 'content', project, contentId))
+                    : await fetchJson(sitePath('v3', 'collection', project, collectionId));
+                if (contentId === this.similar_to && collectionId === this.similar_to_collection) {
+                    this.similarSource = (data.content ?? data.collection).title;
+                }
+            } catch {
+                // The generic label stays.
+            }
+        },
+
+        clearSimilar() {
+            this.similar_to = '';
+            this.similar_to_collection = '';
+            this.changeSetting();
+        },
+    };
+}
+
 // Shared state for a paged API list. Settings mirror the controls and, with syncUrl, the query string.
 function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, settings, query, syncUrl = true}) {
     let loadVersion = 0;
@@ -307,38 +345,7 @@ document.addEventListener('alpine:init', () => {
                 };
             },
         }),
-
-        similarSource: '',
-
-        similarSourceUrl() {
-            return this.similar_to
-                ? sitePath(project, this.similar_to)
-                : sitePath(project, 'collections', this.similar_to_collection);
-        },
-
-        // Shows the title of what the list is similar to, falling back to a generic label.
-        async loadSimilarSource() {
-            const contentId = this.similar_to;
-            const collectionId = this.similar_to_collection;
-            this.similarSource = contentId ? 'this content' : 'this collection';
-            if (!contentId && !collectionId) return;
-            try {
-                const data = contentId
-                    ? await fetchJson(sitePath('v3', 'content', project, contentId))
-                    : await fetchJson(sitePath('v3', 'collection', project, collectionId));
-                if (contentId === this.similar_to && collectionId === this.similar_to_collection) {
-                    this.similarSource = (data.content ?? data.collection).title;
-                }
-            } catch {
-                // The generic label stays.
-            }
-        },
-
-        clearSimilar() {
-            this.similar_to = '';
-            this.similar_to_collection = '';
-            this.changeSetting();
-        },
+        ...similarFilter(project),
 
         likeChanged({contentId, liked}) {
             if (this.track === 'likes' && !liked) {
@@ -365,24 +372,32 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('collectionList', (project, filters = {}, syncUrl = true) => pagedList({
-        project,
-        syncUrl,
-        endpoint: sitePath('v3', 'collection', project),
-        itemsKey: 'collections',
-        idName: 'collection_id',
-        itemUrl: (id) => sitePath(project, 'collections', id),
-        pageSize: 24,
-        settings: {track: 'all', sort: 'relevance', descending: 'true', search: ''},
-        query() {
-            return {
-                ...filters,
-                author_id: this.track === 'mine' ? 'me' : filters.author_id,
-                order: this.sort,
-                descending: this.descending,
-                q: this.search.trim(),
-            };
-        },
+    Alpine.data('collectionList', (project, filters = {}, syncUrl = true) => ({
+        ...pagedList({
+            project,
+            syncUrl,
+            endpoint: sitePath('v3', 'collection', project),
+            itemsKey: 'collections',
+            idName: 'collection_id',
+            itemUrl: (id) => sitePath(project, 'collections', id),
+            pageSize: 24,
+            settings: {
+                track: 'all', sort: 'relevance', descending: 'true', search: '',
+                similar_to: '', similar_to_collection: '',
+            },
+            query() {
+                return {
+                    ...filters,
+                    author_id: this.track === 'mine' ? 'me' : filters.author_id,
+                    order: this.sort,
+                    descending: this.descending,
+                    q: this.search.trim(),
+                    similar_to: this.similar_to,
+                    similar_to_collection: this.similar_to_collection,
+                };
+            },
+        }),
+        ...similarFilter(project),
     }));
 
     Alpine.data('collectionCreate', (project) => collectionForm(
@@ -420,6 +435,10 @@ document.addEventListener('alpine:init', () => {
 
             similarUrl() {
                 return `${sitePath(project)}?${new URLSearchParams({similar_to_collection: collectionId})}`;
+            },
+
+            similarCollectionsUrl() {
+                return `${sitePath(project, 'collections')}?${new URLSearchParams({similar_to_collection: collectionId})}`;
             },
 
             async deleteCollection() {
@@ -727,6 +746,10 @@ document.addEventListener('alpine:init', () => {
 
             similarUrl() {
                 return `${sitePath(project)}?${new URLSearchParams({similar_to: contentId})}`;
+            },
+
+            similarCollectionsUrl() {
+                return `${sitePath(project, 'collections')}?${new URLSearchParams({similar_to: contentId})}`;
             },
 
             userUrl() {

@@ -14,7 +14,8 @@
                     <h1 x-text="collection.title"></h1>
                     <span class="badge" x-show="!collection.is_public">Private</span>
                     <div class="button-row detail-actions">
-                        {{ action_link("similar", "Find similar", "similarUrl()") }}
+                        {{ action_link("similar", "Similar content", "similarUrl()") }}
+                        {{ action_link("similar", "Similar collections", "similarCollectionsUrl()") }}
                         {{ action_button("edit", "Edit", "openEdit()", 'x-show="collection.is_owner"') }}
                         {{ action_button("delete", "Delete", "deleteCollection()", 'x-show="collection.is_owner" data-danger') }}
                     </div>
