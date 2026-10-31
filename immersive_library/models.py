@@ -44,6 +44,8 @@ class User(BaseModel):
     average_report_score: float
     moderator: bool
     banned: bool
+    # Their most liked uploads, in lists only.
+    preview_ids: list[int] | SkipJsonSchema[None] = None
 
 
 class ProjectSummary(BaseModel):
@@ -156,6 +158,8 @@ class Collection(BaseModel):
     content_count: int
     is_owner: bool
     contains_content: bool | SkipJsonSchema[None] = None
+    # The assets added last, in lists only.
+    preview_ids: list[int] | SkipJsonSchema[None] = None
 
 
 class CollectionSuccess(BaseModel):

@@ -64,10 +64,11 @@ async def get_users_v3(
         limit=limit + 1,
         offset=offset,
     )
-    return UserListSuccess(
-        users=[user_from_record(row) for row in rows[:limit]],
-        has_more=len(rows) > limit,
-    )
+    users = [user_from_record(row) for row in rows[:limit]]
+    previews = await user_service.preview_ids(project, [u.user_id for u in users])
+    for user in users:
+        user.preview_ids = previews.get(user.user_id, [])
+    return UserListSuccess(users=users, has_more=len(rows) > limit)
 
 
 @router.get(

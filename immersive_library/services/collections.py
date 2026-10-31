@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+import orjson
 from fastapi import HTTPException
 
 from immersive_library.common import projects
@@ -10,6 +13,7 @@ from immersive_library.services.recommendations import (
     preference_strength,
     recommendation_score,
 )
+from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
 from immersive_library.services.search import (
     plan_collection_search,
     rank_ordering,
@@ -17,6 +21,9 @@ from immersive_library.services.search import (
     within_results,
 )
 from immersive_library.utils import content_guard
+
+# Assets shown on a collection's card.
+PREVIEWS = 6
 
 COLLECTION_SELECT = """
     SELECT collections.oid AS collection_id, collections.user_id, users.username,
@@ -263,3 +270,34 @@ async def set_membership(
         await require_owner(project, collection_id, user_id)
         if included:
             await content_guard(project, content_id)
+
+
+async def preview_ids(
+    project: str, collection_ids: list[int], viewer_id: int | None
+) -> dict[int, list[int]]:
+    """Each collection's visible assets added last, at most PREVIEWS."""
+    rows = await database.fetch_all(
+        f"""
+        SELECT collection_id, content_id FROM (
+            SELECT items.collection_id, items.content_id, ROW_NUMBER() OVER (
+                PARTITION BY items.collection_id ORDER BY items.created_at DESC, c.oid
+            ) AS position
+            FROM collection_items AS items
+            JOIN content c ON c.oid = items.content_id
+            JOIN users AS author ON author.oid = c.user_id
+            JOIN precomputation ON precomputation.content_id = c.oid
+            WHERE items.collection_id IN (SELECT value FROM json_each(:collection_ids))
+                AND {COLLECTION_CONTENT_VISIBILITY}
+        ) WHERE position <= {PREVIEWS}
+        ORDER BY collection_id, position
+        """,
+        {
+            "project": project,
+            "viewer_id": viewer_id,
+            "collection_ids": orjson.dumps(collection_ids).decode(),
+        },
+    )
+    previews = defaultdict(list)
+    for row in rows:
+        previews[row["collection_id"]].append(row["content_id"])
+    return previews

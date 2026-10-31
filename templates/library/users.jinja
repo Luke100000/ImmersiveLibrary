@@ -19,7 +19,7 @@
         {{ search_control("Search users by name") }}
     </div>
 
-    <div class="grid">
+    <div class="grid list-grid">
         {% include "components/list-status.jinja" %}
         <template x-for="item in items" :key="item.user_id">
             <a class="card card-interactive card-link list-card" :href="itemUrl(item.user_id)">
@@ -29,6 +29,7 @@
                     <span class="badge" x-show="item.banned">Banned</span>
                 </div>
                 {% include "components/user-stats.jinja" %}
+                {% include "components/preview-grid.jinja" %}
             </a>
         </template>
     </div>

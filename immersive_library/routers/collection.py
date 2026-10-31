@@ -79,9 +79,13 @@ async def list_collections(
         content_id=content_id,
         viewer_id=viewer_id,
     )
-    return CollectionListSuccess(
-        collections=collections[:limit], has_more=len(collections) > limit
+    page = collections[:limit]
+    previews = await collection_service.preview_ids(
+        project, [c.collection_id for c in page], viewer_id
     )
+    for collection in page:
+        collection.preview_ids = previews.get(collection.collection_id, [])
+    return CollectionListSuccess(collections=page, has_more=len(collections) > limit)
 
 
 @router.post(

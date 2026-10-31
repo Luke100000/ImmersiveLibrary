@@ -1,8 +1,14 @@
+from collections import defaultdict
+
+import orjson
 from databases.interfaces import Record
 
 from immersive_library.database import database
 from immersive_library.enums import Inclusion, UserOrder
 from immersive_library.services.reports import REPORT_SCORE
+
+# Assets shown on a user's card.
+PREVIEWS = 6
 
 
 async def list_users(
@@ -90,3 +96,25 @@ async def list_users(
         """,
         values,
     )
+
+
+async def preview_ids(project: str, user_ids: list[int]) -> dict[int, list[int]]:
+    """Each user's most liked visible uploads in the project, at most PREVIEWS."""
+    rows = await database.fetch_all(
+        f"""
+        SELECT user_id, content_id FROM (
+            SELECT c.user_id, c.oid AS content_id, ROW_NUMBER() OVER (
+                PARTITION BY c.user_id ORDER BY precomputation.likes DESC, c.oid
+            ) AS position
+            FROM content c JOIN precomputation ON precomputation.content_id = c.oid
+            WHERE c.project = :project AND {REPORT_SCORE} <= 1
+                AND c.user_id IN (SELECT value FROM json_each(:user_ids))
+        ) WHERE position <= {PREVIEWS}
+        ORDER BY user_id, position
+        """,
+        {"project": project, "user_ids": orjson.dumps(user_ids).decode()},
+    )
+    previews = defaultdict(list)
+    for row in rows:
+        previews[row["user_id"]].append(row["content_id"])
+    return previews

@@ -22,7 +22,7 @@
 <section class="list-section" x-data='collectionList({{ project | tojson }}, {author_id: {{ user.user_id }}}, false)'
          x-show="loading || items.length > 0">
     <h2 class="section-title">Collections</h2>
-    <div class="grid">
+    <div class="grid list-grid">
         {% include "components/collection-cards.jinja" %}
     </div>
     {% include "components/pagination.jinja" %}

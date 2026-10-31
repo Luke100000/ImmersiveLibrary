@@ -1,0 +1,10 @@
+{# Expects an item with preview_ids and a project in the Alpine scope. #}
+<div class="preview-grid" aria-hidden="true">
+    <template x-for="index in 6" :key="index">
+        <div class="preview-tile">
+            <template x-if="item.preview_ids?.[index - 1]">
+                <img :src="iconUrl(project, item.preview_ids[index - 1])" loading="lazy" alt="">
+            </template>
+        </div>
+    </template>
+</div>

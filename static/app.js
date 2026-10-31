@@ -12,6 +12,10 @@ function plural(count, noun, suffix = '') {
     return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}${suffix}`;
 }
 
+function iconUrl(project, contentId) {
+    return `${sitePath('v1', 'render', project, contentId)}?preset=icon`;
+}
+
 function sitePath(...parts) {
     return '/' + parts.map((part) => encodeURIComponent(part)).join('/');
 }
@@ -360,7 +364,7 @@ document.addEventListener('alpine:init', () => {
         itemsKey: 'users',
         idName: 'user_id',
         itemUrl: (id) => sitePath(project, 'users', id),
-        pageSize: 24,
+        pageSize: 8,
         settings: {sort: 'likes_received', descending: 'true', search: '', banned: 'exclude'},
         query() {
             return {
@@ -380,7 +384,7 @@ document.addEventListener('alpine:init', () => {
             itemsKey: 'collections',
             idName: 'collection_id',
             itemUrl: (id) => sitePath(project, 'collections', id),
-            pageSize: 24,
+            pageSize: 8,
             settings: {
                 track: 'all', sort: 'relevance', descending: 'true', search: '',
                 similar_to: '', similar_to_collection: '',

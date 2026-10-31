@@ -6,5 +6,6 @@
         </div>
         <div class="detail-meta" x-text="`by ${item.username} • ${plural(item.content_count, 'item')}`"></div>
         <p class="description" x-show="item.description" x-text="item.description"></p>
+        {% include "components/preview-grid.jinja" %}
     </a>
 </template>
