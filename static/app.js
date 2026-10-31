@@ -65,8 +65,7 @@ function collectionForm(submit, onSaved) {
     };
 }
 
-// The similar_to and similar_to_collection filter of a paged list, shown as a notice
-// naming what the list is similar to.
+// The similar_to and similar_to_collection filter of a paged list, shown as a notice naming the source.
 function similarFilter(project) {
     return {
         similarSource: '',
@@ -77,7 +76,6 @@ function similarFilter(project) {
                 : sitePath(project, 'collections', this.similar_to_collection);
         },
 
-        // Shows the title of what the list is similar to, falling back to a generic label.
         async loadSimilarSource() {
             const contentId = this.similar_to;
             const collectionId = this.similar_to_collection;
@@ -650,8 +648,7 @@ document.addEventListener('alpine:init', () => {
                 this.fetchContent(true).then((refreshed) => {
                     this.content.is_liked = refreshed.is_liked;
                     this.content.likes = refreshed.likes;
-                }).catch(() => {
-                });
+                }).catch(() => {});
             },
 
             requireUser() {
@@ -764,7 +761,7 @@ document.addEventListener('alpine:init', () => {
 
             formatTag(tag) {
                 return tag.replaceAll('_', ' ').toLowerCase()
-                    .replace(/(^|\s)\S/g, letter => letter.toUpperCase());
+                    .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
             },
 
             searchUrl(search) {

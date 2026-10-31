@@ -4,29 +4,22 @@
     const CONSENT_COOKIE = 'immersive_cookie_consent';
 
     function setCookie(name, value, days) {
-        let expires = "";
-        if (days) {
-            const date = new Date();
-            date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
-            expires = "; expires=" + date.toUTCString();
-        }
-        document.cookie = name + "=" + encodeURIComponent(value) + expires
-            + "; path=/; SameSite=Lax" + (window.location.protocol === 'https:' ? '; Secure' : '');
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${days * 86400}; path=/; SameSite=Lax${secure}`;
     }
 
     function getCookie(name) {
-        const nameEQ = name + "=";
-        for (let cookie of document.cookie.split(';')) {
-            cookie = cookie.trim();
-            if (cookie.startsWith(nameEQ)) {
-                return decodeURIComponent(cookie.substring(nameEQ.length));
+        for (const cookie of document.cookie.split(';')) {
+            const [key, ...value] = cookie.trim().split('=');
+            if (key === name) {
+                return decodeURIComponent(value.join('='));
             }
         }
         return null;
     }
 
     function eraseCookie(name) {
-        setCookie(name, "", -1);
+        setCookie(name, '', 0);
     }
 
     function encodeBase64(value) {
@@ -100,9 +93,8 @@
 
                 let username = getCookie(USERNAME_COOKIE);
                 if (!username) {
-                    username = window.prompt('Choose a display name');
-                    if (!username || !username.trim()) return;
-                    username = username.trim();
+                    username = window.prompt('Choose a display name')?.trim();
+                    if (!username) return;
                     setCookie(USERNAME_COOKIE, username, 365);
                 }
 
@@ -118,7 +110,7 @@
                     token: encodeBase64(await hashToken(token)),
                     return_to: window.location.pathname + window.location.search + window.location.hash,
                 };
-                window.location.assign('/v1/login?state=' + encodeURIComponent(encodeBase64(JSON.stringify(state))));
+                window.location.assign(`/v1/login?${new URLSearchParams({state: encodeBase64(JSON.stringify(state))})}`);
             },
 
             logout() {
@@ -130,14 +122,12 @@
 
     const originalFetch = window.fetch;
     window.fetch = function (input, init = {}) {
-        const headers = new Headers(
-            init.headers || (input instanceof Request ? input.headers : undefined)
-        );
+        const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
         const url = new URL(input instanceof Request ? input.url : input, window.location.href);
         if (url.origin === window.location.origin && !headers.has('Authorization')) {
             const token = getCookie(TOKEN_COOKIE);
             if (token) {
-                headers.set('Authorization', 'Bearer ' + token);
+                headers.set('Authorization', `Bearer ${token}`);
             }
         }
         return originalFetch(input, {...init, headers});

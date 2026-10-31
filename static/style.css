@@ -98,6 +98,7 @@ a:hover {
     border: 1px solid transparent;
     border-radius: 10px;
     color: var(--text-secondary);
+    font: inherit;
     font-weight: 600;
 }
 
@@ -269,6 +270,10 @@ a:hover {
     padding-right: 38px;
 }
 
+.control-item textarea {
+    resize: vertical;
+}
+
 .select-wrap {
     position: relative;
 }
@@ -319,7 +324,12 @@ a:hover {
     min-width: 0;
 }
 
+.detail-heading {
+    flex-wrap: wrap;
+}
+
 .list-card .title {
+    min-width: 0;
     font-size: 22px;
     white-space: nowrap;
     overflow: hidden;
@@ -424,10 +434,6 @@ a:hover {
     justify-content: center;
 }
 
-.list-section + .list-section {
-    margin-top: 28px;
-}
-
 .list-tabs {
     display: flex;
     gap: 6px;
@@ -436,7 +442,6 @@ a:hover {
 
 .list-tabs .tab {
     background: none;
-    font-size: 16px;
     cursor: pointer;
 }
 
@@ -473,13 +478,6 @@ a:hover {
     color: var(--text-secondary);
     line-height: 1.5;
     overflow-wrap: anywhere;
-}
-
-.list-card .description {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
 
 .card-interactive {
@@ -740,14 +738,6 @@ a.btn {
     padding: 9px 6px;
 }
 
-.detail-heading {
-    flex-wrap: wrap;
-}
-
-.list-card .title {
-    min-width: 0;
-}
-
 .detail-actions {
     flex-wrap: wrap;
     margin: 0 0 0 auto;
@@ -809,10 +799,6 @@ a.btn {
     color: var(--danger);
 }
 
-.control-item textarea {
-    resize: vertical;
-}
-
 .picker-list {
     display: flex;
     flex-direction: column;
@@ -866,34 +852,21 @@ footer a {
     margin: 0 8px;
 }
 
-/* Pages of 8 users or collections fill whole rows at 4, 2 or 1 columns. */
-.list-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@media (min-width: 1260px) {
-    .list-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 600px) {
-    .list-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
-
+/* Pages of 8 fill whole rows at 4, 2 or 1 columns. */
+.list-grid,
 .content-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (min-width: 1260px) {
+    .list-grid,
     .content-grid {
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 600px) {
+    .list-grid,
     .content-grid {
         grid-template-columns: minmax(0, 1fr);
     }

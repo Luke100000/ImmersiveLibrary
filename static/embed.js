@@ -11,7 +11,6 @@ async function embedContentPreview(contentElement, project, content, options = {
         contentElement.style.width = '100%';
     }
 
-    // Embed the project-specific content
     const {embed} = await import(`/static/${project}/embed.js`);
     const multiView = getSharedMultiView(options.animate ?? true);
     const view = await embed(contentElement, content, {...options, width, height});
@@ -68,7 +67,7 @@ function createMultiViewRenderer(canvas, animate) {
                     if (!material) continue;
                     resources.add(material);
                     for (const value of Object.values(material)) {
-                        if (value && value.isTexture) {
+                        if (value?.isTexture) {
                             resources.add(value);
                         }
                     }

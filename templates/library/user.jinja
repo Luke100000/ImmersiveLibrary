@@ -22,7 +22,7 @@
 <div x-data='userLists({{ project | tojson }}, {{ user.user_id }}, {{ user.submission_count }}, {{ user.likes_given }})'>
     <nav class="list-tabs" aria-label="Lists" x-show="view" x-cloak>
         {% for view, label in [("submissions", "Submissions"), ("collections", "Collections"), ("likes", "Liked")] %}
-            <button class="tab" type="button" :class="{active: view === '{{ view }}'}"
+            <button class="tab" type="button" :class="{active: view === '{{ view }}'}" :aria-pressed="view === '{{ view }}'"
                     x-show="available.{{ view }} || view === '{{ view }}'" @click="show('{{ view }}')">{{ label }}</button>
         {% endfor %}
     </nav>
