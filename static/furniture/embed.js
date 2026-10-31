@@ -174,25 +174,77 @@ async function fetchSprite(id) {
         return null;
     }
 
-    // Animated textures are strips of square frames, only the first one is shown
-    const size = image.naturalWidth;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const context = canvas.getContext('2d', {willReadFrequently: true});
-    context.drawImage(image, 0, 0);
+    // Transparency is judged over all frames
+    const strip = document.createElement('canvas');
+    strip.width = image.naturalWidth;
+    strip.height = image.naturalHeight;
+    const stripContext = strip.getContext('2d', {willReadFrequently: true});
+    stripContext.drawImage(image, 0, 0);
 
     let cutout = false;
     let translucent = false;
-    const {data} = context.getImageData(0, 0, size, size);
+    const {data} = stripContext.getImageData(0, 0, strip.width, strip.height);
     for (let i = 3; i < data.length; i += 4) {
         if (data[i] === 0) cutout = true;
         else if (data[i] < 255) translucent = true;
     }
 
+    // Animated textures are strips of frames, the texture shows one frame at a time
+    const animation = image.naturalHeight > image.naturalWidth ? await fetchAnimation(path, image) : null;
+    const canvas = document.createElement('canvas');
+    canvas.width = animation?.width ?? image.naturalWidth;
+    canvas.height = animation?.height ?? image.naturalWidth;
+    canvas.getContext('2d').drawImage(image, 0, 0);
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.magFilter = texture.minFilter = THREE.NearestFilter;
     texture.generateMipmaps = false;
-    return {texture, cutout, translucent};
+    return {texture, cutout, translucent, animation: animation && {...animation, image, canvas, shown: null}};
+}
+
+// Frames last the given amount of game ticks, which are 50ms
+const TICK = 50;
+
+async function fetchAnimation(path, image) {
+    const response = await fetch(`${SPRITE_ROOT}${path}.png.mcmeta`);
+    const meta = response.ok ? (await response.json().catch(() => ({}))).animation ?? {} : {};
+
+    const width = meta.width ?? image.naturalWidth;
+    const height = meta.height ?? width;
+    const frametime = meta.frametime ?? 1;
+    const indices = meta.frames ?? Array.from({length: Math.floor(image.naturalHeight / height)}, (_, i) => i);
+    const sequence = indices.map(frame => typeof frame === 'number'
+        ? {index: frame, time: frametime}
+        : {index: frame.index, time: frame.time ?? frametime});
+    const duration = sequence.reduce((sum, frame) => sum + frame.time, 0);
+    return duration > 0 ? {width, height, sequence, duration, interpolate: !!meta.interpolate} : null;
+}
+
+function animateSprite({texture, animation}, time) {
+    if (!animation) return;
+
+    let ticks = (time / TICK) % animation.duration;
+    let current = 0;
+    while (ticks >= animation.sequence[current].time) ticks -= animation.sequence[current++].time;
+
+    const {index, time: length} = animation.sequence[current];
+    const next = animation.sequence[(current + 1) % animation.sequence.length].index;
+    const blend = animation.interpolate ? ticks / length : 0;
+
+    const shown = `${index}:${next}:${blend}`;
+    if (shown === animation.shown) return;
+    animation.shown = shown;
+
+    const {image, canvas, width, height} = animation;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, width, height);
+    context.globalAlpha = 1;
+    context.drawImage(image, 0, index * height, width, height, 0, 0, width, height);
+    if (blend) {
+        context.globalAlpha = blend;
+        context.drawImage(image, 0, next * height, width, height, 0, 0, width, height);
+    }
+    texture.needsUpdate = true;
 }
 
 async function loadSprites(elements) {
@@ -303,7 +355,7 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     const camera = new THREE.PerspectiveCamera(50, options.width / options.height, 0.1, 16.0);
 
     // Create a group to hold all elements
-    const group = new THREE.Group();
+    const group = new THREE.Group();1
     elements.forEach((element, idx) => {
         const {From, To, Material, Type} = element;
         if (Type.value === "sprite") {
@@ -397,6 +449,7 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
 
     const update = function update(time) {
         pivot.rotation.y = Math.PI * 0.75 + time * 0.0005;
+        sprites.forEach(sprite => sprite && animateSprite(sprite, time));
     }
 
     return {scene, camera, update};
