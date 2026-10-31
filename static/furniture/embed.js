@@ -174,12 +174,10 @@ function createSceneFromObject(data, options = {}) {
 
     // Setup Three.js scene and camera
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(50, options.width / options.height, 1.0, 16.0);
+    const camera = new THREE.PerspectiveCamera(50, options.width / options.height, 0.1, 16.0);
 
     // Create a group to hold all elements
     const group = new THREE.Group();
-    let minX = 0, minY = 0, minZ = 0;
-    let maxX = 1, maxY = 1, maxZ = 1;
     elements.forEach((element, idx) => {
         const {From, To, Material, Type} = element;
         if (Type.value !== "element") return;
@@ -196,13 +194,6 @@ function createSceneFromObject(data, options = {}) {
         const x = (from[0] + to[0]) / 32 + ((idx * 23) % 7) * 0.0001;
         const y = (from[1] + to[1]) / 32 + ((idx * 23) % 13) * 0.0001;
         const z = (from[2] + to[2]) / 32 + ((idx * 23) % 17) * 0.0001;
-
-        minX = Math.min(minX, x - width / 32);
-        minY = Math.min(minY, y - height / 32);
-        minZ = Math.min(minZ, z - depth / 32);
-        maxX = Math.max(maxX, x + width / 32);
-        maxY = Math.max(maxY, y + height / 32);
-        maxZ = Math.max(maxZ, z + depth / 32);
 
         // Create material
         const material = new THREE.MeshStandardMaterial({
@@ -249,22 +240,27 @@ function createSceneFromObject(data, options = {}) {
         group.add(cube);
     });
 
-    let centerX = (minX + maxX) / 2;
-    let centerY = (minY + maxY) / 2;
-    let centerZ = (minZ + maxZ) / 2;
-    group.position.set(-centerX, -centerY, -centerZ);
+    const bounds = new THREE.Box3().setFromObject(group, true);
+    if (bounds.isEmpty()) bounds.set(new THREE.Vector3(), new THREE.Vector3(1, 1, 1));
+    const center = bounds.getCenter(new THREE.Vector3());
+    const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+    group.position.copy(center).negate();
 
     const pivot = new THREE.Object3D();
     pivot.position.set(0, 0, 0);
     pivot.add(group);
     scene.add(pivot);
 
-    // Position the camera
-    const distance = 2.5;
-    let sizeX = Math.max(Math.abs(maxX - centerX), Math.abs(minX - centerX));
-    let sizeZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(minZ - centerZ));
-    camera.position.z = Math.sqrt(sizeX ** 2 + sizeZ ** 2) * distance;
-    camera.position.y = camera.position.z * 0.25 * distance;
+    // Position the camera so the model, which rotates around the y axis, fits the view at any angle
+    const elevation = Math.atan(0.625);
+    const minHalfSize = 0.25;
+    const radius = Math.max(Math.hypot(halfSize.x, halfSize.z), minHalfSize);
+    const halfHeight = Math.max(halfSize.y, minHalfSize);
+    const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const tanX = tanY * camera.aspect;
+    const projectedHeight = halfHeight * Math.cos(elevation) + radius * Math.sin(elevation);
+    const distance = radius + Math.max(projectedHeight / tanY, radius / tanX);
+    camera.position.set(0, distance * Math.sin(elevation), distance * Math.cos(elevation));
     camera.lookAt(0, 0, 0);
 
     // Add lights
