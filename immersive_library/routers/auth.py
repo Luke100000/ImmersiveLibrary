@@ -11,7 +11,7 @@ from google.oauth2 import id_token
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
-from immersive_library.common import templates
+from immersive_library.common import public_url, templates
 from immersive_library.database import database
 from immersive_library.models import (
     Error,
@@ -111,7 +111,7 @@ async def get_login(request: Request, state: str) -> HTMLResponse:
         {
             "state": state_dict,
             "client_id": os.getenv("CLIENT_ID"),
-            "login_uri": str(request.url_for("auth")),
+            "login_uri": public_url(request.url_for("auth")),
             "has_cookie_consent": request.cookies.get("immersive_cookie_consent")
             == "yes",
         },

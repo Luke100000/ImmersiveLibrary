@@ -1,12 +1,25 @@
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 
 from fastapi import HTTPException
+from starlette.datastructures import URL
 from starlette.templating import Jinja2Templates
 
 from immersive_library.validators.validator import Validator
 
 templates = Jinja2Templates(directory="templates")
+
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+
+
+def public_url(url: URL) -> str:
+    if not PUBLIC_BASE_URL:
+        return str(url)
+    return PUBLIC_BASE_URL + url.path + (f"?{url.query}" if url.query else "")
+
+
+templates.env.globals["public_url"] = public_url
 
 
 @dataclass(frozen=True)
