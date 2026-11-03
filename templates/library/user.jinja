@@ -1,6 +1,15 @@
 {% extends "library/base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
 
 {% block title %}{{ user.username }} – {{ project_info.title or project }}{% endblock %}
+
+{% block embed %}
+    {{ embed(
+        self.title(),
+        plural(user.submission_count, "upload") ~ " with " ~ plural(user.likes_received, "like") ~ ".",
+        request.url_for("render_user", project=project, user_id=user.user_id) if user.preview_ids,
+    ) }}
+{% endblock %}
 
 {% block library %}
 <section class="panel detail-header" x-data='userDetail({{ project | tojson }}, {{ user.model_dump() | tojson }})'>

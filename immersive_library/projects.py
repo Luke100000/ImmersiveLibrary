@@ -55,7 +55,7 @@ def register_projects() -> None:
     # Add Immersive Furniture specific validators
     projects["furniture"] = Project(
         title="Immersive Furniture",
-        description="Furniture models built in-game with Immersive Furniture.",
+        description="Furniture models built in-game.",
         description_context=FURNITURE_DESCRIPTION_CONTEXT,
     )
     projects["furniture"].validators = [

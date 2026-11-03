@@ -1,7 +1,7 @@
 from functools import cache
 from typing import cast
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.requests import Request
 from fastapi_cache.decorator import cache as cache_result
 from jinja2 import TemplateNotFound
@@ -9,6 +9,7 @@ from starlette.responses import FileResponse, HTMLResponse
 
 from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import projects, templates
+from immersive_library.services import collections as collection_service
 from immersive_library.services import content as content_service
 from immersive_library.services import descriptions as description_service
 from immersive_library.services import statistics as statistics_service
@@ -147,12 +148,10 @@ async def get_user_front(request: Request, project: str, user_id: int):
     if not rows:
         return HTMLResponse("User not found", status_code=404)
 
+    user = user_from_record(rows[0])
+    user.preview_ids = (await user_service.preview_ids(project, [user_id]))[user_id]
     return project_response(
-        request,
-        project,
-        "library/user.jinja",
-        section="users",
-        user=user_from_record(rows[0]),
+        request, project, "library/user.jinja", section="users", user=user
     )
 
 
@@ -163,15 +162,29 @@ async def get_collection_library(request: Request, project: str):
     )
 
 
-# Collections can be private, so the page loads them with the viewer's token.
 @router.get("/{project}/collections/{collection_id}", response_class=HTMLResponse)
 async def get_collection_front(request: Request, project: str, collection_id: int):
+    if project not in projects:
+        return HTMLResponse("Project not found", status_code=404)
+
+    try:
+        collection = await collection_service.get_collection(
+            project, collection_id, None
+        )
+    except HTTPException:
+        collection = None
+    else:
+        collection.preview_ids = (
+            await collection_service.preview_ids(project, [collection_id], None)
+        )[collection_id]
+
     return project_response(
         request,
         project,
         "library/collection.jinja",
         section="collections",
         collection_id=collection_id,
+        collection=collection,
     )
 
 

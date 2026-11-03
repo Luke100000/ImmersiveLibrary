@@ -1,6 +1,9 @@
 {% extends "base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
 
 {% block title %}{{ project_info.title or project }} – Immersive Library{% endblock %}
+
+{% block embed %}{{ embed(self.title(), project_info.description) }}{% endblock %}
 
 {% block head %}
     {% include "components/preview-scripts.jinja" %}

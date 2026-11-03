@@ -99,8 +99,10 @@ async def list_users(
     )
 
 
-async def preview_ids(project: str, user_ids: list[int]) -> dict[int, list[int]]:
-    """Each user's most liked visible uploads in the project, at most PREVIEWS."""
+async def preview_ids(
+    project: str, user_ids: list[int], limit: int = PREVIEWS
+) -> dict[int, list[int]]:
+    """Each user's most liked visible uploads in the project."""
     rows = await database.fetch_all(
         f"""
         SELECT user_id, content_id FROM (
@@ -110,10 +112,14 @@ async def preview_ids(project: str, user_ids: list[int]) -> dict[int, list[int]]
             FROM content c JOIN precomputation ON precomputation.content_id = c.oid
             WHERE c.project = :project AND {REPORT_SCORE} <= 1
                 AND c.user_id IN (SELECT value FROM json_each(:user_ids))
-        ) WHERE position <= {PREVIEWS}
+        ) WHERE position <= :limit
         ORDER BY user_id, position
         """,
-        {"project": project, "user_ids": orjson.dumps(user_ids).decode()},
+        {
+            "project": project,
+            "user_ids": orjson.dumps(user_ids).decode(),
+            "limit": limit,
+        },
     )
     previews = defaultdict(list)
     for row in rows:

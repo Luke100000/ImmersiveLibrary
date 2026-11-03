@@ -150,7 +150,7 @@ async def render(record, base_url: str, empty_preview: bytes) -> bytes:
     while True:
         response = await asyncio.to_thread(
             requests.get,
-            f"{base_url}/v1/render/{record['project']}/{record['content_id']}",
+            f"{base_url}/v3/render/{record['project']}/{record['content_id']}",
             params={"preset": RenderPreset.THUMBNAIL.value},
             timeout=(10, 90),
         )

@@ -1,7 +1,20 @@
 {% extends "library/base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
 {% from "components/macros.jinja" import action_button, action_link %}
 
 {% block title %}Collection – {{ project_info.title or project }}{% endblock %}
+
+{% block embed %}
+    {% if collection %}
+        {{ embed(
+            collection.title ~ " – " ~ (project_info.title or project),
+            collection.description | truncate(200) or plural(collection.content_count, "item") ~ " by " ~ collection.username ~ ".",
+            request.url_for("render_collection", project=project, collection_id=collection.collection_id) if collection.preview_ids,
+        ) }}
+    {% else %}
+        {{ super() }}
+    {% endif %}
+{% endblock %}
 
 {% block library %}
 <div x-data='collectionDetail({{ project | tojson }}, {{ collection_id }})'>

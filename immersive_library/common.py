@@ -1,3 +1,4 @@
+import datetime
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -19,7 +20,17 @@ def public_url(url: URL) -> str:
     return PUBLIC_BASE_URL + url.path + (f"?{url.query}" if url.query else "")
 
 
+def plural(count: int, noun: str) -> str:
+    return f"{count:,} {noun}{'' if count == 1 else 's'}"
+
+
+def month_year(timestamp: int) -> str:
+    return datetime.datetime.fromtimestamp(timestamp, datetime.UTC).strftime("%B %Y")
+
+
 templates.env.globals["public_url"] = public_url
+templates.env.globals["month_year"] = month_year
+templates.env.globals["plural"] = plural
 
 
 @dataclass(frozen=True)

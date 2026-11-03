@@ -25,7 +25,7 @@ function formatDate(seconds) {
 }
 
 function iconUrl(project, contentId) {
-    return `${sitePath('v1', 'render', project, contentId)}?preset=icon`;
+    return `${sitePath('v3', 'render', project, contentId)}?preset=icon`;
 }
 
 function sitePath(...parts) {

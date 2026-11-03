@@ -280,9 +280,12 @@ async def set_membership(
 
 
 async def preview_ids(
-    project: str, collection_ids: list[int], viewer_id: int | None
+    project: str,
+    collection_ids: list[int],
+    viewer_id: int | None,
+    limit: int = PREVIEWS,
 ) -> dict[int, list[int]]:
-    """Each collection's visible assets added last, at most PREVIEWS."""
+    """Each collection's visible assets, added last first."""
     rows = await database.fetch_all(
         f"""
         SELECT collection_id, content_id FROM (
@@ -295,13 +298,14 @@ async def preview_ids(
             JOIN precomputation ON precomputation.content_id = c.oid
             WHERE items.collection_id IN (SELECT value FROM json_each(:collection_ids))
                 AND {COLLECTION_CONTENT_VISIBILITY}
-        ) WHERE position <= {PREVIEWS}
+        ) WHERE position <= :limit
         ORDER BY collection_id, position
         """,
         {
             "project": project,
             "viewer_id": viewer_id,
             "collection_ids": orjson.dumps(collection_ids).decode(),
+            "limit": limit,
         },
     )
     previews = defaultdict(list)

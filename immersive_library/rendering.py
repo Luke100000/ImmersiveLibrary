@@ -18,7 +18,9 @@ RENDER_CONCURRENCY_LIMIT = max(1, int(os.getenv("RENDER_CONCURRENCY_LIMIT", "2")
 
 
 class BrowserRenderer:
-    def __init__(self) -> None:
+    def __init__(self, url: str) -> None:
+        # The page that draws the previews, see default/render.jinja.
+        self._url = url
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._browser_lock = asyncio.Lock()
@@ -42,11 +44,11 @@ class BrowserRenderer:
 
             return self._browser
 
-    async def _new_page(self, browser: Browser, url: str) -> Page:
+    async def _new_page(self, browser: Browser) -> Page:
         context = await browser.new_context(device_scale_factor=1)
         try:
             page = await context.new_page()
-            response = await page.goto(url, wait_until="domcontentloaded")
+            response = await page.goto(self._url, wait_until="domcontentloaded")
             if response is not None and not response.ok:
                 raise RuntimeError(f"Render page returned HTTP {response.status}")
 
@@ -68,7 +70,6 @@ class BrowserRenderer:
 
     async def render_png(
         self,
-        url: str,
         project: str,
         content: Content,
         width: int,
@@ -76,18 +77,15 @@ class BrowserRenderer:
         timeout_ms: int = 15000,
     ) -> bytes:
         try:
-            return await self._render_once(
-                url, project, content, width, height, timeout_ms
-            )
+            return await self._render_once(project, content, width, height, timeout_ms)
         except PlaywrightError as exc:
             if "Render context was lost" not in str(exc):
                 raise
 
-        return await self._render_once(url, project, content, width, height, timeout_ms)
+        return await self._render_once(project, content, width, height, timeout_ms)
 
     async def _render_once(
         self,
-        url: str,
         project: str,
         content: Content,
         width: int,
@@ -98,13 +96,15 @@ class BrowserRenderer:
             browser = await self._get_browser()
             page = self._pages.pop() if self._pages else None
             if page is not None and (
-                page.is_closed() or page.context.browser != browser or page.url != url
+                page.is_closed()
+                or page.context.browser != browser
+                or page.url != self._url
             ):
                 await page.context.close()
                 page = None
 
             if page is None:
-                page = await self._new_page(browser, url)
+                page = await self._new_page(browser)
 
             try:
                 await page.set_viewport_size(ViewportSize(width=width, height=height))

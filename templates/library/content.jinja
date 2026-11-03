@@ -1,4 +1,7 @@
 {% extends "library/base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
+
+{% block embed %}{{ embed(project_info.title or project, project_info.description) }}{% endblock %}
 
 {% block library %}
     {% set show_track = true %}

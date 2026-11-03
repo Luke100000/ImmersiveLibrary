@@ -89,7 +89,13 @@ async def lifespan(_app: FastAPI):
         RedisBackend(redis), prefix="immersive-library", coder=FastAPIJsonCoder
     )
 
-    renderer = BrowserRenderer()
+    renderer = BrowserRenderer(
+        str(
+            _app.url_path_for("get_render_shell").make_absolute_url(
+                os.getenv("RENDER_BASE_URL", "http://127.0.0.1:8000")
+            )
+        )
+    )
     _app.state.renderer = renderer
     try:
         yield

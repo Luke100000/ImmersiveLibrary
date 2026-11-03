@@ -1,0 +1,20 @@
+{% macro embed(title, description="Browse, like and collect community-made assets.", image=none) %}
+    {% set title = title | trim %}
+    <meta name="description" content="{{ description }}">
+    <meta property="og:site_name" content="Immersive Library">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ public_url(request.url) }}">
+    <meta property="og:title" content="{{ title }}">
+    <meta property="og:description" content="{{ description }}">
+    <meta name="twitter:title" content="{{ title }}">
+    <meta name="twitter:description" content="{{ description }}">
+    {% if image %}
+        <meta property="og:image" content="{{ public_url(image) }}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="{{ public_url(image) }}">
+    {% else %}
+        <meta name="twitter:card" content="summary">
+    {% endif %}
+{% endmacro %}
