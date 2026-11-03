@@ -121,15 +121,21 @@
     });
 
     const originalFetch = window.fetch;
-    window.fetch = function (input, init = {}) {
+    window.fetch = async function (input, init = {}) {
         const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
         const url = new URL(input instanceof Request ? input.url : input, window.location.href);
-        if (url.origin === window.location.origin && !headers.has('Authorization')) {
-            const token = getCookie(TOKEN_COOKIE);
-            if (token) {
-                headers.set('Authorization', `Bearer ${token}`);
-            }
+        const token = getCookie(TOKEN_COOKIE);
+        const attachToken = token && url.origin === window.location.origin && !headers.has('Authorization');
+        if (attachToken) {
+            headers.set('Authorization', `Bearer ${token}`);
         }
-        return originalFetch(input, {...init, headers});
+
+        const response = await originalFetch(input, {...init, headers});
+        if (attachToken && response.status === 401) {
+            eraseCookie(TOKEN_COOKIE);
+            const store = window.Alpine?.store('auth');
+            if (store) store.hasToken = false;
+        }
+        return response;
     };
 })();
