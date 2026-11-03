@@ -2,6 +2,9 @@
 
 import {animateSprite, createSprite, loadSprites} from './sprites.js';
 
+// The average color of oak planks
+const FALLBACK_COLOR = 0xa2824e;
+
 function intArrayToRGBA(pixelsInt, width, height) {
     const pixelsRGBA = new Uint8Array(width * height * 4);
     for (let i = 0; i < pixelsInt.length; i++) {
@@ -184,7 +187,11 @@ function placeElement(object, element, idx) {
     return object;
 }
 
-function createCube(element, idx, texture, regions, atlasSize) {
+function isBaked(element) {
+    return Object.keys(element.BakedTexture?.value ?? {}).length > 0;
+}
+
+function createCube(element, idx, texture, regions, atlasSize, unbaked) {
     const from = element.From.value.value;
     const to = element.To.value.value;
     const width = Math.abs(to[0] - from[0]);
@@ -192,10 +199,16 @@ function createCube(element, idx, texture, regions, atlasSize) {
     const depth = Math.abs(to[2] - from[2]);
 
     const transparency = element.Material.value.Transparency;
-    const material = createMaterial(element, {
-        map: texture,
-        transparent: !!(transparency && transparency.value !== "SOLID"),
-    });
+    const transparent = !!(transparency && transparency.value !== "SOLID");
+
+    // Some uploads lack all baked textures, the game shows those elements as oak
+    if (unbaked) {
+        const material = createMaterial(element, {transparent});
+        material.color.multiply(new THREE.Color(FALLBACK_COLOR));
+        return new THREE.Mesh(new THREE.BoxGeometry(width / 16.0, height / 16.0, depth / 16.0), material);
+    }
+
+    const material = createMaterial(element, {map: texture, transparent});
 
     const geometry = new THREE.BoxGeometry(width / 16.0, height / 16.0, depth / 16.0);
     const faces = ["east", "west", "up", "down", "south", "north"];
@@ -245,6 +258,9 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     const {Elements} = data.parsed.value;
     const elements = Elements.value.value;
 
+    // Single unbaked elements are hidden in this state, e.g., fully enclosed by others
+    const unbaked = !elements.some((element) => element.Type.value === "element" && isBaked(element));
+
     // Collect all textures from elements
     const textures = listTextures(elements);
 
@@ -270,7 +286,7 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     elements.forEach((element, idx) => {
         const type = element.Type.value;
         if (type === "element") {
-            group.add(placeElement(createCube(element, idx, texture, regions, atlasSize), element, idx));
+            group.add(placeElement(createCube(element, idx, texture, regions, atlasSize, unbaked), element, idx));
         } else if (type === "sprite") {
             const sprite = sprites.get(element.Sprite.value.Sprite.value);
             if (!sprite) return;
