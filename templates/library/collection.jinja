@@ -23,6 +23,9 @@
                 <div class="detail-meta">
                     by <a :href="sitePath(project, 'users', collection.user_id)" x-text="collection.username"></a>
                     • <span x-text="plural(collection.content_count, 'item')"></span>
+                    • <span :title="formatDate(collection.created_at)" x-text="`created ${relativeTime(collection.created_at)}`"></span>
+                    <span x-show="relativeTime(collection.updated_at) !== relativeTime(collection.created_at)"
+                          :title="formatDate(collection.updated_at)" x-text="`• updated ${relativeTime(collection.updated_at)}`"></span>
                 </div>
                 <p class="description" x-show="collection.description" x-text="collection.description"></p>
             </section>

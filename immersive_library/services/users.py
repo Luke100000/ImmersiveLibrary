@@ -53,7 +53,7 @@ async def list_users(
     return await database.fetch_all(
         f"""
             WITH selected_users AS (
-                SELECT oid, username, moderator, banned
+                SELECT oid, username, moderator, banned, created_at
                 FROM users
                 WHERE true
                 {user_filter}
@@ -63,6 +63,7 @@ async def list_users(
                    users.username,
                    users.moderator,
                    users.banned,
+                   users.created_at,
                    COALESCE(submitted_content.submission_count, 0) as submission_count,
                    COALESCE(likes_given.count, 0) as likes_given,
                    COALESCE(submitted_content.likes_received, 0) as likes_received,

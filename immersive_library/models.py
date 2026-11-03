@@ -44,7 +44,7 @@ class User(BaseModel):
     average_report_score: float
     moderator: bool
     banned: bool
-    # Their most liked uploads, in lists only.
+    created_at: int
     preview_ids: list[int] | SkipJsonSchema[None] = None
 
 
@@ -85,6 +85,8 @@ class ContentSummary(BaseModel):
     tags: list[str]
     title: str
     version: int
+    created_at: int
+    updated_at: int
     meta: str | SkipJsonSchema[None] = None
     data: str | SkipJsonSchema[None] = None
     is_liked: bool

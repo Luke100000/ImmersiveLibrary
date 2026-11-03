@@ -8,6 +8,7 @@
         <h1>{{ user.username }}</h1>
         <span class="badge" x-show="item.moderator"{% if not user.moderator %} x-cloak{% endif %}>Moderator</span>
         <span class="badge" x-show="item.banned"{% if not user.banned %} x-cloak{% endif %}>Banned</span>
+        <span class="detail-meta" :title="formatDate(item.created_at)" x-text="`joined ${relativeTime(item.created_at)}`"></span>
         <div class="button-row detail-actions" x-show="canModerate" x-cloak>
             <button class="btn" type="button" :disabled="pending" x-show="!item.moderator" @click="setModerator(true)">Promote</button>
             <button class="btn" type="button" :disabled="pending" x-show="item.moderator" @click="setModerator(false)">Demote</button>

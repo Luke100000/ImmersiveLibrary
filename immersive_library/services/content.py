@@ -209,6 +209,8 @@ def summarize(
         tags=orjson.loads(record["content_tags"]),
         title=record["title"],
         version=record["version"],
+        created_at=record["created_at"],
+        updated_at=record["updated_at"],
         meta=record["meta"] if include_meta else None,
         data=base64.b64encode(record["data"]).decode() if include_data else None,
         is_liked=bool(record["is_liked"]),
@@ -236,6 +238,8 @@ def get_content_select(
                users.username,
                c.title,
                c.version,
+               c.created_at,
+               c.updated_at,
                {"c.meta," if include_meta else ""}
                {"c.data," if include_data else ""}
                precomputation.likes,

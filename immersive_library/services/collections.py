@@ -247,6 +247,7 @@ async def set_membership(
                 WHERE collections.oid=:collection_id AND collections.project=:project
                     AND collections.user_id=:user_id AND content.oid=:content_id
                 ON CONFLICT (collection_id, content_id) DO NOTHING
+                RETURNING collection_id
             """
         else:
             statement = """
@@ -256,9 +257,10 @@ async def set_membership(
                     SELECT 1 FROM collections
                     WHERE oid=:collection_id AND project=:project AND user_id=:user_id
                 )
+                RETURNING collection_id
             """
 
-        await database.execute(
+        changed = await database.fetch_val(
             statement,
             {
                 "project": project,
@@ -267,6 +269,11 @@ async def set_membership(
                 "user_id": user_id,
             },
         )
+        if changed is not None:
+            await database.execute(
+                "UPDATE collections SET updated_at=unixepoch() WHERE oid=:collection_id",
+                {"collection_id": collection_id},
+            )
         await require_owner(project, collection_id, user_id)
         if included:
             await content_guard(project, content_id)

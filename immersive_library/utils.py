@@ -268,6 +268,7 @@ def user_from_record(record: Record) -> User:
         average_report_score=record["average_report_score"],
         moderator=record["moderator"] > 0,
         banned=record["banned"] > 0,
+        created_at=record["created_at"],
     )
 
 

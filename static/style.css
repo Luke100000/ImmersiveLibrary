@@ -513,6 +513,15 @@ a:hover {
     color: var(--text-muted);
 }
 
+.author .search-link {
+    color: var(--text-secondary);
+}
+
+.content-date {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
 .search-link {
     color: inherit;
 }

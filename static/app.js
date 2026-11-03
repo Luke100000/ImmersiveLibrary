@@ -12,6 +12,18 @@ function plural(count, noun, suffix = '') {
     return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}${suffix}`;
 }
 
+const relativeUnits = [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]];
+
+function relativeTime(seconds) {
+    const elapsed = seconds - Date.now() / 1000;
+    const [unit, size] = relativeUnits.find(([, size]) => Math.abs(elapsed) >= size) ?? ['second', 1];
+    return new Intl.RelativeTimeFormat(undefined, {numeric: 'auto'}).format(Math.round(elapsed / size), unit);
+}
+
+function formatDate(seconds) {
+    return new Date(seconds * 1000).toLocaleString(undefined, {dateStyle: 'long', timeStyle: 'short'});
+}
+
 function iconUrl(project, contentId) {
     return `${sitePath('v1', 'render', project, contentId)}?preset=icon`;
 }
