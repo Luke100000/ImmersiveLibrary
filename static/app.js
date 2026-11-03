@@ -200,6 +200,17 @@ function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, sett
 
         itemUrl,
 
+        // Clickable cards
+        openItem(event, id) {
+            if (event.target.closest('a, button')) return;
+            if (event.type === 'auxclick' && event.button !== 1) return;
+            if (event.type === 'auxclick' || event.ctrlKey || event.metaKey) {
+                window.open(itemUrl(id), '_blank', 'noopener');
+            } else {
+                window.location.assign(itemUrl(id));
+            }
+        },
+
         removeItem(id) {
             this.items = this.items.filter((item) => item[idName] !== id);
         },
