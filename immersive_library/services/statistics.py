@@ -4,15 +4,11 @@ from immersive_library.services import tags as tag_service
 
 async def get_statistics_counts(project: str) -> dict[str, str]:
     content_count = await database.fetch_val(
-        "SELECT count(*) from content WHERE project = :project", {"project": project}
+        "SELECT count(*) from content WHERE project = :project",
+        {"project": project},
     )
-    content_count_liked = await database.fetch_val(
-        """
-        SELECT count(*)
-        FROM content
-        INNER JOIN precomputation ON content.oid = precomputation.content_id
-        WHERE precomputation.likes > 10 AND content.project = :project
-    """,
+    collections_count = await database.fetch_val(
+        "SELECT count(*) FROM collections WHERE project = :project AND is_public = 1",
         {"project": project},
     )
     project_counts = await database.fetch_one(
@@ -37,7 +33,7 @@ async def get_statistics_counts(project: str) -> dict[str, str]:
     return {
         "top_tags": ", ".join(row["tag"] for row in tags[:30]),
         "content": f"{content_count:,}",
-        "content_liked": f"{content_count_liked:,}",
+        "collections": f"{collections_count:,}",
         "authors": f"{project_counts['authors']:,}",
         "content_likes": f"{project_counts['likes']:,}",
         "users": f"{users_count:,}",
