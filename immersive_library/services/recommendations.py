@@ -24,7 +24,7 @@ PREFERENCE_PRIOR = 5
 HOT_PRIOR = 10
 
 HOT_SCORE = f"""precomputation.recent_likes
-    / ((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS})
+    / pow((unixepoch() - c.created_at) / {DAY}.0 + {RECENT_DAYS}, 1.5)
     * precomputation.recent_likes / (precomputation.recent_likes + {HOT_PRIOR}.0)"""
 
 # A pseudo-random number in [0, 1) per item and :seed.
