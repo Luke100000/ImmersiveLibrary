@@ -23,6 +23,7 @@ from immersive_library.models import (
 from immersive_library.ratelimit import UPDATE, UPLOAD
 from immersive_library.routers.deprecated.models import LegacyContentIdSuccess
 from immersive_library.services import content as content_service
+from immersive_library.services import reports as report_service
 from immersive_library.utils import logged_in_guard, owner_guard
 
 router = APIRouter(tags=["Content"])
@@ -124,6 +125,10 @@ async def list_content(
             400, f"At most {MAX_DATA_LIMIT} items can include their data"
         )
 
+    # Hidden content is for moderation, so it stays hidden for everyone else.
+    if not await report_service.can_see_hidden(viewer_id):
+        banned = reported = Inclusion.EXCLUDE
+
     records = await content_service.list_records(
         project,
         author_id=resolve_user_filter(author_id, viewer_id),
@@ -161,6 +166,7 @@ async def get_content_v3(
     content_id: int,
     viewer_id: Annotated[int | None, Depends(optional_user_id)] = None,
 ) -> ContentSuccess:
+    await report_service.visible_content_guard(project, content_id, viewer_id)
     return ContentSuccess(
         content=await content_service.get_content(project, content_id, viewer_id)
     )

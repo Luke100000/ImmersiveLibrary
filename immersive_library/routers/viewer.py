@@ -9,13 +9,15 @@ from starlette.responses import FileResponse, HTMLResponse
 
 from immersive_library.caching import STATIC_CACHE_CONTROL
 from immersive_library.common import projects, templates
+from immersive_library.database import database
 from immersive_library.services import collections as collection_service
 from immersive_library.services import content as content_service
 from immersive_library.services import descriptions as description_service
+from immersive_library.services import reports as report_service
 from immersive_library.services import sitemap as sitemap_service
 from immersive_library.services import statistics as statistics_service
 from immersive_library.services import users as user_service
-from immersive_library.utils import user_from_record
+from immersive_library.utils import token_to_user_id, user_from_record
 
 router = APIRouter(tags=["Viewer"])
 
@@ -194,6 +196,15 @@ async def get_collection_front(request: Request, project: str, collection_id: in
 async def get_content_front(request: Request, project: str, content_id: int):
     if project not in projects:
         return HTMLResponse("Project not found", status_code=404)
+
+    # Can the user see that page?
+    token = request.cookies.get("immersive_token")
+    viewer_id = (
+        await token_to_user_id(database, authorization=f"Bearer {token}")
+        if token
+        else None
+    )
+    await report_service.visible_content_guard(project, content_id, viewer_id)
 
     content = await content_service.get_content(project, content_id)
 

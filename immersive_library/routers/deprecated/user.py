@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi_cache.decorator import cache
 
 from immersive_library.caching import public_cache
@@ -14,7 +14,7 @@ from immersive_library.routers.deprecated.models import (
     LegacyUserSuccess,
 )
 from immersive_library.services import users as user_service
-from immersive_library.utils import logged_in_guard, moderator_guard
+from immersive_library.utils import logged_in_guard, moderator_guard, token_to_user_id
 
 router = APIRouter(tags=["Users"], deprecated=True)
 
@@ -37,7 +37,7 @@ async def get_banned() -> list[LegacyBanEntry]:
 async def get_me(
     project: str, user_id: int = Depends(logged_in_guard)
 ) -> LegacyUserSuccess:
-    return await get_user(project, user_id)
+    return await legacy_user(project, user_id, user_id)
 
 
 @router.get(
@@ -52,6 +52,15 @@ async def get_me(
 async def get_user(
     project: str,
     user_id: int,
+    token: str | None = None,
+    authorization: str = Header(None),
+) -> LegacyUserSuccess:
+    viewer_id = await token_to_user_id(database, token, authorization)
+    return await legacy_user(project, user_id, viewer_id)
+
+
+async def legacy_user(
+    project: str, user_id: int, viewer_id: int | None
 ) -> LegacyUserSuccess:
     content = await database.fetch_one(
         "SELECT oid, username, moderator FROM users WHERE oid=:user_id",
@@ -73,6 +82,7 @@ async def get_user(
         track=ContentTrack.LIKES,
         user_id=user_id,
         limit=200,
+        viewer_id=viewer_id,
     )
 
     return LegacyUserSuccess(

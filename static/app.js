@@ -526,9 +526,12 @@ document.addEventListener('alpine:init', () => {
     // Submissions, collections or likes of one user, picking the first that exists unless the URL names one.
     Alpine.data('userLists', (project, userId, submissionCount, likesGiven) => ({
         view: null,
-        available: {submissions: submissionCount > 0, collections: false, likes: likesGiven > 0},
+        available: {submissions: submissionCount > 0, collections: false, likes: false},
 
         async init() {
+            // Likes are private, so only their owner gets the tab.
+            const viewer = await this.$store.auth.loadUser(project);
+            this.available.likes = likesGiven > 0 && viewer?.user_id === userId;
             const requested = new URLSearchParams(window.location.search).get('view');
             const url = new URL(sitePath('v3', 'collection', project), window.location.origin);
             url.search = new URLSearchParams({author_id: userId, limit: 1});

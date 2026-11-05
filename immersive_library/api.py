@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from functools import partial
@@ -113,6 +114,9 @@ app = FastAPI(
     openapi_tags=tags_metadata,
     lifespan=lifespan,
 )
+
+# Access logs would record every client's IP address.
+logging.getLogger("uvicorn.access").disabled = True
 
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 

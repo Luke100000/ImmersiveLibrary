@@ -11,6 +11,7 @@ from immersive_library.routers.deprecated.models import (
     LegacyContentSuccess,
 )
 from immersive_library.services import content as content_service
+from immersive_library.services import reports as report_service
 from immersive_library.utils import (
     token_to_user_id,
 )
@@ -101,6 +102,8 @@ async def list_content_v2(
     authorization: str = Header(None),
 ) -> LegacyContentListSuccess:
     viewer_id = await token_to_user_id(database, token, authorization)
+    if not await report_service.can_see_hidden(viewer_id):
+        filter_banned = filter_reported = True
 
     return await legacy_content.list_content(
         project,

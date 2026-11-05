@@ -4,7 +4,7 @@
 {% block title %}{{ content.title }} by {{ content.username }} – {{ project_info.title or project }}{% endblock %}
 
 {% block embed %}
-    {% set summary = (description or "") | truncate(200) or plural(content.likes, "like") ~ " · Uploaded " ~ month_year(content.created_at) %}
+    {% set summary = plural(content.likes, "like") ~ " · Uploaded " ~ month_year(content.created_at) %}
     {% set image = request.url_for("render_content", project=project, content_id=content.content_id) %}
     {% set url = public_url(request.url_for("get_content_front", project=project, content_id=content.content_id)) %}
     {{ embed(content.title ~ " by " ~ content.username, summary, image) }}

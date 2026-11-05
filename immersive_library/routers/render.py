@@ -7,6 +7,7 @@ from immersive_library.previews import GRID_LIMIT, PRESET_SIZES
 from immersive_library.ratelimit import client_ip
 from immersive_library.services import collections as collection_service
 from immersive_library.services import render as render_service
+from immersive_library.services import reports as report_service
 from immersive_library.services import users as user_service
 
 router = APIRouter(tags=["Content"])
@@ -40,6 +41,7 @@ async def render_content(
     preset: RenderPreset = Query(RenderPreset.EMBED),
 ) -> Response:
     project_guard(project)
+    await report_service.visible_content_guard(project, content_id, None)
     return jpeg_response(
         await render_service.content_preview(
             request.app.state.renderer,

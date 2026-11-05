@@ -17,6 +17,31 @@ COLLECTION_CONTENT_VISIBILITY = f"""
 """
 
 
+async def can_see_hidden(viewer_id: int | None) -> bool:
+    return viewer_id is not None and await is_moderator(database, viewer_id)
+
+
+async def visible_content_guard(
+    project: str, content_id: int, viewer_id: int | None
+) -> None:
+    """Hidden content looks deleted to everyone but its author and moderators."""
+    visible = await database.fetch_val(
+        f"""
+        SELECT 1 FROM content AS c
+        JOIN users ON users.oid = c.user_id
+        LEFT JOIN precomputation ON precomputation.content_id = c.oid
+        WHERE c.oid = :content_id AND c.project = :project AND (
+            NOT users.banned AND COALESCE({REPORT_SCORE}, 0) <= 1
+            OR c.user_id = :viewer_id
+            OR EXISTS (SELECT 1 FROM users AS viewer WHERE viewer.oid = :viewer_id AND viewer.moderator)
+        )
+        """,
+        {"content_id": content_id, "project": project, "viewer_id": viewer_id},
+    )
+    if not visible:
+        raise HTTPException(404, "Content not found")
+
+
 async def set_report(
     project: str, content_id: int, user_id: int, reason: str, reported: bool
 ) -> bool:

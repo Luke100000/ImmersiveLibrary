@@ -66,6 +66,10 @@ async def list_records(
     if order == ContentOrder.ADDED and collection_id is None:
         raise HTTPException(400, "Added ordering requires a collection")
 
+    # Likes are private, other viewers get an empty list instead of an error.
+    if liked_by is not None and liked_by != viewer_id:
+        return []
+
     recommended = order == ContentOrder.RECOMMENDATIONS
     ranked = order in (ContentOrder.RELEVANCE, ContentOrder.RECOMMENDATIONS)
     personalized = recommended and recommendation_user_id is not None
