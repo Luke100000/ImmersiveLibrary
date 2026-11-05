@@ -174,7 +174,6 @@ async function loadTexture(url) {
     return map;
 }
 
-
 // noinspection JSUnusedGlobalSymbols
 export async function embed(element, content, options = {}) {
     const scene = new THREE.Scene();
@@ -197,7 +196,6 @@ export async function embed(element, content, options = {}) {
     camera.position.set(Math.sin(camera.rotation.y) * distance, -2, Math.cos(camera.rotation.y) * distance);
 
     const update = function update(time) {
-
         clothingMeshes["Head"].rotation.y = Math.cos(time * 0.001) * 0.5;
         clothingMeshes["Head"].rotation.x = Math.cos(time * 0.0007) * 0.2;
         clothingMeshes["Helm"].rotation.y = clothingMeshes["Head"].rotation.y;

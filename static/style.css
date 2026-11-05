@@ -362,6 +362,25 @@ a:hover {
     margin: 0;
 }
 
+.metrics div {
+    min-width: 0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--field-bg);
+}
+
+.metrics dt {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.metrics dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+}
+
 /* All metrics on one line, however many are shown. */
 .metrics-row {
     grid-template-columns: none;
@@ -387,18 +406,18 @@ a:hover {
     text-overflow: ellipsis;
 }
 
-/* Two rows of three, so two rows of cards still fit a 1080p screen. */
-.preview-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-}
-
 .list-card .description {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+/* Two rows of three, so two rows of cards still fit a 1080p screen. */
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
 }
 
 .preview-tile {
@@ -413,25 +432,6 @@ a:hover {
     width: 100%;
     height: 100%;
     object-fit: cover;
-}
-
-.metrics div {
-    min-width: 0;
-    padding: 6px 10px;
-    border-radius: 10px;
-    background: var(--field-bg);
-}
-
-.metrics dt {
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-.metrics dd {
-    margin: 0;
-    color: var(--text-primary);
-    font-size: 18px;
-    font-weight: 600;
 }
 
 .detail-meta {
@@ -845,11 +845,7 @@ a.btn {
     flex: none;
     border-radius: 8px;
     color: #fff;
-    transition: transform .15s ease, background .2s ease;
-}
-
-.share-item:hover .share-icon {
-    transform: scale(1.08) rotate(-4deg);
+    transition: background .2s ease;
 }
 
 .share-icon .icon {
