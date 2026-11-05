@@ -14,6 +14,9 @@ JPEG_QUALITY = 95
 GRADIENT_INNER = (13, 29, 49)
 GRADIENT_OUTER = (12, 13, 19)
 
+# Link previews are flat, since chat apps recompress them into visible blocks.
+EMBED_BACKGROUND = (13, 18, 28)
+
 PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
     RenderPreset.ICON: (256, 256),
     RenderPreset.THUMBNAIL: (512, 512),
@@ -21,8 +24,7 @@ PRESET_SIZES: dict[RenderPreset, tuple[int, int]] = {
 }
 
 
-# The preset sizes plus one tile size per grid layout.
-@lru_cache(maxsize=12)
+@lru_cache(maxsize=2)
 def preview_background(size: tuple[int, int]) -> Image.Image:
     width, height = size
     y, x = np.ogrid[:height, :width]
@@ -42,16 +44,16 @@ def preview_background(size: tuple[int, int]) -> Image.Image:
     return Image.fromarray(pixels)
 
 
-def compose_preview(png_bytes: bytes, size: tuple[int, int]) -> Image.Image:
+def compose_preview(png_bytes: bytes, background: Image.Image) -> Image.Image:
     with Image.open(BytesIO(png_bytes)) as master:
         foreground = ImageOps.fit(
             master.convert("RGBA"),
-            size,
+            background.size,
             method=Image.Resampling.LANCZOS,
             centering=(0.5, 0.5),
         )
 
-    background = preview_background(size).copy()
+    background = background.copy()
     background.paste(foreground, (0, 0), foreground.getchannel("A"))
     return background
 
@@ -63,7 +65,11 @@ def encode_jpeg(image: Image.Image) -> bytes:
 
 
 def make_preview(png_bytes: bytes, size: tuple[int, int]) -> bytes:
-    return encode_jpeg(compose_preview(png_bytes, size))
+    if size == MASTER_SIZE:
+        background = Image.new("RGB", size, EMBED_BACKGROUND)
+    else:
+        background = preview_background(size)
+    return encode_jpeg(compose_preview(png_bytes, background))
 
 
 GRID_LIMIT = 8
@@ -96,8 +102,9 @@ def make_grid(masters: list[bytes]) -> bytes:
         (0, 0, tile - 1, tile - 1), GRID_RADIUS, fill=255
     )
 
-    # Flat, so the tiles' own gradients stand out as cards.
+    # Darker than the tiles, so they stand out as cards.
     canvas = Image.new("RGB", MASTER_SIZE, GRADIENT_OUTER)
+    tile_background = Image.new("RGB", (tile, tile), EMBED_BACKGROUND)
     for row in range(rows):
         row_masters = masters[row * columns : (row + 1) * columns]
         left = (
@@ -106,5 +113,5 @@ def make_grid(masters: list[bytes]) -> bytes:
         y = top + row * (tile + GRID_GAP)
         for column, png_bytes in enumerate(row_masters):
             x = left + column * (tile + GRID_GAP)
-            canvas.paste(compose_preview(png_bytes, (tile, tile)), (x, y), corners)
+            canvas.paste(compose_preview(png_bytes, tile_background), (x, y), corners)
     return encode_jpeg(canvas)
