@@ -16,10 +16,11 @@
     {% endif %}
     <div class="site-account">
         {% if project %}
-            <a class="btn" x-show="$store.auth.user" x-cloak
-               :href="$store.auth.user && `/{{ project | urlencode }}/users/${$store.auth.user.user_id}`">
-                {{ icon("profile") }}<span>Profile</span>
-            </a>
+            <template x-if="$store.auth.user">
+                <a class="btn" :href="`/{{ project | urlencode }}/users/${$store.auth.user.user_id}`">
+                    {{ icon("profile") }}<span>Profile</span>
+                </a>
+            </template>
         {% endif %}
         <button class="btn" type="button"
                 :title="$store.auth.hasToken ? 'Sign out' : 'Sign in with Google'"

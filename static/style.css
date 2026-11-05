@@ -536,6 +536,8 @@ a.title:hover {
 }
 
 .author .search-link {
+    display: inline-block;
+    min-height: 24px;
     color: var(--text-secondary);
 }
 
@@ -1011,6 +1013,11 @@ footer a {
     .browser-container {
         width: auto;
         padding: 16px;
+    }
+
+    /* The detail card fills in after the scripts run, centering it would shift it up. */
+    .page-centered:has(> .view-box) {
+        align-items: flex-start;
     }
 
     .control-item {

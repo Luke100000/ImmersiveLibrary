@@ -3,7 +3,8 @@
      x-show="showActions" @click.stop @keydown.stop>
     <a class="btn" href="/" :href="backUrl" x-show="isDetail">{{ icon("back") }}<span class="btn-label">Back</span></a>
     <button class="btn" type="button" :class="{active: content.is_liked}" :disabled="pending || loading"
-            :title="content.is_liked ? 'Unlike' : 'Like'" :aria-label="content.is_liked ? 'Unlike' : 'Like'"
+            :title="content.is_liked ? 'Unlike' : 'Like'"
+            :aria-label="`${content.likes.toLocaleString()} ${content.is_liked ? 'Unlike' : 'Like'}`"
             :aria-pressed="content.is_liked" @click="toggleLike()">
         {{ icon("like") }}<span x-text="content.likes.toLocaleString()"></span>
         <span class="btn-label" x-text="content.is_liked ? 'Unlike' : 'Like'">Like</span>
