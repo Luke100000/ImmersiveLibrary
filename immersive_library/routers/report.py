@@ -39,5 +39,5 @@ async def delete_report(
     user_id: int = Depends(logged_in_guard),
 ) -> PlainSuccess:
     if not await report_service.set_report(project, content_id, user_id, reason, False):
-        raise HTTPException(428, "Not liked previously")
+        raise HTTPException(428, "Not reported previously")
     return PlainSuccess()

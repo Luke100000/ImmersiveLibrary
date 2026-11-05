@@ -118,6 +118,33 @@ app = FastAPI(
 # Access logs would record every client's IP address.
 logging.getLogger("uvicorn.access").disabled = True
 
+
+class BodySizeLimitMiddleware:
+    """Stops reading a request body once it exceeds the limit, before it fills memory."""
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        received = 0
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            received += len(message.get("body", b""))
+            if received > self.max_bytes:
+                raise HTTPException(413, "Request body too large")
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=4 * 1024 * 1024)
 app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=6)
 
 app.mount("/static", CachedStaticFiles(directory="static"), name="static")

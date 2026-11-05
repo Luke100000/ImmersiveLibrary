@@ -25,6 +25,8 @@ from immersive_library.utils import (
 
 router = APIRouter(tags=["Auth"])
 
+MAX_USERNAME_LENGTH = 32
+
 
 @router.post(
     "/v1/auth",
@@ -60,6 +62,10 @@ async def auth(
 
     if token is None or username is None:
         raise HTTPException(400, "Token or username missing")
+
+    username = username.strip()[:MAX_USERNAME_LENGTH]
+    if not username:
+        raise HTTPException(400, "Username missing")
 
     if len(token) < 16:
         raise HTTPException(400, "Token should at very least contain 16 bytes")

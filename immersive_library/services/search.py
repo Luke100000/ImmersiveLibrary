@@ -14,6 +14,10 @@ RELEVANCE_QUALITY_BOOST = 0.1
 # Added to every rank so that agreeing signals outweigh a single top rank.
 RANK_SMOOTHING = 10
 
+# Prefix matching gets expensive with many short terms, so longer searches are cut off.
+MAX_TERMS = 20
+MAX_TERM_WORDS = 20
+
 # All words in what uploaders wrote, or all of them in the description.
 STRICT_QUERY = "({{title tags username}} : ({words})) OR (description : ({words}))"
 
@@ -26,7 +30,7 @@ class SearchPlan:
 
 
 def words(text: str) -> list[str]:
-    return re.findall(r"\w+", text.lower())
+    return re.findall(r"\w+", text.lower())[:MAX_TERM_WORDS]
 
 
 def prefix_query(words: list[str], operator: str = " ") -> str:
@@ -45,7 +49,7 @@ def keyword_condition(parameter: str) -> str:
 
 
 def query_terms(q: str | None) -> Iterator[tuple[str, str, bool]]:
-    terms = [term.strip() for term in (q or "").split(",") if term.strip()]
+    terms = [term.strip() for term in (q or "").split(",") if term.strip()][:MAX_TERMS]
     for index, term in enumerate(terms):
         negated = term.startswith("-")
         yield f"term_{index}", term[1:].strip() if negated else term, negated

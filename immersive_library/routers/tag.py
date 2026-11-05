@@ -4,11 +4,13 @@ from fastapi_cache.decorator import cache
 from immersive_library.caching import public_cache
 from immersive_library.database import database
 from immersive_library.models import (
+    MAX_TAGS,
     Error,
     PlainSuccess,
     TagCount,
     TagListPage,
     TagListSuccess,
+    validate_tag,
 )
 from immersive_library.ratelimit import INTERACT
 from immersive_library.services import tags as tag_service
@@ -53,7 +55,14 @@ async def list_content_tags(project: str, content_id: int) -> TagListSuccess:
 )
 async def add_tag(project: str, content_id: int, tag: str) -> PlainSuccess:
     if "," in tag:
-        raise HTTPException(401, "Contains invalid characters")
+        raise HTTPException(400, "Contains invalid characters")
+    validate_tag(tag)
+    tag_count = await database.fetch_val(
+        "SELECT count(*) FROM tags WHERE content_id=:content_id",
+        {"content_id": content_id},
+    )
+    if tag_count >= MAX_TAGS:
+        raise HTTPException(400, "Too many tags")
     if not await tag_service.set_tag(project, content_id, tag, True):
         raise HTTPException(428, "Already tagged")
     return PlainSuccess()

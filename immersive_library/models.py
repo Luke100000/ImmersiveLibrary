@@ -5,6 +5,19 @@ from fastapi import HTTPException
 from pydantic import BaseModel, StringConstraints, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
+MAX_META_LENGTH = 16384
+MAX_TAGS = 200
+MAX_TAG_LENGTH = 100
+
+
+def validate_tag(tag: str) -> None:
+    if len(tag) > MAX_TAG_LENGTH:
+        raise HTTPException(400, "Tag too long")
+    try:
+        tag.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise HTTPException(400, "Tags contain invalid Unicode") from exc
+
 
 class ContentUpload(BaseModel):
     title: str
@@ -12,15 +25,20 @@ class ContentUpload(BaseModel):
     data: str
     tags: list[str] | None = None
 
+    @field_validator("meta")
+    @classmethod
+    def validate_meta(cls, meta: str) -> str:
+        if len(meta) > MAX_META_LENGTH:
+            raise HTTPException(400, "Meta too long")
+        return meta
+
     @field_validator("tags")
     @classmethod
     def validate_tags(cls, tags: list[str] | None) -> list[str] | None:
-        try:
-            for tag in tags or []:
-                tag.encode("utf-8")
-        except UnicodeEncodeError as exc:
-            raise HTTPException(400, "Tags contain invalid Unicode") from exc
-
+        if tags is not None and len(tags) > MAX_TAGS:
+            raise HTTPException(400, "Too many tags")
+        for tag in tags or []:
+            validate_tag(tag)
         return tags
 
     @property
