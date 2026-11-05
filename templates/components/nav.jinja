@@ -32,5 +32,5 @@
 {% include "components/consent.jinja" %}
 {% include "components/dialogs.jinja" %}
 {% if project %}
-    <script type="application/json" id="page-config">{{ {"reportReasons": project_info.public_report_labels} | tojson }}</script>
+    <script type="application/json" id="page-config">{{ {"reportReasons": project_info.public_report_labels, "projectTitle": project_info.title or project} | tojson }}</script>
 {% endif %}

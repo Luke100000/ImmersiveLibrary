@@ -478,7 +478,7 @@ document.addEventListener('alpine:init', () => {
             error: '',
             ...collectionForm((form) => sendJson(collectionUrl, 'PATCH', form, 'Unable to save collection'), function (collection) {
                 this.collection = collection;
-                document.title = collection.title;
+                document.title = `${collection.title} – ${pageConfig().projectTitle}`;
             }),
 
             async init() {
@@ -486,7 +486,7 @@ document.addEventListener('alpine:init', () => {
                     await this.$store.auth.loadUser(project);
                     const data = await fetchJson(collectionUrl, {errorMessage: 'Unable to load collection'});
                     this.collection = data.collection;
-                    document.title = this.collection.title;
+                    document.title = `${this.collection.title} – ${pageConfig().projectTitle}`;
                 } catch (error) {
                     this.error = error.message;
                 }
@@ -846,6 +846,10 @@ document.addEventListener('alpine:init', () => {
 
             userUrl() {
                 return sitePath(project, 'users', this.content.user_id);
+            },
+
+            contentUrl() {
+                return sitePath(project, contentId);
             },
 
             destroy() {

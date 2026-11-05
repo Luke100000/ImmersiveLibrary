@@ -1,4 +1,15 @@
 {% extends "base.jinja" %}
+{% from "components/embed.jinja" import structured_data %}
+
+{% block embed %}
+    {{ super() }}
+    {{ structured_data({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Immersive Library",
+        "url": public_url(request.url_for("get_index")),
+    }) }}
+{% endblock %}
 
 {% block head %}
     {% include "components/preview-scripts.jinja" %}
@@ -13,6 +24,7 @@
 <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
 <main class="content-wrapper">
     <div class="browser-container">
+        <h1 class="sr-only">Immersive Library</h1>
         <div class="grid project-grid">
             {% for project, info in projects.items() %}
                 {% set stats = statistics[project] %}

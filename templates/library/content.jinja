@@ -4,6 +4,7 @@
 {% block embed %}{{ embed(project_info.title or project, project_info.description) }}{% endblock %}
 
 {% block library %}
+    <h1 class="sr-only">{{ project_info.title or project }}</h1>
     {% set show_track = true %}
     {% include "components/content-grid.jinja" %}
 {% endblock %}

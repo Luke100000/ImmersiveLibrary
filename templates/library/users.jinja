@@ -1,9 +1,16 @@
 {% extends "library/base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
 {% from "components/macros.jinja" import select_control, search_control, order_control, inclusion_control %}
 
 {% block title %}Users – {{ project_info.title or project }}{% endblock %}
 
+{% block embed %}
+    {{ embed(self.title(), "Creators sharing " ~ (project_info.title or project) ~ " assets on Immersive Library.") }}
+    <meta name="robots" content="noindex">
+{% endblock %}
+
 {% block library %}
+<h1 class="sr-only">Users – {{ project_info.title or project }}</h1>
 <section class="list-section" x-data='userList({{ project | tojson }})'>
     <div class="controls">
         {{ select_control("sort", "Sort by", [

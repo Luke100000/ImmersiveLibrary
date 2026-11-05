@@ -1,14 +1,35 @@
 {% extends "base.jinja" %}
-{% from "components/embed.jinja" import embed with context %}
+{% from "components/embed.jinja" import embed, structured_data with context %}
 
 {% block title %}{{ content.title }} by {{ content.username }} – {{ project_info.title or project }}{% endblock %}
 
 {% block embed %}
-    {{ embed(
-        content.title ~ " by " ~ content.username,
-        (description or "") | truncate(200) or plural(content.likes, "like") ~ " · Uploaded " ~ month_year(content.created_at),
-        request.url_for("render_content", project=project, content_id=content.content_id),
-    ) }}
+    {% set summary = (description or "") | truncate(200) or plural(content.likes, "like") ~ " · Uploaded " ~ month_year(content.created_at) %}
+    {% set image = request.url_for("render_content", project=project, content_id=content.content_id) %}
+    {% set url = public_url(request.url_for("get_content_front", project=project, content_id=content.content_id)) %}
+    {{ embed(content.title ~ " by " ~ content.username, summary, image) }}
+    {{ structured_data({
+        "@context": "https://schema.org",
+        "@type": "CreativeWork",
+        "name": content.title,
+        "url": url,
+        "image": public_url(image),
+        "description": summary,
+        "author": {"@type": "Person", "name": content.username},
+        "dateCreated": iso_date(content.created_at),
+        "dateModified": iso_date(content.updated_at),
+        "keywords": content.tags | join(", "),
+        "interactionStatistic": {
+            "@type": "InteractionCounter",
+            "interactionType": "https://schema.org/LikeAction",
+            "userInteractionCount": content.likes,
+        },
+        "isPartOf": {"@type": "WebSite", "name": "Immersive Library", "url": public_url(request.url_for("get_index"))},
+    }) }}
+    {{ structured_data(breadcrumbs(
+        (project_info.title or project, public_url(request.url_for("get_content_library", project=project))),
+        (content.title, url),
+    )) }}
 {% endblock %}
 
 {% block head %}
@@ -29,6 +50,7 @@
         <canvas id="multiview-canvas" class="multiview-canvas"></canvas>
         <div class="content-preview" x-data='contentPreview({{ project | tojson }}, {{ content.model_dump() | tojson }}, "detail")'>
             {% set search_links = true %}
+            {% set title_heading = true %}
             {% include "components/content.jinja" %}
         </div>
     </div>

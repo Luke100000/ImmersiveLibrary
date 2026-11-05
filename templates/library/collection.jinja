@@ -1,8 +1,8 @@
 {% extends "library/base.jinja" %}
-{% from "components/embed.jinja" import embed with context %}
+{% from "components/embed.jinja" import embed, structured_data with context %}
 {% from "components/macros.jinja" import action_button, action_link, share_menu %}
 
-{% block title %}Collection – {{ project_info.title or project }}{% endblock %}
+{% block title %}{{ collection.title if collection else "Collection" }} – {{ project_info.title or project }}{% endblock %}
 
 {% block embed %}
     {% if collection %}
@@ -11,7 +11,25 @@
             collection.description | truncate(200) or plural(collection.content_count, "item") ~ " by " ~ collection.username ~ ".",
             request.url_for("render_collection", project=project, collection_id=collection.collection_id) if collection.preview_ids,
         ) }}
+        {% set url = public_url(request.url_for("get_collection_front", project=project, collection_id=collection.collection_id)) %}
+        {{ structured_data({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": collection.title,
+            "description": collection.description,
+            "url": url,
+            "author": {"@type": "Person", "name": collection.username},
+            "dateCreated": iso_date(collection.created_at),
+            "dateModified": iso_date(collection.updated_at),
+        }) }}
+        {{ structured_data(breadcrumbs(
+            (project_info.title or project, public_url(request.url_for("get_content_library", project=project))),
+            ("Collections", public_url(request.url_for("get_collection_library", project=project))),
+            (collection.title, url),
+        )) }}
     {% else %}
+        {# Private or missing, so there is nothing public to index. #}
+        <meta name="robots" content="noindex">
         {{ super() }}
     {% endif %}
 {% endblock %}

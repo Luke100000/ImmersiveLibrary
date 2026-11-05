@@ -3,44 +3,47 @@
 {% block title %}Login{% endblock %}
 
 {% block head %}
+    <meta name="robots" content="noindex">
     <meta name="referrer" content="no-referrer-when-downgrade">
     {% include "components/alpine.jinja" %}
 {% endblock %}
 
 {% block content %}
-<main class="page-centered" x-data>
-    <div class="panel auth-panel">
-        {% if has_cookie_consent %}
-            <h1>Authenticate</h1>
-            <p>Immersive Library uses your Google account as authentication.<br>
-                Only your Google user id is stored.</p>
+    <main class="page-centered" x-data>
+        <div class="panel auth-panel">
+            {% if has_cookie_consent %}
+                <h1>Authenticate</h1>
+                <p>Immersive Library uses your Google account as authentication. Only your Google user id is stored.</p>
 
-            <div id="g_id_onload"
-                 data-client_id="{{ client_id }}"
-                 data-login_uri="{{ login_uri }}"
-                 data-ux_mode="redirect"
-                 data-auto_prompt="false"
-                 data-state='{{ state | tojson }}'>
-            </div>
+                <div id="g_id_onload"
+                     data-client_id="{{ client_id }}"
+                     data-login_uri="{{ login_uri }}"
+                     data-ux_mode="redirect"
+                     data-auto_prompt="false"
+                     data-state='{{ state | tojson }}'>
+                </div>
 
-            <div class="g_id_signin"
-                 data-type="standard"
-                 data-size="large"
-                 data-theme="filled_black"
-                 data-text="sign_in_with"
-                 data-shape="rectangular"
-                 data-logo_alignment="left">
-            </div>
-            <p class="auth-notice">Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of Service</a> before continuing.</p>
-            <script src="https://accounts.google.com/gsi/client" async defer></script>
-        {% else %}
-            <h1>Cookies and sign-in</h1>
-            {% include "components/consent-notice.jinja" %}
-            <div class="button-row">
-                <button type="button" class="btn" @click="$store.auth.declineConsent()">Leave</button>
-                <button type="button" class="btn" @click="$store.auth.rememberConsent(); window.location.reload()">Accept and continue</button>
-            </div>
-        {% endif %}
-    </div>
-</main>
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-size="large"
+                     data-theme="filled_black"
+                     data-text="sign_in_with"
+                     data-shape="rectangular"
+                     data-logo_alignment="left">
+                </div>
+                <p class="auth-notice">Please read our <a href="/privacy">Privacy Notice</a> and <a href="/tos">Terms of
+                    Service</a> before continuing.</p>
+                <script src="https://accounts.google.com/gsi/client" async defer></script>
+            {% else %}
+                <h1>Cookies and sign-in</h1>
+                {% include "components/consent-notice.jinja" %}
+                <div class="button-row">
+                    <button type="button" class="btn" @click="$store.auth.declineConsent()">Leave</button>
+                    <button type="button" class="btn" @click="$store.auth.rememberConsent(); window.location.reload()">
+                        Accept and continue
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </main>
 {% endblock %}

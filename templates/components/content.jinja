@@ -2,7 +2,11 @@
 <p x-show="error" x-text="`Error: ${error}`" x-cloak></p>
 <template x-if="content">
     <div class="content-body">
-        <div class="title" :title="content.title" x-text="content.title"></div>
+        {% if title_heading %}
+            <h1 class="title" :title="content.title" x-text="content.title"></h1>
+        {% else %}
+            <a class="title" :href="contentUrl()" :title="content.title" x-text="content.title" @click.stop></a>
+        {% endif %}
         <div class="author">
             by <a class="search-link" :href="userUrl()" x-text="content.username" @click.stop></a>
         </div>

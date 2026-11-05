@@ -28,7 +28,25 @@ def month_year(timestamp: int) -> str:
     return datetime.datetime.fromtimestamp(timestamp, datetime.UTC).strftime("%B %Y")
 
 
+def iso_date(timestamp: int) -> str:
+    return datetime.datetime.fromtimestamp(timestamp, datetime.UTC).isoformat()
+
+
+def breadcrumbs(*items: tuple[str, str]) -> dict:
+    """Schema.org breadcrumbs from (name, url) pairs, outermost first."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": position, "name": name, "item": url}
+            for position, (name, url) in enumerate(items, 1)
+        ],
+    }
+
+
 templates.env.globals["public_url"] = public_url
+templates.env.globals["iso_date"] = iso_date
+templates.env.globals["breadcrumbs"] = breadcrumbs
 templates.env.globals["month_year"] = month_year
 templates.env.globals["plural"] = plural
 

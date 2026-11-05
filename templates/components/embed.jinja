@@ -1,3 +1,7 @@
+{% macro structured_data(data) %}
+    <script type="application/ld+json">{{ data | tojson }}</script>
+{% endmacro %}
+
 {% macro embed(title, description="Browse, like and collect community-made assets.", image=none) %}
     {% set title = title | trim %}
     {% set url = public_url(request.url.replace(query="")) %}

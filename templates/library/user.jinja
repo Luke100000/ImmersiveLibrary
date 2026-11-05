@@ -9,6 +9,7 @@
         plural(user.submission_count, "upload") ~ " with " ~ plural(user.likes_received, "like") ~ ".",
         request.url_for("render_user", project=project, user_id=user.user_id) if user.preview_ids,
     ) }}
+    <meta name="robots" content="noindex">
 {% endblock %}
 
 {% block library %}
