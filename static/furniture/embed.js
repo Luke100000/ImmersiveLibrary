@@ -325,6 +325,66 @@ function centerView(camera, [x, y]) {
     camera.setViewOffset(camera.aspect, 1, x / (2 * tanY), -y / (2 * tanY), camera.aspect, 1);
 }
 
+// The floor grid fades out this far past the model, with a line every quarter block
+const GRID_MARGIN = 0.33;
+const GRID_SPACING = 0.25;
+const GRID_SEGMENT = 1 / 16;
+
+// Lines lying on the floor appear about two pixels wide from the camera's elevation
+const GRID_LINE_PIXELS = 4;
+
+function gridFade(x, z, bounds) {
+    const dx = Math.max(bounds.min.x - x, x - bounds.max.x, 0);
+    const dz = Math.max(bounds.min.z - z, z - bounds.max.z, 0);
+    return Math.max(0, 1 - Math.hypot(dx, dz) / GRID_MARGIN);
+}
+
+// Marks the ground and the model's scale, with stronger lines on block borders
+function createFloorGrid(bounds, pixelSize) {
+    const y = bounds.min.y - 0.002;
+    const halfWidth = GRID_LINE_PIXELS * pixelSize / 2;
+    const positions = [];
+    const colors = [];
+    const addPoint = (x, z, alpha) => {
+        positions.push(x, y, z);
+        colors.push(1, 1, 1, alpha * gridFade(x, z, bounds));
+    };
+
+    for (const [lineAxis, runAxis] of [['x', 'z'], ['z', 'x']]) {
+        const lineEnd = bounds.max[lineAxis] + GRID_MARGIN;
+        const runEnd = bounds.max[runAxis] + GRID_MARGIN;
+        const first = Math.ceil((bounds.min[lineAxis] - GRID_MARGIN) / GRID_SPACING) * GRID_SPACING;
+        for (let line = first; line <= lineEnd; line += GRID_SPACING) {
+            const alpha = Math.abs(line - Math.round(line)) < 0.001 ? 0.2 : 0.05;
+            for (let run = bounds.min[runAxis] - GRID_MARGIN; run < runEnd; run += GRID_SEGMENT) {
+                const next = Math.min(run + GRID_SEGMENT, runEnd);
+                const corners = [
+                    [line - halfWidth, run], [line + halfWidth, run],
+                    [line + halfWidth, next], [line - halfWidth, next],
+                ];
+                for (const corner of [0, 1, 2, 0, 2, 3]) {
+                    const [across, along] = corners[corner];
+                    if (lineAxis === 'x') addPoint(across, along, alpha);
+                    else addPoint(along, across, alpha);
+                }
+            }
+        }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
+    const material = new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+    });
+    const grid = new THREE.Mesh(geometry, material);
+    grid.renderOrder = -1;
+    return grid;
+}
+
 function createSceneFromObject(data, options = {}, sprites = new Map()) {
     const {Elements} = data.parsed.value;
     const elements = Elements.value.value;
@@ -375,7 +435,8 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     });
 
     const bounds = new THREE.Box3().setFromObject(group, true);
-    if (bounds.isEmpty()) bounds.set(new THREE.Vector3(), new THREE.Vector3(1, 1, 1));
+    const empty = bounds.isEmpty();
+    if (empty) bounds.set(new THREE.Vector3(), new THREE.Vector3(1, 1, 1));
     const center = bounds.getCenter(new THREE.Vector3());
     group.position.copy(center).negate();
 
@@ -385,13 +446,22 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     scene.add(pivot);
 
     const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
-    const sphereRadius = Math.max(halfSize.length(), MIN_HALF_SIZE);
+    const sphereRadius = Math.max(Math.hypot(halfSize.x + GRID_MARGIN, halfSize.y, halfSize.z + GRID_MARGIN), MIN_HALF_SIZE);
+    let distance;
     if (options.animate === false) {
-        const {distance, center} = stillFit(camera, pivot);
+        const fit = stillFit(camera, pivot);
+        distance = fit.distance;
         placeCamera(camera, distance, sphereRadius);
-        centerView(camera, center);
+        centerView(camera, fit.center);
     } else {
-        placeCamera(camera, turningFitDistance(camera, halfSize), sphereRadius);
+        distance = turningFitDistance(camera, halfSize);
+        placeCamera(camera, distance, sphereRadius);
+    }
+
+    // Added after fitting, so the view is framed around the model alone
+    if (!empty) {
+        const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+        group.add(createFloorGrid(bounds, 2 * distance * tanY / options.height));
     }
 
     // Add lights
