@@ -234,24 +234,95 @@ function createCube(element, idx, texture, regions, atlasSize, unbaked) {
     return new THREE.Mesh(geometry, material);
 }
 
-// Fits the model, which rotates around the y axis, into the view at any angle
-function positionCamera(camera, halfSize) {
-    const elevation = Math.atan(0.625);
-    const minHalfSize = 0.25;
-    const radius = Math.max(Math.hypot(halfSize.x, halfSize.z), minHalfSize);
-    const halfHeight = Math.max(halfSize.y, minHalfSize);
+// The camera looks down at the model, which turns around the y axis from the start angle
+const ELEVATION = Math.atan(0.625);
+const START_ANGLE = Math.PI * 0.75;
+
+// Small models are framed as if they were half a block in size
+const MIN_HALF_SIZE = 0.25;
+
+// The distance at which a turning model fits the view at any angle
+function turningFitDistance(camera, halfSize) {
+    const radius = Math.max(Math.hypot(halfSize.x, halfSize.z), MIN_HALF_SIZE);
+    const halfHeight = Math.max(halfSize.y, MIN_HALF_SIZE);
     const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
     const tanX = tanY * camera.aspect;
-    const projectedHeight = halfHeight * Math.cos(elevation) + radius * Math.sin(elevation);
-    const distance = radius + Math.max(projectedHeight / tanY, radius / tanX);
-    camera.position.set(0, distance * Math.sin(elevation), distance * Math.cos(elevation));
+    const projectedHeight = halfHeight * Math.cos(ELEVATION) + radius * Math.sin(ELEVATION);
+    return radius + Math.max(projectedHeight / tanY, radius / tanX);
+}
+
+// A point as [right, up, toward the camera] seen from the camera's direction
+function toView({x, y, z}) {
+    const sin = Math.sin(ELEVATION);
+    const cos = Math.cos(ELEVATION);
+    return [x, y * cos - z * sin, y * sin + z * cos];
+}
+
+// The model's vertices and the corners of the minimum size, in view space
+function viewPoints(model) {
+    model.updateMatrixWorld(true);
+    const points = [];
+    const vertex = new THREE.Vector3();
+    model.traverse((mesh) => {
+        if (!mesh.isMesh) return;
+        const positions = mesh.geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+            points.push(toView(vertex.fromBufferAttribute(positions, i).applyMatrix4(mesh.matrixWorld)));
+        }
+    });
+    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
+        points.push(toView(vertex.set(x, y, z).multiplyScalar(MIN_HALF_SIZE)));
+    }
+    return points;
+}
+
+// The distance and screen center that fill the view with a still model.
+// It stays within the view's central square, which previews are cropped to.
+function stillFit(camera, model) {
+    const margin = 0.95;
+    const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * margin;
+    const tanX = tanY * Math.min(camera.aspect, 1);
+    const points = viewPoints(model);
+
+    // Each pass fits the model around the previous pass's center, which settles within a few passes
+    let center = [0, 0];
+    let distance;
+    for (let pass = 0; pass < 4; pass++) {
+        const [centerX, centerY] = center;
+        distance = 0;
+        for (const [x, y, z] of points) {
+            distance = Math.max(distance, z + Math.max(
+                x / (tanX + centerX), -x / (tanX - centerX),
+                y / (tanY + centerY), -y / (tanY - centerY),
+            ));
+        }
+
+        let [left, right, bottom, top] = [Infinity, -Infinity, Infinity, -Infinity];
+        for (const [x, y, z] of points) {
+            left = Math.min(left, x / (distance - z));
+            right = Math.max(right, x / (distance - z));
+            bottom = Math.min(bottom, y / (distance - z));
+            top = Math.max(top, y / (distance - z));
+        }
+        center = [(left + right) / 2, (bottom + top) / 2];
+    }
+    return {distance, center};
+}
+
+function placeCamera(camera, distance, sphereRadius) {
+    camera.position.set(0, distance * Math.sin(ELEVATION), distance * Math.cos(ELEVATION));
     camera.lookAt(0, 0, 0);
 
     // Tight clipping planes keep the depth buffer precise
-    const sphereRadius = Math.max(halfSize.length(), minHalfSize);
     camera.near = Math.max(distance - sphereRadius, 0.05);
     camera.far = distance + sphereRadius;
     camera.updateProjectionMatrix();
+}
+
+// Shifts the view so the given screen center, in tangent units, is in its middle
+function centerView(camera, [x, y]) {
+    const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    camera.setViewOffset(camera.aspect, 1, x / (2 * tanY), -y / (2 * tanY), camera.aspect, 1);
 }
 
 function createSceneFromObject(data, options = {}, sprites = new Map()) {
@@ -279,7 +350,9 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
 
     // Setup Three.js scene and camera
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(50, options.width / options.height, 0.1, 16.0);
+    // A narrow lens keeps the edges of still renders close to parallel
+    const fov = options.animate === false ? 30 : 50;
+    const camera = new THREE.PerspectiveCamera(fov, options.width / options.height, 0.1, 16.0);
 
     // Create a group to hold all elements
     const group = new THREE.Group();
@@ -307,11 +380,19 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     group.position.copy(center).negate();
 
     const pivot = new THREE.Object3D();
-    pivot.position.set(0, 0, 0);
+    pivot.rotation.y = START_ANGLE;
     pivot.add(group);
     scene.add(pivot);
 
-    positionCamera(camera, bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5));
+    const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+    const sphereRadius = Math.max(halfSize.length(), MIN_HALF_SIZE);
+    if (options.animate === false) {
+        const {distance, center} = stillFit(camera, pivot);
+        placeCamera(camera, distance, sphereRadius);
+        centerView(camera, center);
+    } else {
+        placeCamera(camera, turningFitDistance(camera, halfSize), sphereRadius);
+    }
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -321,7 +402,7 @@ function createSceneFromObject(data, options = {}, sprites = new Map()) {
     scene.add(directionalLight);
 
     const update = function update(time) {
-        pivot.rotation.y = Math.PI * 0.75 + time * 0.0005;
+        pivot.rotation.y = START_ANGLE + time * 0.0005;
         sprites.forEach(sprite => sprite && animateSprite(sprite, time));
     }
 
