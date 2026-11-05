@@ -35,7 +35,6 @@ def apply_cache_policy(request: Request, response: Response) -> None:
         request.method not in {"GET", "HEAD"}
         or response.status_code not in {200, 304}
         or "authorization" in request.headers
-        or "token" in request.query_params
         or "Set-Cookie" in response.headers
         or any(
             directive.strip().lower() == "no-store"

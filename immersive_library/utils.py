@@ -86,17 +86,16 @@ def sha256(string: str) -> str:
 
 
 async def token_to_user_id(
-    database: Database, token: str | None = None, authorization: str = Header(None)
+    database: Database, authorization: str = Header(None)
 ) -> int | None:
     """
-    Return the user_id for a given token, or None if the token is invalid
+    Return the user_id for a given bearer token, or None if the token is invalid
     """
-    if authorization is not None and authorization.startswith("Bearer "):
-        token = sha256(authorization[7:])
-    if not token:
+    if authorization is None or not authorization.startswith("Bearer "):
         return None
     user_id = await database.fetch_one(
-        "SELECT user_id FROM user_tokens WHERE token=:token", {"token": token}
+        "SELECT user_id FROM user_tokens WHERE token=:token",
+        {"token": sha256(authorization[7:])},
     )
     return None if user_id is None else user_id[0]
 
@@ -280,13 +279,11 @@ async def content_guard(project: str, content_id: int) -> None:
         raise HTTPException(404, "Content not found")
 
 
-async def logged_in_guard(
-    token: str | None = None, authorization: str = Header(None)
-) -> int:
+async def logged_in_guard(authorization: str = Header(None)) -> int:
     """
     Ensures the user is logged in.
     """
-    user_id = await token_to_user_id(app_database, token, authorization)
+    user_id = await token_to_user_id(app_database, authorization)
 
     if user_id is None:
         raise HTTPException(401, "Token invalid")
@@ -300,13 +297,12 @@ async def logged_in_guard(
 async def owner_guard(
     project: str,
     content_id: int = Path(...),
-    token: str | None = None,
     authorization: str = Header(None),
 ) -> int:
     """
     Ensures the user owns the content or is a moderator.
     """
-    user_id = await logged_in_guard(token, authorization)
+    user_id = await logged_in_guard(authorization)
     await content_guard(project, content_id)
 
     if not await owns_content(
@@ -317,13 +313,11 @@ async def owner_guard(
     return user_id
 
 
-async def moderator_guard(
-    token: str | None = None, authorization: str = Header(None)
-) -> int:
+async def moderator_guard(authorization: str = Header(None)) -> int:
     """
     Ensures the user is a moderator.
     """
-    user_id = await logged_in_guard(token, authorization)
+    user_id = await logged_in_guard(authorization)
 
     if not await is_moderator(app_database, user_id):
         raise HTTPException(403, "Not a moderator")

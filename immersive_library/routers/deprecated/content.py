@@ -98,10 +98,9 @@ async def list_content_v2(
         False,
         description="Parse the meta field and return it as a dict rather than a JSON encoded string.",
     ),
-    token: str | None = None,
     authorization: str = Header(None),
 ) -> LegacyContentListSuccess:
-    viewer_id = await token_to_user_id(database, token, authorization)
+    viewer_id = await token_to_user_id(database, authorization)
     if not await report_service.can_see_hidden(viewer_id):
         filter_banned = filter_reported = True
 

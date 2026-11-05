@@ -6,6 +6,7 @@ from typing import Any
 
 import orjson
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi_cache import Coder, FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
@@ -161,6 +162,21 @@ async def cache_control_middleware(request: Request, call_next):
 instrumentator = Instrumentator().instrument(app)
 
 instrumentator.expose(app)
+
+
+# Clients read error messages from the message field, FastAPI only fills detail.
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    message = "; ".join(
+        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+        for error in exc.errors()
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"message": message, "detail": jsonable_encoder(exc.errors())},
+    )
 
 
 @app.exception_handler(HTTPException)

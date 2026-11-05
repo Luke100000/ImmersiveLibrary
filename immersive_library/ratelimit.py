@@ -42,10 +42,9 @@ class RateLimit:
     async def __call__(
         self,
         request: Request,
-        token: str | None = None,
         authorization: str = Header(None),
     ) -> None:
-        user_id = await token_to_user_id(database, token, authorization)
+        user_id = await token_to_user_id(database, authorization)
         await self.hit(f"user:{user_id}" if user_id is not None else client_ip(request))
 
     async def hit(self, identity: str) -> None:

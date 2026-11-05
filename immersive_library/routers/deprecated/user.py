@@ -52,10 +52,9 @@ async def get_me(
 async def get_user(
     project: str,
     user_id: int,
-    token: str | None = None,
     authorization: str = Header(None),
 ) -> LegacyUserSuccess:
-    viewer_id = await token_to_user_id(database, token, authorization)
+    viewer_id = await token_to_user_id(database, authorization)
     return await legacy_user(project, user_id, viewer_id)
 
 
