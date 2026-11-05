@@ -73,9 +73,11 @@ class Project:
         description: str = "",
         report_reasons: Iterable[ReportReason] = (),
         description_context: str | None = None,
+        website: str = "",
     ) -> None:
         self.title = title
         self.description = description
+        self.website = website
         self.report_reasons = {
             reason.name: reason
             for reason in (DEFAULT_REPORT, *report_reasons, REVIEWED_REPORT)

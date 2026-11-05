@@ -609,6 +609,20 @@ a.title:hover {
     box-sizing: border-box;
 }
 
+.view-box .tags-container,
+.view-box .content-actions {
+    justify-content: center;
+}
+
+.project-link {
+    position: relative;
+    z-index: 4;
+    align-self: center;
+    margin-top: 16px;
+    font-size: 14px;
+    text-align: center;
+}
+
 /* The generated search description, mostly for debugging. */
 .description-hint {
     position: absolute;

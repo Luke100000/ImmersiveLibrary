@@ -56,6 +56,9 @@
             {% set title_heading = true %}
             {% include "components/content.jinja" %}
         </div>
+        {% if project_info.website %}
+            <a class="project-link" href="{{ project_info.website }}">{{ project_info.description }}</a>
+        {% endif %}
     </div>
 </main>
 {% endblock %}

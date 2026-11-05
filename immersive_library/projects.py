@@ -44,6 +44,7 @@ def register_projects() -> None:
         description="Clothing and hair for the villagers of Minecraft Comes Alive Reborn.",
         report_reasons=[ReportReason("INVALID", "Broken or not clothing")],
         description_context=MCA_DESCRIPTION_CONTEXT,
+        website="https://modrinth.com/mod/minecraft-comes-alive-reborn",
     )
     projects["mca"].validators = [
         TitleLengthValidator(),
@@ -55,8 +56,9 @@ def register_projects() -> None:
     # Add Immersive Furniture specific validators
     projects["furniture"] = Project(
         title="Immersive Furniture",
-        description="Furniture models built in-game.",
+        description="Models built and used in-game with Immersive Furniture.",
         description_context=FURNITURE_DESCRIPTION_CONTEXT,
+        website="https://modrinth.com/mod/immersive-furniture",
     )
     projects["furniture"].validators = [
         TitleLengthValidator(),
