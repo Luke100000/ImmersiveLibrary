@@ -1,12 +1,15 @@
 {% extends "base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
 
-{% block title %}Privacy Notice{% endblock %}
+{% block title %}Privacy Notice – Immersive Library{% endblock %}
+
+{% block embed %}{{ embed(self.title(), "How Immersive Library processes personal data.") }}{% endblock %}
 
 {% block content %}
 <main class="panel document">
 
-    <h2 id="privacy-notice-immersive-library">Privacy Notice – Immersive Library</h2>
-    <p>Last updated: 2026-02-10</p>
+    <h1 id="privacy-notice-immersive-library">Privacy Notice – Immersive Library</h1>
+    <p>Last updated: 2026-11-05</p>
     <p>This privacy notice explains how Immersive Library processes personal data when you use the service.</p>
     <hr>
 
@@ -96,6 +99,8 @@
         <li>Google, as an independent controller, for Google Sign-In authentication</li>
         <li>Public authorities, if required by law</li>
     </ul>
+    <p>Uploaded content is public, along with its title, tags and your username, and may appear in search engines
+        such as Google or Bing. We ask search engines not to index user profiles or the user list.</p>
     <hr>
 
     <h2 id="7-international-data-transfers">7. International data transfers</h2>

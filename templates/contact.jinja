@@ -1,6 +1,9 @@
 {% extends "base.jinja" %}
+{% from "components/embed.jinja" import embed with context %}
 
-{% block title %}Contact{% endblock %}
+{% block title %}Contact – Immersive Library{% endblock %}
+
+{% block embed %}{{ embed(self.title(), "How to contact Immersive Library.") }}{% endblock %}
 
 {% block content %}
 <main class="page-centered">
