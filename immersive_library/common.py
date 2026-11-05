@@ -10,6 +10,7 @@ from starlette.templating import Jinja2Templates
 from immersive_library.validators.validator import Validator
 
 templates = Jinja2Templates(directory="templates")
+templates.env.autoescape = True
 
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
 

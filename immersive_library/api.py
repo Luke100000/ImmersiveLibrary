@@ -158,6 +158,42 @@ async def cache_control_middleware(request: Request, call_next):
     return response
 
 
+CONTENT_SECURITY_POLICY = "; ".join(
+    (
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-eval' https://accounts.google.com/gsi/client",
+        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+        "img-src 'self' data:",
+        "connect-src 'self' https://accounts.google.com/gsi/",
+        "frame-src https://accounts.google.com/gsi/",
+        "frame-ancestors 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+    )
+)
+
+# The interactive API docs load their assets from a CDN.
+API_DOCS_PATHS = {app.docs_url, app.redoc_url, app.swagger_ui_oauth2_redirect_url}
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    )
+    if (
+        response.headers.get("Content-Type", "").startswith("text/html")
+        and request.url.path not in API_DOCS_PATHS
+    ):
+        response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+    return response
+
+
 # Prometheus integration
 instrumentator = Instrumentator().instrument(app)
 
@@ -173,9 +209,14 @@ async def validation_exception_handler(
         f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
         for error in exc.errors()
     )
+    # The rejected input is not echoed back.
+    detail = [
+        {key: value for key, value in error.items() if key != "input"}
+        for error in exc.errors()
+    ]
     return JSONResponse(
         status_code=422,
-        content={"message": message, "detail": jsonable_encoder(exc.errors())},
+        content={"message": message, "detail": jsonable_encoder(detail)},
     )
 
 
