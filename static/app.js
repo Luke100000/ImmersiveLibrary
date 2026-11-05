@@ -47,6 +47,18 @@ function pageConfig() {
     return element ? JSON.parse(element.textContent) : {};
 }
 
+function queryString(parameters) {
+    return Object.entries(parameters).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+}
+
+// Each target builds its preview card from the page's embed tags.
+const shareTargets = {
+    x: (url, title) => `https://x.com/intent/tweet?${queryString({text: title, url})}`,
+    reddit: (url, title) => `https://www.reddit.com/submit?${queryString({url, title})}`,
+    bluesky: (url, title) => `https://bsky.app/intent/compose?${queryString({text: `${title}\n${url}`})}`,
+    facebook: (url) => `https://www.facebook.com/sharer/sharer.php?${queryString({u: url})}`,
+};
+
 // Dialog state for creating or editing a collection.
 function collectionForm(submit, onSaved) {
     return {
@@ -336,6 +348,38 @@ document.addEventListener('alpine:init', () => {
             });
         },
     });
+
+    // Shares the page's canonical URL under its embed title, so links match their preview cards.
+    Alpine.data('shareMenu', () => ({
+        open: false,
+        copied: false,
+
+        get url() {
+            return document.querySelector('link[rel="canonical"]')?.href ?? window.location.origin + window.location.pathname;
+        },
+
+        get title() {
+            return document.querySelector('meta[property="og:title"]')?.content ?? document.title;
+        },
+
+        shareUrl(target) {
+            return shareTargets[target](this.url, this.title);
+        },
+
+        async copyUrl() {
+            try {
+                await navigator.clipboard.writeText(this.url);
+            } catch {
+                alert('Unable to copy link');
+                return;
+            }
+            this.copied = true;
+            setTimeout(() => {
+                this.copied = false;
+                this.open = false;
+            }, 1200);
+        },
+    }));
 
     // filters are fixed API parameters, e.g., the author on a user page.
     Alpine.data('contentList', (project, filters = {}) => ({
@@ -671,7 +715,8 @@ document.addEventListener('alpine:init', () => {
                 this.fetchContent(true).then((refreshed) => {
                     this.content.is_liked = refreshed.is_liked;
                     this.content.likes = refreshed.likes;
-                }).catch(() => {});
+                }).catch(() => {
+                });
             },
 
             requireUser() {

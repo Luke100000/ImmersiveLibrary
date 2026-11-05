@@ -1,6 +1,6 @@
 {% extends "library/base.jinja" %}
 {% from "components/embed.jinja" import embed with context %}
-{% from "components/macros.jinja" import action_button, action_link %}
+{% from "components/macros.jinja" import action_button, action_link, share_menu %}
 
 {% block title %}Collection – {{ project_info.title or project }}{% endblock %}
 
@@ -29,6 +29,7 @@
                     <div class="button-row detail-actions">
                         {{ action_link("similar", "Similar content", "similarUrl()") }}
                         {{ action_link("similar", "Similar collections", "similarCollectionsUrl()") }}
+                        {{ share_menu() }}
                         {{ action_button("edit", "Edit", "openEdit()", 'x-show="collection.is_owner"') }}
                         {{ action_button("delete", "Delete", "deleteCollection()", 'x-show="collection.is_owner" data-danger') }}
                     </div>

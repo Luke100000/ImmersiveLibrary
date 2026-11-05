@@ -1,12 +1,12 @@
 {% extends "base.jinja" %}
 {% from "components/embed.jinja" import embed with context %}
 
-{% block title %}{{ content.title }}{% endblock %}
+{% block title %}{{ content.title }} by {{ content.username }} – {{ project_info.title or project }}{% endblock %}
 
 {% block embed %}
     {{ embed(
         content.title ~ " by " ~ content.username,
-        plural(content.likes, "like") ~ " · Uploaded " ~ month_year(content.created_at),
+        (description or "") | truncate(200) or plural(content.likes, "like") ~ " · Uploaded " ~ month_year(content.created_at),
         request.url_for("render_content", project=project, content_id=content.content_id),
     ) }}
 {% endblock %}
