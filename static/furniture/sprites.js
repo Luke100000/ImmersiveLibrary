@@ -1,9 +1,11 @@
-const TEXTURE_ROOT = '/static/vendor/pixel-perfection/assets/minecraft/textures/';
+const PACK_ROOT = '/static/vendor/pixel-perfection/';
+const TEXTURE_ROOT = `${PACK_ROOT}assets/minecraft/textures/`;
 
 // Animation frames last a number of game ticks
 const TICK = 50;
 
 const cache = new Map();
+let index;
 
 // Maps the sprite names of the elements to their textures, or to null for textures the pack does not have
 export async function loadSprites(elements) {
@@ -18,9 +20,20 @@ function loadSprite(id) {
     return cache.get(id);
 }
 
+// Maps the sprites the pack has to whether they have a .mcmeta
+function loadIndex() {
+    index ??= fetch(`${PACK_ROOT}index.json`)
+        .then(response => response.json())
+        .then(sprites => new Map(Object.entries(sprites)))
+        .catch(() => new Map());
+    return index;
+}
+
 async function fetchSprite(id) {
     const [namespace, path] = id.split(':');
-    if (namespace !== 'minecraft' || !/^(block|item)\/[a-z0-9_]+$/.test(path)) return null;
+    if (namespace !== 'minecraft') return null;
+    const hasMeta = (await loadIndex()).get(path);
+    if (hasMeta === undefined) return null;
 
     const image = new Image();
     image.src = `${TEXTURE_ROOT}${path}.png`;
@@ -31,7 +44,7 @@ async function fetchSprite(id) {
     }
 
     // Animated textures are strips of frames, the texture shows one frame at a time
-    const animation = image.naturalHeight > image.naturalWidth ? await fetchAnimation(path, image) : null;
+    const animation = image.naturalHeight > image.naturalWidth ? await fetchAnimation(path, image, hasMeta) : null;
     const canvas = document.createElement('canvas');
     canvas.width = animation?.width ?? image.naturalWidth;
     canvas.height = animation?.height ?? image.naturalWidth;
@@ -61,9 +74,9 @@ function measureTransparency(image) {
     return {cutout, translucent};
 }
 
-async function fetchAnimation(path, image) {
-    const response = await fetch(`${TEXTURE_ROOT}${path}.png.mcmeta`);
-    const meta = response.ok ? (await response.json().catch(() => ({}))).animation ?? {} : {};
+async function fetchAnimation(path, image, hasMeta) {
+    const response = hasMeta ? await fetch(`${TEXTURE_ROOT}${path}.png.mcmeta`) : null;
+    const meta = response?.ok ? (await response.json().catch(() => ({}))).animation ?? {} : {};
 
     const width = meta.width ?? image.naturalWidth;
     const height = meta.height ?? width;

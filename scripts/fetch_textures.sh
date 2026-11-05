@@ -24,3 +24,10 @@ mkdir -p "$target"
 for revision in $revisions; do
     git -C "$cache" archive "$revision" assets/minecraft/textures/block assets/minecraft/textures/item | tar -x -C "$target"
 done
+
+# The viewer only requests sprites listed here, mapped to whether they have a .mcmeta
+cd "$target/assets/minecraft/textures"
+find block item -maxdepth 1 -name '*.png' | sed -n 's/^\([a-z]*\/[a-z0-9_]*\)\.png$/\1/p' | sort | while read -r sprite; do
+    [ -f "$sprite.png.mcmeta" ] && meta=true || meta=false
+    printf '"%s":%s\n' "$sprite" "$meta"
+done | paste -sd, | sed 's/.*/{&}/' > ../../../index.json
