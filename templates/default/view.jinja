@@ -8,6 +8,9 @@
     {% set image = request.url_for("render_content", project=project, content_id=content.content_id) %}
     {% set url = public_url(request.url_for("get_content_front", project=project, content_id=content.content_id)) %}
     {{ embed(content.title ~ " by " ~ content.username, summary, image) }}
+    {% if not indexable %}
+        <meta name="robots" content="noindex">
+    {% endif %}
     {{ structured_data({
         "@context": "https://schema.org",
         "@type": "CreativeWork",

@@ -12,6 +12,7 @@ from immersive_library.common import projects, templates
 from immersive_library.services import collections as collection_service
 from immersive_library.services import content as content_service
 from immersive_library.services import descriptions as description_service
+from immersive_library.services import sitemap as sitemap_service
 from immersive_library.services import statistics as statistics_service
 from immersive_library.services import users as user_service
 from immersive_library.utils import user_from_record
@@ -203,4 +204,5 @@ async def get_content_front(request: Request, project: str, content_id: int):
         section="content",
         content=content,
         description=await description_service.get_description(content_id),
+        indexable=await sitemap_service.is_indexable(project, content_id),
     )

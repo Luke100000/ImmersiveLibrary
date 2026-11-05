@@ -9,6 +9,7 @@ from immersive_library.routers import (
     misc,
     render,
     report,
+    seo,
     tag,
     tools,
     user,
@@ -26,6 +27,7 @@ router.include_router(render.router)
 router.include_router(like.router)
 router.include_router(misc.router)
 router.include_router(report.router)
+router.include_router(seo.router)
 router.include_router(tag.router)
 router.include_router(tools.router)
 router.include_router(user.router)

@@ -47,3 +47,8 @@ class ContentTrack(str, Enum):
     ALL = "all"
     LIKES = "likes"
     SUBMISSIONS = "submissions"
+
+
+class SitemapSection(str, Enum):
+    CONTENT = "content"
+    COLLECTIONS = "collections"
