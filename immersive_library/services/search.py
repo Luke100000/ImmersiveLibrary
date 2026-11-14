@@ -1,3 +1,4 @@
+import math
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -21,11 +22,18 @@ MAX_TERM_WORDS = 20
 # All words in what uploaders wrote, or all of them in the description.
 STRICT_QUERY = "({{title tags username}} : ({words})) OR (description : ({words}))"
 
+METADATA_TERM = re.compile(r"\$(\w+)(?:\s*(!=|[<>]=?|=)\s*(.*))?")
+
+# Unlike = and !=, these also compare with missing fields.
+METADATA_EQUALITY = {"=": "IS", "!=": "IS NOT"}
+
+JSON_BOOLEANS = {"true": 1, "false": 0}
+
 
 @dataclass
 class SearchPlan:
     conditions: list[str] = field(default_factory=list)
-    values: dict[str, str] = field(default_factory=dict)
+    values: dict[str, str | int | float] = field(default_factory=dict)
     ranking: str | None = None
 
 
@@ -55,6 +63,25 @@ def query_terms(q: str | None) -> Iterator[tuple[str, str, bool]]:
         yield f"term_{index}", term[1:].strip() if negated else term, negated
 
 
+def metadata_value(text: str) -> str | int | float:
+    """Converts a value to what json_extract returns, as text never equals a number."""
+    if text in JSON_BOOLEANS:
+        return JSON_BOOLEANS[text]
+    try:
+        number = float(text)
+    except ValueError:
+        return text
+    return number if math.isfinite(number) else text
+
+
+def metadata_comparison(field: str, operator: str, value: str) -> str:
+    if operator in METADATA_EQUALITY:
+        return f"{field} {METADATA_EQUALITY[operator]} {value}"
+    # SQLite sorts all text after all numbers, which says nothing about the values.
+    return f"""COALESCE({field} {operator} {value}
+                    AND (typeof({field}) = 'text') = (typeof({value}) = 'text'), 0)"""
+
+
 def plan_content_search(q: str | None, rank: bool = True) -> SearchPlan:
     plan = SearchPlan()
     ranking_queries = []
@@ -68,6 +95,16 @@ def plan_content_search(q: str | None, rank: bool = True) -> SearchPlan:
                     WHERE tags.content_id = c.oid AND tags.tag = :{parameter}
                 )"""
             plan.values[parameter] = search_term[1:].strip()
+        elif metadata_term := METADATA_TERM.fullmatch(search_term):
+            name, operator, value = metadata_term.groups()
+            plan.values[parameter] = f"$.{name}"
+            metadata = f"json_extract(c.meta, :{parameter})"
+            if operator is None:
+                test = f"COALESCE({metadata}, 0) NOT IN (0, '')"
+            else:
+                plan.values[f"{parameter}_value"] = metadata_value(value)
+                test = metadata_comparison(metadata, operator, f":{parameter}_value")
+            condition = f"CASE WHEN json_valid(c.meta) THEN {test} ELSE 0 END"
         elif term_words := words(search_term):
             title_only = search_term.startswith("~")
             ranked = rank and not negated

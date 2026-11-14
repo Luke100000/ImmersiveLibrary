@@ -24,7 +24,7 @@
         {{ order_control() }}
         {{ inclusion_control("banned", "Banned users") }}
         {{ inclusion_control("reported", "Reported") }}
-        {{ search_control("Search: @user, #tag, ~title, -exclude") }}
+        {{ search_control("Search: @user, #tag, ~title, $meta=value, -exclude") }}
     </div>
 
     {% include "components/similar-notice.jinja" %}
