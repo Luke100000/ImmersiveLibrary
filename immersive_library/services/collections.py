@@ -13,7 +13,10 @@ from immersive_library.services.recommendations import (
     preference_strength,
     recommendation_score,
 )
-from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
+from immersive_library.services.reports import (
+    COLLECTION_CONTENT_VISIBILITY,
+    COLLECTION_VISIBILITY,
+)
 from immersive_library.services.search import (
     plan_collection_search,
     rank_ordering,
@@ -91,12 +94,11 @@ async def list_collections(
         """
         values["similar_to"] = similar_to
         values["similar_to_collection"] = similar_to_collection
-        values["similar_viewer_id"] = viewer_id
     if ctes:
         query = "WITH " + ", ".join(ctes) + query
-    query += """
+    query += f"""
         WHERE collections.project=:project
-        AND (collections.user_id=:viewer_id OR collections.is_public=1)
+        AND {COLLECTION_VISIBILITY}
     """
     if author_id is not None:
         query += " AND collections.user_id=:author_id"
@@ -157,9 +159,9 @@ async def get_collection(
 ) -> Collection:
     record = await database.fetch_one(
         COLLECTION_SELECT
-        + """
+        + f"""
             WHERE collections.project=:project AND collections.oid=:collection_id
-            AND (collections.user_id=:viewer_id OR collections.is_public=1)
+            AND {COLLECTION_VISIBILITY}
         """,
         {
             "project": project,

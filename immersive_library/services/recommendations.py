@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from databases import Database
 
 from immersive_library.database import database
-from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
+from immersive_library.services.reports import (
+    COLLECTION_CONTENT_VISIBILITY,
+    COLLECTION_VISIBILITY,
+)
 from immersive_library.services.search import reciprocal_rank, within_results
 from immersive_library.utils import DAY, HOUR, RECENT_DAYS
 
@@ -63,13 +66,13 @@ SIMILAR_IMAGE_SHARE = 0.75
 PREFERENCE_IMAGE_SHARE = 0.25
 
 
-SIMILAR_SEEDS = """
+SIMILAR_SEEDS = f"""
     SELECT oid AS content_id, 1.0 AS weight FROM content WHERE oid = :similar_to
     UNION ALL
     SELECT content_id, 1.0 FROM collection_items
     WHERE collection_id = :similar_to_collection AND EXISTS (
-        SELECT 1 FROM collections WHERE oid = :similar_to_collection AND project = :project
-            AND (user_id = :similar_viewer_id OR is_public = 1)
+        SELECT 1 FROM collections WHERE oid = :similar_to_collection
+            AND collections.project = :project AND {COLLECTION_VISIBILITY}
     )
 """
 
@@ -187,7 +190,7 @@ def collection_affinity(name: str, scores: str) -> str:
             JOIN precomputation ON precomputation.content_id=c.oid
             WHERE {COLLECTION_CONTENT_VISIBILITY}
                 AND collections.project=:project
-                AND (collections.user_id=:viewer_id OR collections.is_public=1)
+                AND {COLLECTION_VISIBILITY}
                 AND {scores}.score > 0
             GROUP BY collection_items.collection_id
         )"""

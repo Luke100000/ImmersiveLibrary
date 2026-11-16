@@ -16,6 +16,12 @@ COLLECTION_CONTENT_VISIBILITY = f"""
     )
 """
 
+# Collections the viewer can see: public, their own, or any for moderators.
+COLLECTION_VISIBILITY = """(
+    collections.is_public=1 OR collections.user_id=:viewer_id
+    OR EXISTS (SELECT 1 FROM users AS viewer WHERE viewer.oid=:viewer_id AND viewer.moderator)
+)"""
+
 
 async def can_see_hidden(viewer_id: int | None) -> bool:
     return viewer_id is not None and await is_moderator(database, viewer_id)

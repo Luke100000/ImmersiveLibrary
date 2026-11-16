@@ -3,7 +3,10 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from immersive_library.services.reports import COLLECTION_CONTENT_VISIBILITY
+from immersive_library.services.reports import (
+    COLLECTION_CONTENT_VISIBILITY,
+    COLLECTION_VISIBILITY,
+)
 
 # bm25 weights of the title, tags, username and description columns.
 KEYWORD_COLUMNS = "4.0, 3.0, 2.0, 1.0"
@@ -156,7 +159,7 @@ def collection_keyword_ranking(parameter: str, title_only: bool) -> str:
         FROM {metadata_hits} hits
         JOIN collections ON collections.oid=hits.rowid
         WHERE collections.project=:project
-            AND (collections.user_id=:viewer_id OR collections.is_public=1)
+            AND {COLLECTION_VISIBILITY}
     """
     ctes = [
         f"""{metadata_hits} AS MATERIALIZED (
@@ -184,7 +187,7 @@ def collection_keyword_ranking(parameter: str, title_only: bool) -> str:
             JOIN precomputation ON precomputation.content_id=c.oid
             WHERE {COLLECTION_CONTENT_VISIBILITY}
                 AND collections.project=:project
-                AND (collections.user_id=:viewer_id OR collections.is_public=1)
+                AND {COLLECTION_VISIBILITY}
             GROUP BY collection_items.collection_id
         """
     ctes.append(f"{matches} AS MATERIALIZED ({sources})")

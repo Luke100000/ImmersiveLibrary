@@ -15,7 +15,7 @@ from immersive_library.services.recommendations import (
     preference_strength,
     recommendation_score,
 )
-from immersive_library.services.reports import REPORT_SCORE
+from immersive_library.services.reports import COLLECTION_VISIBILITY, REPORT_SCORE
 from immersive_library.services.search import (
     plan_content_search,
     rank_ordering,
@@ -101,7 +101,7 @@ async def list_records(
         """
         values["similar_to"] = similar_to
         values["similar_to_collection"] = similar_to_collection
-        values["similar_viewer_id"] = viewer_id
+        values["viewer_id"] = viewer_id
     if ctes:
         query = "WITH " + ", ".join(ctes) + query
 
@@ -115,14 +115,14 @@ async def list_records(
     query += "\n WHERE c.project = :project"
 
     if collection_id is not None:
-        query += """
+        query += f"""
             AND EXISTS (
                 SELECT 1 FROM collections WHERE oid=:collection_id AND project=:project
-                    AND (user_id=:collection_viewer_id OR is_public=1)
+                    AND {COLLECTION_VISIBILITY}
             )
         """
         values["collection_id"] = collection_id
-        values["collection_viewer_id"] = viewer_id
+        values["viewer_id"] = viewer_id
 
     if author_id is not None:
         query += "\n AND c.user_id = :author_id"
