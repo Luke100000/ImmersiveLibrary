@@ -6,8 +6,8 @@ from typing import Any
 
 import orjson
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi_cache import Coder, FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -161,7 +161,7 @@ async def cache_control_middleware(request: Request, call_next):
 CONTENT_SECURITY_POLICY = "; ".join(
     (
         "default-src 'self'",
-        "script-src 'self' 'unsafe-eval' https://accounts.google.com/gsi/client",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com/gsi/client",
         "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
         "img-src 'self' data:",
         "connect-src 'self' https://accounts.google.com/gsi/",

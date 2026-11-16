@@ -183,7 +183,9 @@ function pagedList({project, endpoint, itemsKey, idName, itemUrl, pageSize, sett
         goToPage(page) {
             this.page = page;
             this.load();
-            this.$root.scrollIntoView({block: 'start'});
+            if (this.$root.getBoundingClientRect().top < 0) {
+                this.$root.scrollIntoView({block: 'start'});
+            }
         },
 
         async load() {
